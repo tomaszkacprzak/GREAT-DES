@@ -1,0 +1,31 @@
+This is a guide to running your code on test1.
+
+INPUT
+
+(1) The image data was generated using 
+	GREAT-DES/test1_run1/shear_test1.meds.yaml
+
+(2) There are 90 meds files in the 
+	GREAT-DES/test1_run1/data/
+	Each contains 1024 single exporure images. No segmentation, weights, or badpix are supplied.
+
+(3) Image size is 64 pixels and pixel scale is 0.27 arcsec.
+
+(4) The PSF is a Kolomogorov with fwhm=0.8. In the above directory there is a PSF file, which you 
+	can use. You can also use galsim to create it.
+
+OUTPUT - proposed format
+
+(1) One output file per meds file with filename: (example):
+		data/profile01ellip00hlr04.meds ---> results/im3shape/profile01ellip00hlr04.meds.im3shape.cat 
+
+(2) Columns for the file: # g1 g2. It would be great if there was an entry for each galaxy in the 
+	meds file, Even if your code doesn't output a shear for it for some reason. 
+	Flag value of for example 666 can be used for errors.
+
+PLOTS
+
+There is a script in GREAT-DES-REPO/test1/test1_plots.py, which can be used to make plots.
+So far it's very basic, so comments and contributions are welcome!
+
+
