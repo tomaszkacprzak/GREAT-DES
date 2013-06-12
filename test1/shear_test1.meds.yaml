@@ -60,6 +60,18 @@ eval_variables:
     fg1 : &g1 0.03
     fg2 : &g2 0.02
 
+    # these variables are here to match the file structure of the DES data on NERSC
+    sDESDATA      :  &DESDATA      test1 
+    # appending fits.fz here because if we leave just 005 it gets changed to 5
+    smeds_version :  &meds_version 005.fits.fz
+    scoadd_run    :  &coadd_run    run1 
+    # name for the tile will be created within yaml
+    stilename     :  &tilename     custom 
+    sband         :  &band         test1
+
+    # $DESDATA/meds/${meds_version}/${coadd_run}/${tilename}-${band}-meds-${meds_version}.fits.fz
+
+
 # For the PSF, we just use a simple Komogorov spectrum.  Slightly more realistic than a 
 # Gaussian, but ellipticity, never mind things like realistic coma or astigmatism.
 # GalSim has those, but for this test we're concentrating on the galaxy properties.
@@ -203,11 +215,10 @@ output :
     # How many files?  nprof * nellip * nhlr
     nfiles : { type : Eval, str : 'nprof * nellip * nhlr' }
     
-    dir : data
-        
     file_name :
         type : Eval
-        str : "str1 + str2 + str3 + '.meds'"
+        # $DESDATA/meds/${meds_version}/${coadd_run}/${tilename}-${band}-meds-${meds_version}.fits.fz
+        str : "str1 + str2 + str3 + '-' + band + '-meds-' + meds_version"
         # The first part of the filename will be profileNN where NN goes from 01..06.
         # So the profile number increments by 1 every nellip * nhlr files.
         sstr1 :
@@ -244,6 +255,9 @@ output :
                 step : { type : Eval, str : 'hlr_step * 10' }
                 nitems : *nhlr
             digits : 2
+        
+        # $DESDATA/meds/${meds_version}/${coadd_run}/${tilename}-${band}-meds-${meds_version}.fits.fz
+
 
     # Also output a file with the (noise-free) PSF.  This will be created once per directory.
     # You could specify dir="" or some other directory, in which case only one file would

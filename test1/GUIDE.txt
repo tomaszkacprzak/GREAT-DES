@@ -29,3 +29,17 @@ There is a script in GREAT-DES-REPO/test1/test1_plots.py, which can be used to m
 So far it's very basic, so comments and contributions are welcome!
 
 
+$DESDATA=test1 
+${meds_version} = 005
+${coadd_run} = run1 
+${tilename} = test1
+${band} = test1
+
+
+$DESDATA/meds/005/20130305000001_DES0103-4957/DES0103-4957-i-meds-005.fits.fz
+
+The scheme is
+
+$DESDATA/meds/${meds_version}/${coadd_run}/${tilename}-${band}-meds-${meds_version}.fits.fz
+
+
