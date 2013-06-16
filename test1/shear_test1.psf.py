@@ -50,3 +50,38 @@ filename_psf_hires = 'psf.hires.fits'
 img.write(filename_psf_hires)
 print 'saved %s' % filename_psf_hires
 
+# now create the PSF - fields for the shapelet pipeline
+ny_tiles = nx_tiles = 30
+
+psf_image = galsim.ImageF(n_pix * nx_tiles-1 , n_pix * ny_tiles-1)
+psf_image.setScale(pixel_scale)
+random_seed=123123
+
+shift_radius = pixel_scale *0.5     
+shift_radius_sq = shift_radius**2
+
+k=0;
+for iy in range(ny_tiles):
+    for ix in range(nx_tiles):
+        ud = galsim.UniformDeviate(random_seed+k)
+
+        # Apply a random shift_radius:
+        rsq = 2 * shift_radius_sq
+        while (rsq > shift_radius_sq):
+            dx = (2*ud()-1) * shift_radius
+            dy = (2*ud()-1) * shift_radius
+            rsq = dx**2 + dy**2
+
+        this_psf = final.createShifted(dx,dy)
+
+        b = galsim.BoundsI(ix*n_pix+1 , (ix+1)*n_pix-1, iy*n_pix+1 , (iy+1)*n_pix-1)
+        sub_psf_image = psf_image[b]
+        this_psf.draw(sub_psf_image,dx=pixel_scale)
+        k+=1;
+
+# save the tiled PSF image
+filename_psf_field = 'psf.field.fits'
+psf_image.write(filename_psf_field)
+print 'saved %s' % filename_psf_field
+
+

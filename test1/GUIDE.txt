@@ -25,16 +25,17 @@ INPUT
 (3) Image size is 64 pixels and pixel scale is 0.27 arcsec.
 
 (4) The PSF is a Kolomogorov with fwhm=0.8.
-	There is a single PSF file 
-	GREAT-DES/test1_run1/meds/005/run1/psf.fits at resolution and pixel_scale the same as the galaxy,
-	and also upsampled by 5, and 4 pixel padding version for im3shape
+	There are three ways to get the PSF:
+    (1) single PSF file GREAT-DES/test1_run1/meds/005/run1/psf.fits at resolution and pixel_scale the same as the galaxy,
+	(2) field of PSFs, all of the same object, but with randomly shifted centers
+    (3) high resolution PSF, upsampled by 5, and 4 pixel padding version for im3shape (total image size: (64+4)*5)
 
 OUTPUT - proposed format
 
 (1) One output file per meds file with filename: (example):
 		 profile04ellip06hlr20-test1-meds-005.fits.fz --->  profile04ellip06hlr20-test1-meds-005.fits.fz.im3shape.cat
 
-(2) Columns for the file: # g1 g2. It would be great if there was an entry for each galaxy in the 
+(2) Columns  for the file: # g1 g2. It would be great if there was an entry for each galaxy in the 
 	meds file, Even if your code doesn't output a shear for it for some reason. 
 	Flag value of for example 666 can be used for errors.
 
