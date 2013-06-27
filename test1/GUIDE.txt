@@ -3,23 +3,39 @@ This is a guide to running your code on test1.
 INPUT
 
 (1) The image data was generated using 
-	GREAT-DES/test1_run1/shear_test1.meds.yaml
+	sh generate_test1.sh
+	which uses REAT-DES/test1_run1/shear_test1.meds.yaml and shear_test1.psf.py
 
 (2) There are 90 meds files in the 
-	GREAT-DES/test1_run1/data/
+	GREAT-DES/test1/meds/005/run1/
 	Each contains 1024 single exporure images. No segmentation, weights, or badpix are supplied.
+
+	using Erins variables to create meds filepath, which is:
+	$DESDATA/meds/${meds_version}/${coadd_run}/${tilename}-${band}-meds-${meds_version}.fits.fz
+	those can be used:
+	DESDATA=/global/project/projectdirs/des/wl/desdata/users/cogs/GREAT-DES/test1/
+	meds_version=005
+	coadd_run=run1 
+	tilename=profile04ellip06hlr20 (example)
+	band=test1
+	so example filepath would be :
+	/global/project/projectdirs/des/wl/desdata/users/cogs/GREAT-DES/test1/meds/005/run1/profile01ellip00hlr04-test1-meds-005.fits.fz
+
 
 (3) Image size is 64 pixels and pixel scale is 0.27 arcsec.
 
-(4) The PSF is a Kolomogorov with fwhm=0.8. In the above directory there is a PSF file, which you 
-	can use. You can also use galsim to create it.
+(4) The PSF is a Kolomogorov with fwhm=0.8.
+	There are three ways to get the PSF:
+    (1) single PSF file GREAT-DES/test1_run1/meds/005/run1/psf.fits at resolution and pixel_scale the same as the galaxy,
+	(2) field of PSFs, all of the same object, but with randomly shifted centers
+    (3) high resolution PSF, upsampled by 5, and 4 pixel padding version for im3shape (total image size: (64+4)*5)
 
 OUTPUT - proposed format
 
 (1) One output file per meds file with filename: (example):
-		data/profile01ellip00hlr04.meds ---> results/im3shape/profile01ellip00hlr04.meds.im3shape.cat 
+		 profile04ellip06hlr20-test1-meds-005.fits.fz --->  profile04ellip06hlr20-test1-meds-005.fits.fz.im3shape.cat
 
-(2) Columns for the file: # g1 g2. It would be great if there was an entry for each galaxy in the 
+(2) Columns  for the file: # g1 g2. It would be great if there was an entry for each galaxy in the 
 	meds file, Even if your code doesn't output a shear for it for some reason. 
 	Flag value of for example 666 can be used for errors.
 
@@ -28,18 +44,5 @@ PLOTS
 There is a script in GREAT-DES-REPO/test1/test1_plots.py, which can be used to make plots.
 So far it's very basic, so comments and contributions are welcome!
 
-
-$DESDATA=test1 
-${meds_version} = 005
-${coadd_run} = run1 
-${tilename} = test1
-${band} = test1
-
-
-$DESDATA/meds/005/20130305000001_DES0103-4957/DES0103-4957-i-meds-005.fits.fz
-
-The scheme is
-
-$DESDATA/meds/${meds_version}/${coadd_run}/${tilename}-${band}-meds-${meds_version}.fits.fz
 
 

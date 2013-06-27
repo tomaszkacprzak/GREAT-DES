@@ -258,9 +258,3 @@ output :
         
         # $DESDATA/meds/${meds_version}/${coadd_run}/${tilename}-${band}-meds-${meds_version}.fits.fz
 
-
-    # Also output a file with the (noise-free) PSF.  This will be created once per directory.
-    # You could specify dir="" or some other directory, in which case only one file would
-    # be created in total, but currently a version of psf.fits is built in each directory.
-    # psf :
-        # file_name : 'psf.fits'
