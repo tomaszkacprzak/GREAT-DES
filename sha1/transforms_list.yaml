@@ -18,10 +18,12 @@ truth:
     'gal_delta' : 0
     'gal_r' : 3.
     'n_pix' : 128
+    'psf_beta' : 3.5
+    'psf_fwhm' : 0.9
 
 
 # transformations of the image on the coadd x,y coordinate system
-transforms_xy:
+transforms:
     # 0 no shift, no rotation, no shear, scale
     - { dudx : 0.1, dvdy : 0.1 , dudy : 0.0, dvdx : 0.0, y0 : 64.0 , x0 : 64.0 }
     # 1 shift in x direction
