@@ -41,7 +41,7 @@ transforms:
     # 7 rotation by 30deg, stretch and shift
     - { dudx : 0.4330, dvdy : 0.0866 , dudy : -0.2500, dvdx : 0.0500, y0 : 54.0 , x0 : 54.0 }
     # 8 des chip 
-    - { dudy : 0.26, dvdx : -0.26 , dudx : 0.1, dvdy : 0.1, y0 : 74.0 , x0 : 34.0 }    
+    - { dudx : 0.26, dvdy : 0.26 , dudy : 0.1, dvdx : 0.1, y0 : 74.0 , x0 : 34.0 }    
     # - { dudx : 0.5, dvdy : 0.1 , dudy : 0.0, dvdx : 0.0, y0 : 64.0 , x0 : 64.0 }
     
 
