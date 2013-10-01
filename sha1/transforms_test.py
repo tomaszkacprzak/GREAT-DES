@@ -4,6 +4,41 @@ import numpy
 import galsim.des
 
 DES_PIXEL_SCALE = 0.27
+UNIT_PIXEL_SCALE = 1.
+
+# ( u ) = ( dudrow  dudcol ) ( row )
+# ( v )   ( dvdrow  dvdcol ) ( col )
+
+class TestGal(object):
+
+    self.Q
+
+    def __init__(self,circular_gso):
+
+        self.gso = circular_gso;
+        self.Q = numpy.array([0,0;0,0])
+
+
+    def apply_transform(self,wcstrans):
+
+        # x'*x --> x'*A'*A*x
+        self.Q = numpy.dot(wcstrans.Jxy.T , self.Q )
+        self.Q = numpy.dot(self.Q,wcstrans)
+
+    def get_elliptical_object(self,wcstrans):
+
+        Qxx = self.Q[0,0]
+        Qxy = self.Q[1,0]
+        Qyy = self.Q[1,1]
+
+        g1 = (Qxx - Qyy)/(Qxx+Qyy+2*numpy.sqrt(Qxx*Qyy - Qxy**2))
+        g2 = (2*1j*Qxy)/(Qxx+Qyy+2*numpy.sqrt(Qxx*Qyy - Qxy**2))
+
+        gso_copy = self.gso.copy()
+        gso_copy.applyShear(g1=g1,g2=g2)
+
+        return gso_copy()
+
 
 class WCSTransform(object):
     """
@@ -54,8 +89,10 @@ class WCSTransform(object):
             self.dudy = kwargs['dudy']
             self.dvdx = kwargs['dvdx']
             self.dvdy = kwargs['dvdy']         
-            self.col0   =  stamp_size[1]-self.y0
-            self.row0   =  stamp_size[0]-self.x0    
+            # self.col0   =  stamp_size[1]-self.y0
+            # self.row0   =  stamp_size[0]-self.x0    
+            self.col0   =  self.y0
+            self.row0   =  self.x0    
             self.dudrow = -self.dudx   
             self.dudcol = -self.dudy  
             self.dvdrow = -self.dvdx  
@@ -90,55 +127,55 @@ class WCSTransform(object):
         """
         
         # galsim shift 
-        dx = self.col0 * DES_PIXEL_SCALE
-        dy = self.row0 * DES_PIXEL_SCALE
+        dx = self.col0 
+        dy = self.row0 
 
         return dx,dy
 
 
-    def get_galsim_shear(self):
+    def get_galsim_shears(self):
         # get galsim shear to apply to object which will correspond to the WCS transformation
 
         # find the major and minor axis of the ellipse
-        V,S,U = numpy.linalg.svd(self.invJcolrow)
-
-        # major axis direction
-        v1 = V[:,0]
-        # minor axis direction
-        v2 = V[:,1]
-        # major axis scale
-        s1 = S[0]
-        # minor axis scale
-        s2 = S[1]
-        # x axis, coodrinate system vector to project on 
-        i1 = [1,0];
-        # get the angle between major axis and x axis
-        cos_theta = numpy.dot(v1,i1)/(numpy.linalg.norm(v1)*numpy.linalg.norm(i1));
-        theta = numpy.arccos(cos_theta)
+        # U,S,V = numpy.linalg.svd(self.invJcolrow)
+        U,S,V = numpy.linalg.svd(self.Jxy)
+        VT = V.T;
+        print 'Jxy'
+        print self.Jxy
+        print 'U'
+        print U
+        print 'S'
+        print S
+        print 'V'
+        print V
         # get shear
-        g = (s1-s2)/(s1+s2)
-        # check for numerical stability
-        g=self.check_zero(g)
-        return g,theta  
+        g = (S[0]-S[1])/(S[0]+S[1])
+        # get rotation matrix1
+        theta1 = numpy.angle(VT[0,0]+1j*VT[1,0]);
+        theta2 = numpy.angle(U[0,0]+1j*U[1,0]);
+        
+        return g,theta1,theta2  
         
 
     def get_galsim_dilation(self):
 
         # dilation will correspond to the sqrt of the determinant of inverse transform
-        return numpy.sqrt(numpy.abs(numpy.linalg.det(self.invJxy))) * DES_PIXEL_SCALE
+        return numpy.sqrt(numpy.abs(numpy.linalg.det(self.Jxy))) 
 
     def apply_wcs_transformations(self,gsobj):
         # apply shift, shear and dilation to a GSObject
 
         dx,dy = self.get_galsim_shift()
-        g,theta = self.get_galsim_shear()
+        g,theta1,theta2 = self.get_galsim_shears()
         dr = self.get_galsim_dilation()
-
+        
         print 'shift : dx=%2.4f dy=  %2.4f' % (dx,dy)
-        print 'shear : g =%2.4f beta=%2.4f' % (g,theta)
+        print 'shear : g =%2.4f theta1=%2.4f (%2.4f deg) theta2=%2.4f (%2.4f deg)' % (g,theta1,theta1*180./numpy.pi,theta2,theta2*180./numpy.pi)
         print 'scale : r =%2.4f' % (dr)
 
-        gsobj.applyShear(galsim.Shear(g=g,beta=theta*galsim.radians))
+        gsobj.applyRotation(theta=theta1*galsim.radians)
+        gsobj.applyShear(g=g,beta=0*galsim.radians)
+        gsobj.applyRotation(theta=theta2*galsim.radians)
         gsobj.applyDilation(dr)
         gsobj.applyShift(dx=dx,dy=dy)
 
@@ -149,17 +186,32 @@ class WCSTransform(object):
         print '(x,y) coordinates'
         print 'x0   % 2.4f ' % self.x0
         print 'y0   % 2.4f ' % self.y0
-        print '[ dudx dudy     ] = [ % 2.4f % 2.4f ] ' % (self.dudx, self.dvdx)
-        print '[ dvdx dvdy     ] = [ % 2.4f % 2.4f ] ' % (self.dudy, self.dvdy)
+        print '[ dudx dudy     ] = [ % 2.4f % 2.4f ] ' % (self.dudx, self.dudy)
+        print '[ dvdx dvdy     ] = [ % 2.4f % 2.4f ] ' % (self.dvdx, self.dvdy)
 
         print '(col,row) coordinates'
         print 'col0 % 2.4f ' % self.col0
         print 'row0 % 2.4f ' % self.row0
-        print '[ dudrow dvdrow ] = [ % 2.4f % 2.4f ] ' % (self.dudrow, self.dvdrow)
-        print '[ dudcol dvdcol ] = [ % 2.4f % 2.4f ] ' % (self.dudcol, self.dvdcol)
+        print '[ dudrow dudcol ] = [ % 2.4f % 2.4f ] ' % (self.dudrow, self.dvdrow)
+        print '[ dvdrow dvdcol ] = [ % 2.4f % 2.4f ] ' % (self.dudcol, self.dvdcol)
 
+    def get_invese(self):
 
-def get_image(gsgal,gspsf=None,n_pix=100,center=False):
+        # self.Jxy = numpy.array(
+        #     [ [self.dudx , self.dudy] ,
+        #       [self.dvdx , self.dvdy] ] )
+
+        x0 = -self.x0
+        y0 = -self.y0
+        dudx = self.invJxy[0,0] 
+        dudy = self.invJxy[0,1]
+        dvdx = self.invJxy[1,0] 
+        dvdy = self.invJxy[1,1] 
+    
+        return WCSTransform(self.stamp_size, x0 = x0, y0 = y0, dudx = dudx, dudy = dudy, dvdx = dvdx, dvdy = dvdy)
+    
+
+def get_image(gsgal,gspsf=None,n_pix=100,colrow=False):
     """
     Get GalSim image of GSObject.
     If PSF was supplied then use it, otherwise use only pixel kernel.
@@ -170,17 +222,20 @@ def get_image(gsgal,gspsf=None,n_pix=100,center=False):
             stamp, if not then use offset = -trueCenter() while drawing, 
     """
 
-    img = galsim.ImageD(n_pix,n_pix)
-    pix = galsim.Pixel(DES_PIXEL_SCALE)
-    if gspsf==None:
-        gsobj = galsim.Convolve([gsgal,pix])
-    else:
-        gsobj = galsim.Convolve([gsgal,pix,gspsf])
+    gsp = galsim.GSParams()
+    gsp.maximum_fft_size=20000
 
-    if center:
-        gsobj.draw(img,dx=DES_PIXEL_SCALE)
+    img = galsim.ImageD(n_pix,n_pix)
+    pix = galsim.Pixel(UNIT_PIXEL_SCALE)
+    if gspsf==None:
+        gsobj = galsim.Convolve([gsgal,pix],gsparams=gsp)
     else:
-        gsobj.draw(img,dx=DES_PIXEL_SCALE,offset=(-img.bounds.trueCenter()))
+        gsobj = galsim.Convolve([gsgal,pix,gspsf],gsparams=gsp)
+
+    if rowcol:
+        gsobj.draw(img,dx= UNIT_PIXEL_SCALE,offset=(-img.bounds.trueCenter()))
+    else:
+        gsobj.draw(img,dx= UNIT_PIXEL_SCALE)
 
     return img
 
@@ -202,24 +257,28 @@ def get_multiexp_object():
 
     list_images = []
     list_wcstrans = []
+    list_gso = []
 
     gal_g1 = truth['gal_g1']  
     gal_g2 = truth['gal_g2']  
     gal_r = truth['gal_r'] 
+    gal_x = truth['gal_x']
+    gal_y = truth['gal_y']
     n_pix = truth['n_pix']  
     
     # first the coadd in sky coordinates - no PSF on this one
 
     gal_gs = galsim.Exponential(half_light_radius = gal_r)
     gal_gs.applyShear(g1=gal_g1,g2=gal_g2)
-    # coadd image will be in the center of the postage stamp, since we don't care where it really is
-    img = get_image(gal_gs,n_pix=n_pix,center=True)
-    img.write('coadd.fits')
+    gal_gs.applyShift(dx=gal_x,dy=gal_y)
+    img_coadd = get_image(gal_gs,n_pix=n_pix)
+    img_coadd.write('coadd.fits')
 
     wcstr = WCSTransform(stamp_size = (n_pix,n_pix), dudy=1, dvdx=1, dudx=0.0, dvdy=0.0, x0=0, y0=0) # here using arcsec for row0, col0#
 
-    list_images += [img]
+    list_images += [img_coadd]
     list_wcstrans += [wcstr]
+    list_gso += [gal_gs]
 
     psf = galsim.Moffat(beta=truth['psf_beta'],fwhm=truth['psf_fwhm']) 
 
@@ -235,25 +294,52 @@ def get_multiexp_object():
             wcstr = WCSTransform(stamp_size = (n_pix,n_pix), dudy=tr['dudy'], dvdx=tr['dvdx'], dudx=tr['dudx'], dvdy=tr['dvdy'], x0=tr['x0'], y0=tr['y0']) 
         else:
             wcstr = WCSTransform(stamp_size = (n_pix,n_pix), dudrow=tr['dudrow'], dvdcol=tr['dvdcol'], dudcol=tr['dudcol'], dvdrow=tr['dvdrow'], row0=tr['row0'], col0=tr['col0'])
-    
+        
+        logger.info('------------------------------------- fwd -------------------------------------')
         wcstr.show()
 
         gal_gs_copy = gal_gs.copy()
         gal_gs_copy = wcstr.apply_wcs_transformations(gal_gs_copy)
-        img = get_image(gal_gs_copy,gspsf=psf,n_pix=n_pix)
+        img = get_image(gal_gs_copy,n_pix=n_pix)
         filename_fits = 'SE-%03d.fits' % itr
         img.write(filename_fits)
 
         list_wcstrans += [wcstr]
         list_images += [img]
+        list_gso += [gal_gs_copy]
+
+        inv_wcs = wcstr.get_invese()
+        logger.info('------------------------------------- inv -------------------------------------')
+        inv_wcs.show()
+        svd_use='u'
+        inv_gso = inv_wcs.apply_wcs_transformations(gal_gs_copy.copy())
+        inv_img = get_image(inv_gso,n_pix=n_pix)
+
+        # numpy.testing.assert_array_almost_equal(img.array,coadd.array)
+        import pylab
+        pylab.subplot(1,4,1)
+        pylab.imshow(img_coadd.array)
+        pylab.colorbar()
+        pylab.subplot(1,4,2)
+        pylab.imshow(inv_img.array)
+        pylab.colorbar()
+        pylab.subplot(1,4,3)
+        pylab.imshow(inv_img.array - img_coadd.array)
+        pylab.colorbar()
+        pylab.subplot(1,4,4)
+        pylab.imshow(img.array)
+        pylab.show()
+
+
 
 
     # create MultiExposureObject
 
     meo = galsim.des.MultiExposureObject(list_images, wcstrans=list_wcstrans)
 
-    print meo
     galsim.des.write_meds(args.filename_output,[meo])
+    logger.info('saved %s ' % args.filename_output)
+    return list_images,list_wcstrans,list_gso
 
 
 def save_psf_images():
@@ -269,7 +355,7 @@ def save_psf_images():
     logger.info('getting single PSF at the pixel scale of a galaxy')
 
     n_pix = config['truth']['n_pix']
-    pixel_scale = DES_PIXEL_SCALE
+    pixel_scale = UNIT_PIXEL_SCALE
 
     psf_type = galsim.Moffat
     psf_fwhm = config['truth']['psf_fwhm']
@@ -294,7 +380,7 @@ def save_psf_images():
     n_sub = 5
     n_pad = 4
     n_pix_hires = (config['truth']['n_pix'] + n_pad) * n_sub
-    pixel_scale_hires = float(DES_PIXEL_SCALE) / float(n_sub)
+    pixel_scale_hires = float(UNIT_PIXEL_SCALE) / float(n_sub)
 
     psf = psf_type(fwhm=psf_fwhm,beta=psf_beta)
     pix = galsim.Pixel(xw=pixel_scale)
@@ -345,9 +431,49 @@ def save_psf_images():
     psf_image.write(filename_psf_field)
     print 'saved %s' % filename_psf_field
 
+    
+    
 
+def test_inverse(image,gso,wcstrans):
+    """
+    @brief Check if we can reconstruct coadd using inverse transforms from the single exposures.
+    @param list_gso list of gsobjects, first is coadd, and rest is SE.
+    @param list_wcstrans list of transformations that produced SE from coadd. First corresponds to coadd, so it doesn't count.
+    """
 
+    logger.info('testing inverse')
 
+    coadd = list_images[0]
+
+    n_pix = list_images[0].bounds.xmax
+
+    list_se_wcstrans = list_wcstrans[1:]
+    list_se_gso = list_gso[1:]
+    list_se_images = list_images[1:]
+
+    for itr,tr in enumerate(list_se_wcstrans):
+
+        inv_transform = tr.get_invese()
+        inv_transform.show()
+
+        gal_gs_copy = list_se_gso[itr].copy()
+        gal_gs_copy = inv_transform.apply_wcs_transformations(gal_gs_copy)
+        img = get_image(gal_gs_copy,n_pix=n_pix)
+        # filename_fits = 'SE-%03d-inv.fits' % itr 
+        # img.write(filename_fits)
+
+        # numpy.testing.assert_array_almost_equal(img.array,coadd.array)
+        import pylab
+        pylab.subplot(1,3,1)
+        pylab.imshow(img.array)
+        pylab.colorbar()
+        pylab.subplot(1,3,2)
+        pylab.imshow(coadd.array)
+        pylab.colorbar()
+        pylab.subplot(1,3,3)
+        pylab.imshow(img.array - coadd.array)
+        pylab.colorbar()
+        pylab.show()
 
 
 
@@ -380,14 +506,14 @@ def main():
                        3: logging.DEBUG }
     logging_level = logging_levels[args.verbosity]
     logging.basicConfig(format="%(message)s", level=logging_level, stream=sys.stdout)
-    logger = logging.getLogger("ell_noise") 
+    logger = logging.getLogger("WCS_TEST") 
     logger.setLevel(logging_level)
 
 
     config = yaml.load(open(args.filename_config))
 
-    get_multiexp_object()
-    save_psf_images()
+    list_images,list_wcstrans,list_gso = get_multiexp_object()
+    # save_psf_images()
 
 
 main()

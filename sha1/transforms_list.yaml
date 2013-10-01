@@ -9,57 +9,40 @@
 #
 # in MEDS, we have the dudrow , dudcol , dvdrow , dvdcol matrix, with additional:
 # row0 , col0 - position of the u,v point in stamp pixel coordinates
-#
 
 truth:
-    'gal_g1' :  0.05
-    'gal_g2' : -0.025
-    'gal_alpha' : 0
-    'gal_delta' : 0
-    'gal_r' : 3.
+    'gal_g1' :  0.3
+    'gal_g2' :  0.0
+    'gal_x' : 0
+    'gal_y' : 0
+    'gal_r' : 0.5
     'n_pix' : 128
     'psf_beta' : 3.5
     'psf_fwhm' : 0.9
 
-
 # transformations of the image on the coadd x,y coordinate system
 transforms:
     # 0 no shift, no rotation, no shear, scale
-    - { dudx : 0.1, dvdy : 0.1 , dudy : 0.0, dvdx : 0.0, y0 : 64.0 , x0 : 64.0 }
+    - { dudcol : 0.5, dudrow : 0.0 , dvdcol : 0.0, dvdrow : 0.5, row0 : 64. , col0 : 64. }
     # 1 shift in x direction
-    - { dudx : 0.3, dvdy : 0.3 , dudy : 0.0, dvdx : 0.0, y0 : 64.0 , x0 : 94.0 }
+    - { dudcol : 1, dudrow : 0.0 , dvdcol : 0.0, dvdrow : 1, row0 : 64. , col0 : 84. }
     # 2 shift in y direction
-    - { dudx : 0.3, dvdy : 0.3 , dudy : 0.0, dvdx : 0.0, y0 : 94.0 , x0 : 64.0 }
-    # 3 stretch in x 
-    - { dudx : 0.5, dvdy : 0.1 , dudy : 0.0, dvdx : 0.0, y0 : 64.0 , x0 : 64.0 }
+    - { dudcol : 1, dudrow : 0.0 , dvdcol : 0.0, dvdrow : 1, row0 : 84. , col0 : 64. }
+    # 3 stretch in u 
+    - { dudcol : 0.5, dudrow : 0.0 , dvdcol : 0.0, dvdrow : 1, row0 : 64. , col0 : 64. }
     # 4 stretch in y
-    - { dudx : 0.1, dvdy : 0.5 , dudy : 0.0, dvdx : 0.0, y0 : 64.0 , x0 : 64.0 }
+    - { dudcol : 1, dudrow : 0.0 , dvdcol : 0.0, dvdrow : 0.5, row0 : 64. , col0 : 64. }
     # 5 rotation by 45deg
-    - { dudx : 0.3536, dvdy : 0.0707, dudy : -0.3536, dvdx : 0.0707, y0 : 64.0 , x0 : 64.0 }
+    # 0.7071   -0.7071
+    # 0.7071    0.7071
+    - { dudcol : 0.7071, duzdrow : -0.7071 , dvdcol : 0.7071, dvdrow : 0.7071, row0 : 64. , col0 : 64. }
     # 6 rotation by 30deg
-    - { dudx : 0.4330, dvdy : 0.0866 , dudy : -0.2500, dvdx : 0.0500, y0 : 64.0 , x0 : 64.0 }
-    # 7 rotation by 30deg, stretch and shift
-    - { dudx : 0.4330, dvdy : 0.0866 , dudy : -0.2500, dvdx : 0.0500, y0 : 54.0 , x0 : 54.0 }
+    # 0.8660   -0.5000
+    # 0.5000    0.8660
+    - { dudcol : 0.8660, dudrow : -0.5000 , dvdcol : 0.5000, dvdrow : 0.8660, row0 : 64. , col0 : 64. }
+    # 7 stretch, followed by rotation and shift
+    # 0.6495   -0.3750
+    # 0.3750    0.6495
+    - { dudcol : 0.6495, dudrow : -0.3750 , dvdcol : 0.3750, dvdrow : 0.6495, row0 : 84. , col0 : 84. }
     # 8 des chip 
-    - { dudx : 0.26, dvdy : 0.26 , dudy : 0.1, dvdx : 0.1, y0 : 74.0 , x0 : 34.0 }    
-    # - { dudx : 0.5, dvdy : 0.1 , dudy : 0.0, dvdx : 0.0, y0 : 64.0 , x0 : 64.0 }
-    
-
-
-# transforms_colrow:
-#     # 0 no shift, no rotation, no shear, scale
-#     - { dudrow : 0.3, dvdcol : 0.3 , dudcol : 0.0, dvdrow : 0.0, row0 : 64.0 , col0 : 64.0 } 
-#     # 1 shift in x direction
-#     - { dudrow : 0.3, dvdcol : 0.3 , dudcol : 0.0, dvdrow : 0.0, row0 : 34.0 , col0 : 64.0 }
-#     # 2 shift in y direction
-#     - { dudrow : 0.3, dvdcol : 0.3 , dudcol : 0.0, dvdrow : 0.0, row0 : 64.0 , col0 : 94.0 }
-#     # 3 stretch in x 
-#     - { dudrow : 0.5, dvdcol : 0.1 , dudcol : 0.0, dvdrow : 0.0, row0 : 64.0 , col0 : 64.0 }
-#     # 4 stretch in y
-#     - { dudrow : 0.1, dvdcol : 0.4 , dudcol : 0.0, dvdrow : 0.0, row0 : 64.0 , col0 : 64.0 }    
-#     # 5 rotation by 30deg
-#     - { dudrow : 0.2598, dvdcol : 0.2598 , dudcol : -0.1500, dvdrow : 0.1500, row0 : 64.0 , col0 : 64.0 }    
-#     # 6 rotation by 30deg, stretch and shift
-#     - { dudrow : 0.4598, dvdcol : 0.2598 , dudcol : -0.1500, dvdrow : 0.1500, row0 : 34.0 , col0 : 94.0 }    
-#     # des chip 
-#     - { dudrow : -0.26, dvdcol : -0.26 , dudcol : 0.1, dvdrow : -0.1, row0 : 34.0 , col0 : 94.0 }  
+    - { dudcol : 0.7,  dudrow : 0. , dvdcol : 0., dvdrow : 0.7, row0 : 84. , col0 : 84. }
