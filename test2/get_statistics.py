@@ -38,6 +38,41 @@ dtype_im3shape =  { 'names'   : [
                         }
 
 
+dtype_im3shape_new =  { 'names'   : [
+                                        'identifier',
+                                        'ra',
+                                        'dec',
+                                        'ra_pix',
+                                        'dec_pix',
+                                        'e1',
+                                        'e2',
+                                        'radius',
+                                        'radius_ratio',
+                                        'bulge_A',
+                                        'disc_A',
+                                        'bulge_index',
+                                        'disc_index',
+                                        'delta_e_bulge',
+                                        'delta_theta_bulge',
+                                        'time',
+                                        'bulge_flux',
+                                        'disc_flux',
+                                        'flux_ratio',
+                                        'snr',
+                                        'min_residuals',
+                                        'max_residuals',
+                                        'model_min',
+                                        'model_max',
+                                        'likelihood',
+                                
+                                                                ],
+                            'formats': 
+                                ['i8']*1 + ['f4']*24
+
+                        }
+
+
+
 def _getLineFit(x,y,sig):
         """
         @brief get linear least squares fit with uncertainity estimates
@@ -86,6 +121,8 @@ def get_stats():
 
     if args.results_format == 'im3shape':
         dtype_results = dtype_im3shape
+    elif args.results_format == 'im3shape_new':
+        dtype_results = dtype_im3shape_new
     else:
         logger.error('so far only im3shape results are used')
      
@@ -95,7 +132,7 @@ def get_stats():
 
     for itr,tr in enumerate(truth_cat):
 
-        glob_search = '%s/%s.*' % (args.dirname_results,tr['name_meds'])
+        glob_search = '%s/%s.*.cat' % (args.dirname_results,tr['name_meds'])
         file_list = glob.glob(glob_search)
         n_file_list = len(file_list)
 
@@ -104,8 +141,13 @@ def get_stats():
         e1_est = []
         e2_est = []
 
+        if len(file_list) == 0:
+            logger.error('no results for %s' % glob_search)
+            continue
+
         for fl in file_list:
-            results = numpy.loadtxt(fl,dtype=dtype_results)
+            results = numpy.loadtxt(fl,dtype=dtype_results,usecols=range(25))
+            # results = numpy.loadtxt(fl,usecols=range(10))
             n_results = len(results)
             logger.debug('opened file %s with %d galaxies' % (fl,n_results))
 
