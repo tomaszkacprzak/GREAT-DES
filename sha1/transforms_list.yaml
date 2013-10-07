@@ -11,8 +11,8 @@
 # row0 , col0 - position of the u,v point in stamp pixel coordinates
 
 truth:
-    'gal_g1' :  0.1
-    'gal_g2' :  -0.05
+    'gal_g1' :  0.3
+    'gal_g2' :  0.05
     'gal_x' : 0
     'gal_y' : 0
     'gal_r' : 6
@@ -30,7 +30,7 @@ transforms:
     - { dudcol : 1, dudrow : 0.0 , dvdcol : 0.0, dvdrow : 1, row0 : 84. , col0 : 64. }
     # 3 stretch in u 
     - { dudcol : 0.5, dudrow : 0.0 , dvdcol : 0.0, dvdrow : 1, row0 : 64. , col0 : 64. }
-    # 4 stretch in y
+    # 4 stretch in v
     - { dudcol : 1, dudrow : 0.0 , dvdcol : 0.0, dvdrow : 0.5, row0 : 64. , col0 : 64. }
     # 5 rotation by 45deg
     # 0.7071   -0.7071
@@ -45,4 +45,4 @@ transforms:
     # 0.3750    0.6495
     - { dudcol : 0.6495, dudrow : -0.3750 , dvdcol : 0.3750, dvdrow : 0.6495, row0 : 84. , col0 : 84. }
     # 8 des chip 
-    - { dudcol : 0.5,  dudrow : -0.3 , dvdcol : -0.1, dvdrow : 1.7, row0 : 84. , col0 : 84. }
+    - { dudcol : -0.0030,  dudrow : -0.2626 , dvdcol : -0.2633, dvdrow : 0.00284, row0 :  62.1324 , col0 : 62.9160 }
