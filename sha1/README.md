@@ -16,5 +16,33 @@ SHA1 test
 	psf.single.660x660.fits - single PSF at high resolution, with upsampling 5 and padding pixels (mainly for im3shape)
 	psf.field.128x128.fits  - field of PSFs, dithered
 
-(2) How to generate test sha1
+(2) How to generate WCS test card
 	python transforms_test.py -c transforms_list.yaml
+	
+(3) How to generate SHA1
+
+	for debug mode with 1000 galaxies per file
+	python generate_sha1.py -c sha1.yaml --debug	
+
+	testing:
+	rm *fits*
+	python generate_sha1.py -c sha1-test.yaml --debug
+	python $CODE/GREAT-DES/sha1/run_hsm_sha1.py -i sha1-test-O1.cat
+	python $CODE/GREAT-DES/sha1/run_hsm_sha2.py -i sha1-test-O2.cat
+	python $CODE/GREAT-DES/sha1/plots_sha1.py -c sha1-test.yaml -i sha1-test-O1.cat
+	python $CODE/GREAT-DES/sha1/plots_sha1.py -c sha1-test.yaml -i sha1-test-O2.cat
+
+
+	now estimate stde by running only 1000 galaxies (use debug flag)
+	python generate_sha1.py -c sha1.yaml --debug
+	python run_hsm_sha1.py -i sha1-O1.cat
+	python run_hsm_sha1.py -i sha1-O2.cat
+	python plots_sha1.py -c sha1.yaml -i sha1-O1.cat
+	python plots_sha1.py -c sha1.yaml -i sha1-O2.cat
+
+	save the obtained stats files, so that we can use them to get the stde
+	cp sha1-O1.cat.hsm.stats.cat sha1-O1.cat.hsm.stats.stde.cat
+	cp sha1-O2.cat.hsm.stats.cat sha1-O2.cat.hsm.stats.stde.cat
+
+	now create the main sample
+	python generate_sha1.py -c sha1-test.yaml 
