@@ -42,8 +42,8 @@ def get_shear(filename_result):
     stats = {}
     
     if n_fail == n_res:
-        stats['est_g1']  = 0.
-        stats['est_g2'] = 0.
+        stats['est_g1']  = 0.01
+        stats['est_g2'] = 0.01
         stats['est_size'] = 1.
         stats['est_stdv_g1'] = 0.1
         stats['est_stdv_g2'] = 0.1
@@ -71,8 +71,13 @@ def get_shear(filename_result):
 
     n_bins = 100
     bins_e = numpy.linspace(-1,1,n_bins)
-    pylab.hist(res['g1'],bins=bins_e,histtype='step',color='r',label='g1')
-    pylab.hist(res['g2'],bins=bins_e,histtype='step',color='b',label='g2')
+    try:
+        pylab.hist(res['g1'],bins=bins_e,histtype='step',color='r',label='g1')
+        pylab.hist(res['g2'],bins=bins_e,histtype='step',color='b',label='g2')
+    except Exception,errmsg:
+        logger.error('hist failed')
+        pylab.hist(numpy.random.rand(1000)*2-1,bins=bins_e,histtype='step',color='r',label='g1')
+        pylab.hist(numpy.random.rand(1000)*2-1,bins=bins_e,histtype='step',color='b',label='g2')
     pylab.legend()
     pylab.title('%s ellipticity' % filename_result)
     pylab.xlabel('ellip [g]')
@@ -122,22 +127,29 @@ def plotsO1():
         snr = truth_cat[select]['snr']
         angrad = truth_cat[select]['angdeg']/180.*numpy.pi
         e_true = truth_cat[select]['ellip'] * numpy.exp(1j*angrad*2.)   # angle of galaxy orientation, not complex shear angle
-        bias_g1 = (stats_cat[select]['g1'] - e_true.real)/e_true.real
-        bias_g2 = (stats_cat[select]['g2'] - e_true.imag)/e_true.imag
+        
+        current_stats_cat = stats_cat[select]
+        current_truth_cat = truth_cat[select]
 
-        print e_true, bias_g1, bias_g2
+        bias_g1 = (current_stats_cat['g1'] - e_true.real)
+        bias_g2 = (current_stats_cat['g2'] - e_true.imag)
 
-        g1_err  = stats_cat[select]['stdm_g1']/e_true.real
-        g2_err  = stats_cat[select]['stdm_g2']/e_true.imag
+        g1_err  = stats_cat[select]['stdm_g1']
+        g2_err  = stats_cat[select]['stdm_g2']
 
-        pylab.errorbar(snr,bias_g1,yerr=g1_err,fmt='r+')
-        pylab.errorbar(snr,bias_g2,yerr=g2_err,fmt='rx')
-        pylab.xlim([0.8*min(snr),1.1*max(snr)])
+        for ig in range(len(e_true)):
+            logger.info('%d e_tru=(% 0.3f,% 0.3f) , e_est=(% 0.3f,% 0.3f) , bias_g1=(% 0.3f,% 0.3f)' % (ig, e_true.real[ig], e_true.imag[ig], current_stats_cat['g1'][ig], current_stats_cat['g2'][ig], bias_g1[ig], bias_g2[ig]))            # bias_g1 = (current_stats_cat['g1'] - e_true.real)
+        
+        sort = numpy.argsort(snr)
+        pylab.errorbar(snr[sort],bias_g1[sort],yerr=g1_err,fmt='r+--')
+        pylab.errorbar(snr[sort],bias_g2[sort],yerr=g2_err,fmt='rx:')
+        xlim_add = (max(snr) - min(snr))*0.1
+        pylab.xlim([min(snr)-xlim_add,max(snr)+xlim_add])
         pylab.xlabel('SNR')
-        pylab.ylabel('de/e')
+        pylab.ylabel('dg')
         title_str = 'hlr=%2.2f' % vhlr
         pylab.title(title_str)
-        filename_fig = 'fig.%s.hlr%d.eps' % (filename_stats,ihlr)
+        filename_fig = 'fig.%s.hlr%d.png' % (filename_stats,ihlr)
         pylab.savefig(filename_fig)
         logger.info('saved %s' % filename_fig)
         pylab.close()
@@ -175,27 +187,30 @@ def plotsO2():
 
             angrad = current_truth_cat['angdeg']/180.*numpy.pi
             e_true = current_truth_cat['ellip'] * numpy.exp(1j*angrad*2.)   # angle of galaxy orientation, not complex shear angle
-            bias_g1 = (current_stats_cat['g1'] - e_true.real)/e_true.real
-            bias_g2 = (current_stats_cat['g2'] - e_true.imag)/e_true.imag
-            g1_err  = current_stats_cat['stdm_g1']/e_true.real
-            g2_err  = current_stats_cat['stdm_g2']/e_true.imag
+            
+            bias_g1 = (current_stats_cat['g1'] - e_true.real)
+            bias_g2 = (current_stats_cat['g2'] - e_true.imag)
+            g1_err  = current_stats_cat['stdm_g1']
+            g2_err  = current_stats_cat['stdm_g2']
 
-            # bias_g1 = (current_stats_cat['g1'] - e_true.real)
-            # bias_g2 = (current_stats_cat['g2'] - e_true.imag)
+            for ig in range(len(e_true)):
+                logger.info('%d e_tru=(% 0.3f,% 0.3f) , e_est=(% 0.3f,% 0.3f) , bias_g1=(% 0.3f,% 0.3f)' % (ig, e_true.real[ig], e_true.imag[ig], current_stats_cat['g1'][ig], current_stats_cat['g2'][ig], bias_g1[ig], bias_g2[ig]))            # bias_g1 = (current_stats_cat['g1'] - e_true.real)            # bias_g2 = (current_stats_cat['g2'] - e_true.imag)
             # g1_err  = current_stats_cat['stdm_g1']
             # g2_err  = current_stats_cat['stdm_g2']
 
             param_grid = current_truth_cat[vparam]
 
-            pylab.errorbar(param_grid,bias_g1,yerr=g1_err,fmt='b+')
-            pylab.errorbar(param_grid,bias_g2,yerr=g2_err,fmt='bx')
-            pylab.xlim([0.8*min(param_grid),1.1*max(param_grid)])
+            sort = numpy.argsort(param_grid)
+            pylab.errorbar(param_grid[sort],bias_g1[sort],yerr=g1_err,fmt='b+--')
+            pylab.errorbar(param_grid[sort],bias_g2[sort],yerr=g2_err,fmt='bx:')
+            xlim_add = (max(param_grid) - min(param_grid))*0.1
+            pylab.xlim([min(param_grid)-xlim_add,max(param_grid)+xlim_add])
             pylab.xlabel(vparam)
-            pylab.ylabel('de/e')
+            pylab.ylabel('dg')
             title_str = 'hlr=%2.2f snr=%2.2f' % (hlr,snr)
             pylab.title(title_str)
 
-            filename_fig = 'fig.%s.%d.%s.eps' % (filename_stats,ihlr_snr,vparam)
+            filename_fig = 'fig.%s.%d.%s.png' % (filename_stats,ihlr_snr,vparam)
             pylab.savefig(filename_fig)
             logger.info('saved %s' % filename_fig)
             pylab.close()

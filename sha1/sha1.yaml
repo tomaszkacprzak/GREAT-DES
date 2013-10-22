@@ -2,6 +2,102 @@ pixel_scale        : &pixel_scale          0.27
 n_exposures        : &n_exposures          1
 
 order1:
+    hlr : [0.2,0.4,0.6,0.8,1.0]    
+    snr : [5,10,15,20,30,40,50]         
+
+order2:
+    hlr_snr : [ [0.3,10] , ] 
+    deviations:
+        ellip :
+            fid: 2
+            list: [ 0.0, 0.1, 0.2, 0.3 , 0.6 , 0.9]       
+        angdeg : 
+            fid: 1
+            list: [0, 22.5, 45, 90, 135 ]                  
+        nsersic :                  
+            fid: 1
+            list: [1, 2, 3, 4]
+        moffat_beta : 
+            fid : 2
+            list: [2.5, 3.0, 3.5, 4.0]                  
+        moffat_g : 
+            fid: 1
+            list: [0.0,0.05,0.1]                   
+        moffat_fwhm : 
+            fid: 1
+            list: [0.7,0.9,1.1,1.3]                 
+
+output:
+    type : des_meds
+    nstamps_per_object : *n_exposures
+
+    # get the number of galaxies in a file
+    # this will be determined by the generate_catalog.py script
+    nobjects : 1
+    
+    # nproc = -1 means to try to determine the number of CPUs and use that.
+    nproc : -1
+
+    # this will be overwritten by python
+    file_name : 99  
+
+gal:
+    type: Sersic 
+
+    # this will be overwritten by python
+    half_light_radius: 99.
+    n : 99.
+    signal_to_noise: 99.
+    shear : 
+        type : GBeta
+        g : 99
+        beta : 99
+
+    # A random shift within a 1 pixel circle.
+    shift : 
+        type : RandomCircle
+        radius : *pixel_scale
+
+psf:
+    type: Moffat
+    fwhm: 99
+    beta: 99
+    ellip:
+        type : GBeta
+        g : 99
+        beta : 0.0 deg 
+    shift :
+        type : RandomCircle
+        radius : 0.27 # arcsec
+
+image:
+    pixel_scale: *pixel_scale
+    # This doesn't matter much, since we set the S/N above.  It just sets an overall scale for 
+    # the pixel values to something reasonable.  
+    noise : { sky_level : 1.e6 }  
+    size: 64
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+pixel_scale        : &pixel_scale          0.27
+n_exposures        : &n_exposures          1
+
+order1:
     hlr : [0.3,0.4,0.5,0.6,0.7]    
     snr : [10,15,20,30,40]         
 

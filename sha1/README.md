@@ -26,9 +26,9 @@ SHA1 test
 
 	testing:
 	rm *fits*
-	python generate_sha1.py -c sha1-test.yaml --debug
+	python $CODE/GREAT-DES/sha1/generate_sha1.py -c sha1-test.yaml --debug
 	python $CODE/GREAT-DES/sha1/run_hsm_sha1.py -i sha1-test-O1.cat
-	python $CODE/GREAT-DES/sha1/run_hsm_sha2.py -i sha1-test-O2.cat
+	python $CODE/GREAT-DES/sha1/run_hsm_sha1.py -i sha1-test-O2.cat
 	python $CODE/GREAT-DES/sha1/plots_sha1.py -c sha1-test.yaml -i sha1-test-O1.cat
 	python $CODE/GREAT-DES/sha1/plots_sha1.py -c sha1-test.yaml -i sha1-test-O2.cat
 

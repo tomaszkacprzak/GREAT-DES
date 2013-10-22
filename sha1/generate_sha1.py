@@ -6,6 +6,14 @@ dtype_table_stats = { 'names'   : ['n_gals','n_fail','g1','g2','size','stdv_g1',
 STD_DE_TARGET = 0.001
 DEFAULT_STD_E = 0.25
 
+def fpack(filename):
+
+    cmd=['fpack' , '-t' , '10240,1' , filename]
+    subprocess.call(cmd)
+    os.remove(filename)
+    logger.debug('compressing file %s ...' % filename + '.fz')
+
+
 def compute_rgpp_rp(config):
     """
     @brief
@@ -209,7 +217,7 @@ def get_catalog_O2():
 
                 # calculate the number of packages for that settings
                 if args.debug:
-                    n_gals,std_e = 1000,0.1
+                    n_gals,std_e = 100,0.1
                 else:
                     n_gals,std_e = get_n_gals(iall-1, 2)                    
                                                                                        
@@ -242,12 +250,9 @@ def get_catalog_O2():
                     galsim.config.Process(config_copy,logger=logger_config)              
 
                     # compress the meds file
-                    logger.debug('created file %s, compressing...' % filename_meds)
-                    cmd=['fpack' , '-t' , '10240,1' , filename_meds]
-                    subprocess.call(cmd)
-                    os.remove(filename_meds)
+                    fpack(filename_meds)
 
-                    save_psf_images(config_copy,filename_meds_fz)
+                    save_psf_img(config_copy,filename_meds_fz)
 
                 fwhm_obj_over_fwhm_psf,fwhm_obj,fwhm_psf = compute_rgpp_rp(config_copy)              
 
@@ -347,11 +352,9 @@ def get_catalog_O1():
 
                 # compress the meds file
                 logger.debug('created file %s, compressing...' % filename_meds)
-                cmd=['fpack' , '-t' , '10240,1' , filename_meds]
-                subprocess.call(cmd)
-                os.remove(filename_meds)
+                fpack(filename_meds)
 
-                save_psf_images(config_copy,filename_meds_fz)
+                save_psf_img(config_copy,filename_meds_fz)
 
             fwhm_obj_over_fwhm_psf,fwhm_obj,fwhm_psf = compute_rgpp_rp(config_copy)              
 
@@ -397,95 +400,54 @@ def get_n_gals(ident,order):
 
     return n_gals , std_e
 
-def save_psf_images(config,filename_meds):
+def save_psf_img(config,filename_meds):
 
-    # this script gets the PSF for shear test 1
-    # two resolutons : same as galaxy, saved in psf.fits, upsampled and padded, saved in psf.hires.fits
-
-    import galsim
-    import yaml
-    import numpy
-
-    # PSF at resolution of the galaxy
     logger.debug('getting single PSF at the pixel scale of a galaxy')
-
-    n_pix = config['image']['size']
-    pixel_scale = config['image']['pixel_scale']
-
-    psf_type = eval('galsim.%s' % config['psf']['type'])
-    psf_fwhm = config['psf']['fwhm']
-    psf_beta = config['psf']['beta']
-
-    psf = psf_type(fwhm=psf_fwhm,beta=psf_beta)
-    pix = galsim.Pixel(xw=pixel_scale)
-    img = galsim.ImageD(n_pix,n_pix)
-    final = galsim.Convolve([psf,pix])
-    dx = (numpy.random.random() - 0.5)*0.5*pixel_scale
-    dy = (numpy.random.random() - 0.5)*0.5*pixel_scale
-    final.applyShift(dx=dx,dy=dy)
-    final.draw(img,dx=pixel_scale)
+    config_copy = copy.deepcopy(config)
+    galsim.config.ProcessInput(config_copy)
+    img_gal,img_psf,_,_,_  = galsim.config.BuildImage(config=config_copy,image_num=0,obj_num=0,make_psf_image=True)
 
     filename_psf = '%s.psf.single.%dx%d.fits' % (filename_meds,config['image']['size'],config['image']['size'])
-    img.write(filename_psf)
-    logger.info('saved %s' % filename_psf)
+    img_psf.write(filename_psf)
+    fpack(filename_psf)
 
-    logger.debug('getting single PSF at high resolution')
     # now the hires PSF, centered in the middle
+    logger.debug('getting single PSF at high resolution')
+    config_copy = copy.deepcopy(config)
 
     n_sub = 5
     n_pad = 4
     n_pix_hires = (config['image']['size'] + n_pad) * n_sub
     pixel_scale_hires = float(config['image']['pixel_scale']) / float(n_sub)
+    config_copy['image']['pixel_scale'] = pixel_scale_hires
+    config_copy['image']['size'] = n_pix_hires
 
-    psf = psf_type(fwhm=psf_fwhm,beta=psf_beta)
-    pix = galsim.Pixel(xw=pixel_scale)
-    img = galsim.ImageD(n_pix_hires,n_pix_hires)
-    dx = 0.5*pixel_scale
-    dy = 0.5*pixel_scale
-    final = galsim.Convolve([psf,pix])
-    final.applyShift(dx=dx,dy=dy)
-    final.draw(img,dx=pixel_scale_hires)
+    img_gal,img_psf,_,_,_ = galsim.config.BuildImage(config=config_copy,image_num=0,obj_num=0,make_psf_image=True)    
 
     filename_psf_hires = '%s.psf.single.%dx%d.fits' % (filename_meds,n_pix_hires,n_pix_hires)
-    img.write(filename_psf_hires)
-    logger.info('saved %s' % filename_psf_hires)
+    img_psf.write(filename_psf_hires)
+    fpack(filename_psf_hires)
+    # logger.info('saved %s' % filename_psf_hires)
 
+
+    # now field
     logger.debug('getting low res PSF in a field')
+    config_copy = copy.deepcopy(config)
+    config_copy['image']['type'] = 'Tiled'
+    config_copy['image']['nx_tiles'] = 10
+    config_copy['image']['ny_tiles'] = 10
 
-    # now create the PSF - fields for the shapelet pipeline
-    ny_tiles = nx_tiles = 30
+    # This is the size of the postage stamps.
+    config_copy['image']['stamp_xsize'] = config_copy['image']['size']
+    config_copy['image']['stamp_ysize'] = config_copy['image']['size']
+    del(config_copy['image']['size'])
 
-    psf_image = galsim.ImageF(n_pix * nx_tiles-1 , n_pix * ny_tiles-1)
-    psf_image.setScale(pixel_scale)
-    random_seed=123123
+    galsim.config.ProcessInput(config_copy)
+    img_gal,img_psf,_,_ = galsim.config.BuildImage(config=config_copy,image_num=0,obj_num=0,make_psf_image=True)    
 
-    shift_radius = pixel_scale *0.5     
-    shift_radius_sq = shift_radius**2
-
-    k=0;
-    for iy in range(ny_tiles):
-        for ix in range(nx_tiles):
-            ud = galsim.UniformDeviate(random_seed+k)
-
-            # Apply a random shift_radius:
-            rsq = 2 * shift_radius_sq
-            while (rsq > shift_radius_sq):
-                dx = (2*ud()-1) * shift_radius
-                dy = (2*ud()-1) * shift_radius
-                rsq = dx**2 + dy**2
-
-            this_psf = final.createShifted(dx,dy)
-
-            b = galsim.BoundsI(ix*n_pix+1 , (ix+1)*n_pix-1, iy*n_pix+1 , (iy+1)*n_pix-1)
-            sub_psf_image = psf_image[b]
-            this_psf.draw(sub_psf_image,dx=pixel_scale)
-            k+=1;
-
-    # save the tiled PSF image
     filename_psf_field = '%s.psf.field.%dx%d.fits' % (filename_meds,config['image']['size'],config['image']['size'])
-    psf_image.write(filename_psf_field)
-    logger.info('saved %s' % filename_psf_field)
-
+    img_psf.write(filename_psf_field)
+    fpack(filename_psf_field)
 
 
 def main():
@@ -499,6 +461,9 @@ def main():
     parser.add_argument('-d', '--dry', default=False,  action='store_true', help='Dry run, do not generate data')
     parser.add_argument('-r', '--redo', default=False, action='store_true', help='produce the files even if the exist')
     parser.add_argument('--debug', default=False, action='store_true', help='debug mode, runs on only a subset of galaxies')
+    parser.add_argument('--o1', default=False, action='store_true', help='run order 1 set')
+    parser.add_argument('--o2', default=False, action='store_true', help='run order 2 set')
+    parser.add_argument('--o3', default=False, action='store_true', help='run nbc')
 
     args = parser.parse_args()
     # Parse the integer verbosity level from the command line args into a logging_level string
@@ -524,10 +489,14 @@ def main():
     if args.debug: 
         logger.critical('running in DEBUG MODE on 1000 galaxies')
 
-    logger.info('------------- generating order 1 -------------')
-    get_catalog_O1()
-    logger.info('------------- generating order 2 ------------- ')
-    get_catalog_O2()
+    if args.o1:
+        logger.info('------------- generating order 1 -------------')
+        get_catalog_O1()
+    if args.o2:
+        logger.info('------------- generating order 2 ------------- ')
+        get_catalog_O2()
+    if args.o3:
+        logger.info('------------- noise bias calibration not ready yet ------------- ')
         
     
 
