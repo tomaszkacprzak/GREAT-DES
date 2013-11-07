@@ -145,144 +145,143 @@ def get_FWHM(image, fwxm=0.5, upsampling=1, radialProfile=True):
 def my_round(x, base=1):
     return int(base * round(float(x)/base))
 
-def get_catalog_O2():
+# def get_catalog_O2():
 
-    global config
-    config = yaml.load(open(args.filename_config))
-    filename_catalog = os.path.basename(args.filename_config.replace('.yaml','') + '-O2.cat')
-    file_catalog = open(filename_catalog,'w')
-    catalog_header='#index filename_meds n_gals\
-                    ihlr isnr iellip iangdeg insersic imoffat_beta imoffat_g imoffat_fwhm \
-                    hlr snr ellip angdeg nsersic moffat_beta moffat_g moffat_fwhm fwhm_obj_over_fwhm_psf fwhm_obj fwhm_psf\n'
-    file_catalog.write(catalog_header)
+#     global config
+#     config = yaml.load(open(args.filename_config))
+#     filename_catalog = os.path.basename(args.filename_config.replace('.yaml','') + '-O2.cat')
+#     file_catalog = open(filename_catalog,'w')
+#     catalog_header='#index filename_meds n_gals\
+#                     ihlr isnr iellip iangdeg insersic imoffat_beta imoffat_g imoffat_fwhm \
+#                     hlr snr ellip angdeg nsersic moffat_beta moffat_g moffat_fwhm fwhm_obj_over_fwhm_psf fwhm_obj fwhm_psf\n'
+#     file_catalog.write(catalog_header)
 
-    total_n_gals = 0
-    total_n_files = 0
+#     total_n_gals = 0
+#     total_n_files = 0
 
-    iall = 0
+#     iall = 0
 
-    order2_params = config['order2']['deviations'].keys()
+#     order2_params = config['order2']['deviations'].keys()
 
-    # keep track of combination so ther is no duplications
+#     # keep track of combination so ther is no duplications
 
-    for ihlr_snr,vhlr_snr in enumerate(config['order2']['hlr_snr']):
+#     for ihlr_snr,vhlr_snr in enumerate(config['order2']['hlr_snr']):
 
-        used_list = []
+#         used_list = []
 
-        vhlr = vhlr_snr[0]
-        vsnr = vhlr_snr[1]
+#         vhlr = vhlr_snr[0]
+#         vsnr = vhlr_snr[1]
 
-        logger.debug('order 1 param hlr %f' % vhlr)
-        logger.debug('order 1 param snr %f' % vsnr)
-
-
-        # we run full grid only for start and end of the param space for size and snr
-
-        for ip, vp in enumerate(order2_params):
-
-            logger.debug('order 2 param %s' % vp)
-            grid_param = config['order2']['deviations'][vp]['list']
+#         logger.debug('order 1 param hlr %f' % vhlr)
+#         logger.debug('order 1 param snr %f' % vsnr)
 
 
-            for ig, vg in enumerate(grid_param):                
+#         # we run full grid only for start and end of the param space for size and snr
+
+#         for ip, vp in enumerate(order2_params):
+
+#             logger.debug('order 2 param %s' % vp)
+#             grid_param = config['order2']['deviations'][vp]['list']
+
+
+#             for ig, vg in enumerate(grid_param):                
                 
-                # assign the fiducial
-                iellip = config['order2']['deviations']['ellip']['fid']
-                iangdeg = config['order2']['deviations']['angdeg']['fid']
-                insersic = config['order2']['deviations']['nsersic']['fid']
-                imoffat_beta = config['order2']['deviations']['moffat_beta']['fid']
-                imoffat_g = config['order2']['deviations']['moffat_g']['fid']
-                imoffat_fwhm = config['order2']['deviations']['moffat_fwhm']['fid']
+#                 # assign the fiducial
+#                 iellip = config['order2']['deviations']['ellip']['fid']
+#                 iangdeg = config['order2']['deviations']['angdeg']['fid']
+#                 insersic = config['order2']['deviations']['nsersic']['fid']
+#                 imoffat_beta = config['order2']['deviations']['moffat_beta']['fid']
+#                 imoffat_g = config['order2']['deviations']['moffat_g']['fid']
+#                 imoffat_fwhm = config['order2']['deviations']['moffat_fwhm']['fid']
 
-                vellip = config['order2']['deviations']['ellip']['list'][iellip]
-                vangdeg = config['order2']['deviations']['angdeg']['list'][iangdeg]
-                vnsersic = config['order2']['deviations']['nsersic']['list'][insersic]
-                vmoffat_beta = config['order2']['deviations']['moffat_beta']['list'][imoffat_beta]
-                vmoffat_g = config['order2']['deviations']['moffat_g']['list'][imoffat_g]
-                vmoffat_fwhm = config['order2']['deviations']['moffat_fwhm']['list'][imoffat_fwhm]
+#                 vellip = config['order2']['deviations']['ellip']['list'][iellip]
+#                 vangdeg = config['order2']['deviations']['angdeg']['list'][iangdeg]
+#                 vnsersic = config['order2']['deviations']['nsersic']['list'][insersic]
+#                 vmoffat_beta = config['order2']['deviations']['moffat_beta']['list'][imoffat_beta]
+#                 vmoffat_g = config['order2']['deviations']['moffat_g']['list'][imoffat_g]
+#                 vmoffat_fwhm = config['order2']['deviations']['moffat_fwhm']['list'][imoffat_fwhm]
 
 
-                # assign the deviation - modify one already written by fiducial, deviations index starts from one
-                exec('v%s=vg' % vp)
-                exec('i%s=ig' % vp)
-                logger.debug('current param %s %d %f' % (vp,ig,eval('v%s' % vp)))
+#                 # assign the deviation - modify one already written by fiducial, deviations index starts from one
+#                 exec('v%s=vg' % vp)
+#                 exec('i%s=ig' % vp)
+#                 logger.debug('current param %s %d %f' % (vp,ig,eval('v%s' % vp)))
 
-                # avoid duplications
-                current_list = [iellip,iangdeg,insersic,imoffat_beta,imoffat_g,imoffat_fwhm]
-                if current_list in used_list:
-                    logger.info('skipping this combination as already present')
-                    continue
+#                 # avoid duplications
+#                 current_list = [iellip,iangdeg,insersic,imoffat_beta,imoffat_g,imoffat_fwhm]
+#                 if current_list in used_list:
+#                     logger.info('skipping this combination as already present')
+#                     continue
 
-                iall += 1
+#                 iall += 1
 
-                # calculate the number of packages for that settings
-                if args.debug:
-                    n_gals,std_e = 100,0.1
-                else:
-                    n_gals,std_e = get_n_gals(iall-1, 2)                    
+#                 # calculate the number of packages for that settings
+#                 if args.debug:
+#                     n_gals,std_e = 100,0.1
+#                 else:
+#                     n_gals,std_e = get_n_gals(iall-1, 2)                    
                                                                                        
-                # filename_meds = 'sha1-hlr%1d-snr%1d-ell%1d-ang%1d-ser%1d-psfb%1d-psfg%1d-psfs%1d.meds.fits' % ( 
-                                    # ihlr,isnr,iellip,iangdeg,insersic,imoffat_beta,imoffat_g,imoffat_fwhm)
+#                 # filename_meds = 'sha1-hlr%1d-snr%1d-ell%1d-ang%1d-ser%1d-psfb%1d-psfg%1d-psfs%1d.meds.fits' % ( 
+#                                     # ihlr,isnr,iellip,iangdeg,insersic,imoffat_beta,imoffat_g,imoffat_fwhm)
                     
-                filename_meds = os.path.basename(args.filename_config.replace('.yaml','') + '.O2-%03d.meds.fits' % iall)
+#                 filename_meds = os.path.basename(args.filename_config.replace('.yaml','') + '.O2-%03d.meds.fits' % iall)
 
-                logger.info('%3d current param %s=%2.2e\t processing file %s with std_e=%2.2e and n_gals=%10d' % (
-                                    iall,vp,vg,filename_meds,std_e,n_gals))
+#                 logger.info('%3d current param %s=%2.2e\t processing file %s with std_e=%2.2e and n_gals=%10d' % (
+#                                     iall,vp,vg,filename_meds,std_e,n_gals))
 
                                    
-                config_copy = copy.deepcopy(config)
-                config_copy['gal']['half_light_radius'] = vhlr 
-                config_copy['gal']['signal_to_noise'] = vsnr
-                config_copy['gal']['shear']['g'] = vellip
-                config_copy['gal']['shear']['beta'] = '%f degrees' % vangdeg
-                config_copy['gal']['n'] = vnsersic
-                config_copy['psf']['beta'] = vmoffat_beta
-                config_copy['psf']['fwhm'] = vmoffat_fwhm
-                config_copy['psf']['ellip']['g'] = vmoffat_g
+#                 config_copy = copy.deepcopy(config)
+#                 config_copy['gal']['half_light_radius'] = vhlr 
+#                 config_copy['gal']['signal_to_noise'] = vsnr
+#                 config_copy['gal']['shear']['g'] = vellip
+#                 config_copy['gal']['shear']['beta'] = '%f degrees' % vangdeg
+#                 config_copy['gal']['n'] = vnsersic
+#                 config_copy['psf']['beta'] = vmoffat_beta
+#                 config_copy['psf']['fwhm'] = vmoffat_fwhm
+#                 config_copy['psf']['ellip']['g'] = vmoffat_g
                 
-                config_copy['output']['file_name'] = filename_meds
-                config_copy['output']['nobjects'] = n_gals                                  
+#                 config_copy['output']['file_name'] = filename_meds
+#                 config_copy['output']['nobjects'] = n_gals                                  
 
-                filename_meds_fz = filename_meds + '.fz'
+#                 filename_meds_fz = filename_meds + '.fz'
 
-                if not args.dry:
+#                 if not args.dry:
 
-                    galsim.config.Process(config_copy,logger=logger_config)              
+#                     galsim.config.Process(config_copy,logger=logger_config)              
 
-                    # compress the meds file
-                    fpack(filename_meds)
+#                     # compress the meds file
+#                     fpack(filename_meds)
 
-                    save_psf_img(config_copy,filename_meds_fz)
+#                     save_psf_img(config_copy,filename_meds_fz)
 
-                fwhm_obj_over_fwhm_psf,fwhm_obj,fwhm_psf = compute_rgpp_rp(config_copy)              
+#                 fwhm_obj_over_fwhm_psf,fwhm_obj,fwhm_psf = compute_rgpp_rp(config_copy)              
 
-                # write the file details in the catalog
-                line_fmt = '%d\t%s\t%d\t'+ '%d\t'*8 +'% .8f'*11 +'\n' 
+#                 # write the file details in the catalog
+#                 line_fmt = '%d\t%s\t%d\t'+ '%d\t'*8 +'% .8f'*11 +'\n' 
 
-                line = line_fmt % ( iall,filename_meds_fz,n_gals,
-                                    ihlr_snr,ihlr_snr,iellip,iangdeg,insersic,imoffat_beta,imoffat_g,imoffat_fwhm,
-                                    vhlr,vsnr,vellip,vangdeg,vnsersic,vmoffat_beta,vmoffat_g,vmoffat_fwhm,fwhm_obj_over_fwhm_psf,fwhm_obj,fwhm_psf)
-                file_catalog.write(line)
-                file_catalog.flush()
+#                 line = line_fmt % ( iall,filename_meds_fz,n_gals,
+#                                     ihlr_snr,ihlr_snr,iellip,iangdeg,insersic,imoffat_beta,imoffat_g,imoffat_fwhm,
+#                                     vhlr,vsnr,vellip,vangdeg,vnsersic,vmoffat_beta,vmoffat_g,vmoffat_fwhm,fwhm_obj_over_fwhm_psf,fwhm_obj,fwhm_psf)
+#                 file_catalog.write(line)
+#                 file_catalog.flush()
 
-                total_n_files += 1
-                total_n_gals += n_gals
-                used_list.append(current_list)
+#                 total_n_files += 1
+#                 total_n_gals += n_gals
+#                 used_list.append(current_list)
 
-    logger.info('total_n_gals=%d' % total_n_gals)
-    logger.info('total_n_files=%d' % total_n_files)
-    file_catalog.close()
+#     logger.info('total_n_gals=%d' % total_n_gals)
+#     logger.info('total_n_files=%d' % total_n_files)
+#     file_catalog.close()
 
 
 def get_catalog_O1():
 
     global config
     config = yaml.load(open(args.filename_config))
-    filename_catalog = os.path.basename(args.filename_config.replace('.yaml','') + '-O1.cat')
+    filename_catalog = os.path.basename(args.filename_config.replace('.yaml','') + '.cat')
     file_catalog = open(filename_catalog,'w')
-    catalog_header='#index filename_meds n_gals\
-                    ihlr isnr iellip iangdeg insersic imoffat_beta imoffat_g imoffat_fwhm \
-                    hlr snr ellip angdeg nsersic moffat_beta moffat_g moffat_fwhm fwhm_obj_over_fwhm_psf fwhm_obj fwhm_psf\n'
+    catalog_header='#index filename_meds n_gals, \
+                    ihlr isnr hlr snr fwhm_obj_over_fwhm_psf fwhm_obj fwhm_psf \n'
     file_catalog.write(catalog_header)
 
     total_n_gals = 0
@@ -290,26 +289,8 @@ def get_catalog_O1():
 
     iall = 0
 
-    order2_params = config['order2'].keys()
-
     # keep track of combination so ther is no duplications
     used_list = []
-
-    # assign the fiducial
-    iellip = config['order2']['deviations']['ellip']['fid']
-    iangdeg = config['order2']['deviations']['angdeg']['fid']
-    insersic = config['order2']['deviations']['nsersic']['fid']
-    imoffat_beta = config['order2']['deviations']['moffat_beta']['fid']
-    imoffat_g = config['order2']['deviations']['moffat_g']['fid']
-    imoffat_fwhm = config['order2']['deviations']['moffat_fwhm']['fid']
-
-    vellip = config['order2']['deviations']['ellip']['list'][iellip]
-    vangdeg = config['order2']['deviations']['angdeg']['list'][iangdeg]
-    vnsersic = config['order2']['deviations']['nsersic']['list'][insersic]
-    vmoffat_beta = config['order2']['deviations']['moffat_beta']['list'][imoffat_beta]
-    vmoffat_g = config['order2']['deviations']['moffat_g']['list'][imoffat_g]
-    vmoffat_fwhm = config['order2']['deviations']['moffat_fwhm']['list'][imoffat_fwhm]
-
 
     for ihlr,vhlr in enumerate(config['order1']['hlr']):
         for isnr,vsnr in enumerate(config['order1']['snr']):
@@ -325,24 +306,17 @@ def get_catalog_O1():
             else:
                 n_gals,std_e = get_n_gals(iall-1, 1)
                 
-                
-            filename_meds = os.path.basename(args.filename_config.replace('.yaml','') + '.O1-%03d.meds.fits' % iall)
+            filename_meds = os.path.basename(args.filename_config.replace('.yaml','') + '.%03d.meds.fits' % iall)
 
             logger.info('%3d current params hlr=%2.2f\tsnr=%2.2f\t processing file %s with std_e=%2.2e and n_gals=%10d' % (
                                 iall,vhlr,vsnr,filename_meds,std_e,n_gals))
                                
             config_copy = copy.deepcopy(config)
-            config_copy['gal']['half_light_radius'] = vhlr 
-            config_copy['gal']['signal_to_noise'] = vsnr
-            config_copy['gal']['shear']['g'] = vellip
-            config_copy['gal']['shear']['beta'] = '%f degrees' % vangdeg
-            config_copy['gal']['n'] = vnsersic
-            config_copy['psf']['beta'] = vmoffat_beta
-            config_copy['psf']['fwhm'] = vmoffat_fwhm
-            config_copy['psf']['ellip']['g'] = vmoffat_g
 
             config_copy['output']['file_name'] = filename_meds
             config_copy['output']['nobjects'] = n_gals                                  
+            config_copy['gal']['half_light_radius'] = vhlr
+            config_copy['gal']['signal_to_noise'] = vsnr
 
             filename_meds_fz = filename_meds + '.fz'
 
@@ -359,11 +333,9 @@ def get_catalog_O1():
             fwhm_obj_over_fwhm_psf,fwhm_obj,fwhm_psf = compute_rgpp_rp(config_copy)              
 
             # write the file details in the catalog
-            line_fmt = '%d\t%s\t%d\t'+ '%d\t'*8 +'% .8f'*11 +'\n' 
+            line_fmt = '%d\t%s\t%d\t'+ '%d\t'*2 +'% .8f'*5 +'\n' 
 
-            line = line_fmt % ( iall,filename_meds_fz,n_gals,
-                                ihlr,isnr,iellip,iangdeg,insersic,imoffat_beta,imoffat_g,imoffat_fwhm,
-                                vhlr,vsnr,vellip,vangdeg,vnsersic,vmoffat_beta,vmoffat_g,vmoffat_fwhm,fwhm_obj_over_fwhm_psf,fwhm_obj,fwhm_psf)
+            line = line_fmt % ( iall,filename_meds_fz,n_gals,ihlr,isnr,vhlr,vsnr, fwhm_obj_over_fwhm_psf,fwhm_obj,fwhm_psf )
             file_catalog.write(line)
             file_catalog.flush()
 
@@ -378,17 +350,11 @@ def get_catalog_O1():
 
 def get_n_gals(ident,order):
 
-    if order == 1:
-        # sha1-O2.cat.hsm.stats.stde.cat
-        filename_stats = os.path.basename('%s-O1.cat.hsm.stats.stde.cat' % (args.filename_config.replace('.yaml','')))
-        stats = numpy.loadtxt(filename_stats,dtype=dtype_table_stats)
-        std_e = stats[ident]['stdv_g1']
+    filename_stats = os.path.basename('%s.cat.hsm.stats.stde.cat' % (args.filename_config.replace('.yaml','')))
+    stats = numpy.loadtxt(filename_stats,dtype=dtype_table_stats)
+    std_e = stats[ident]['stdv_g1']
 
-    if order == 2:
-        # sha1-O2.cat.hsm.stats.stde.cat
-        filename_stats = os.path.basename('%s-O2.cat.hsm.stats.stde.cat' % (args.filename_config.replace('.yaml','')))
-        stats = numpy.loadtxt(filename_stats,dtype=dtype_table_stats)
-
+    
     # if HSM had all errors, then use default
     if stats[ident]['stdv_g1'] > 0.01:
         std_e = stats[ident]['stdv_g1']
@@ -459,7 +425,6 @@ def main():
     parser.add_argument('-v', '--verbosity', type=int, action='store', default=2, choices=(0, 1, 2, 3 ), help='integer verbosity level: min=0, max=3 [default=2]')
     parser.add_argument('-c', '--filename_config', default='sha1.yaml',type=str, action='store', help='name of the yaml config file')
     parser.add_argument('-d', '--dry', default=False,  action='store_true', help='Dry run, do not generate data')
-    parser.add_argument('-r', '--redo', default=False, action='store_true', help='produce the files even if the exist')
     parser.add_argument('--debug', default=False, action='store_true', help='debug mode, runs on only a subset of galaxies')
     parser.add_argument('--o1', default=False, action='store_true', help='run order 1 set')
     parser.add_argument('--o2', default=False, action='store_true', help='run order 2 set')
@@ -477,7 +442,7 @@ def main():
     logger.setLevel(logging_level)
 
     if logging_level == logging.DEBUG:
-        logging_level_config = logging.DEBUG
+        logging_level_config = logging.INFO
     else:
         logging_level_config = logging.WARNING
 

@@ -3,12 +3,46 @@ import numpy, galsim, sys, logging, yaml, argparse, time, pylab, copy, itertools
 dtype_table_results =  { 'names'   : ['index','g1','g2','size','x0','y0'] ,
                          'formats' : ['i8'] + ['f8']*5 } 
 
-dtype_table_cat =  { 'names'   : ['index', 'filename_meds', 'n_gals' , 'ihlr', 'isnr', 'iellip', 'iangdeg', 'insersic', 'imoffat_beta', 'imoffat_g', 'imoffat_fwhm', 'hlr', 'snr', 'ellip', 'angdeg', 'nsersic', 'moffat_beta', 'moffat_g', 'moffat_fwhm'],
-                     'formats' : ['i8'] + ['a40'] + ['i8']*9 + ['f8']*11 } 
+dtype_table_cat_O1  =  { 'names'   : ['index', 'filename_meds', 'n_gals' , 'ihlr', 'isnr', 'hlr', 'snr', 'fwhm_obj_over_fwhm_psf' , 'fwhm_obj' , 'fwhm_psf'],
+                         'formats' : ['i8'] + ['a40'] + ['i8']*3 + ['f8']*5 } 
+
+dtype_table_cat_O2 =  { 'names'   : ['index', 'filename_meds', 'n_gals' , 'ihlr', 'isnr', 'iellip', 'iangdeg', 'insersic', 'imoffat_beta', 'imoffat_g', 'imoffat_fwhm', 'hlr', 'snr', 'ellip', 'angdeg', 'nsersic', 'moffat_beta', 'moffat_g', 'moffat_fwhm'],
+                         'formats' : ['i8'] + ['a40'] + ['i8']*9 + ['f8']*11 } 
 
 dtype_table_stats = { 'names'   : ['n_gals','n_fail','g1','g2','size','stdv_g1','stdv_g2','stdm_g1','stdm_g2','stdv_size','stdm_size'] ,
                      'formats' : ['i8'] *2+ ['f8']*9 } 
 
+req1_dg = 0.003
+req2_dg = 0.02
+req3_dg = 0.1
+req1_nfail = 0.01
+req2_nfail = 0.05
+
+def surf_interp(arg1,arg2,value):
+
+    grid_x, grid_y = numpy.mgrid[min(arg1):max(arg1):100j,min(arg2):max(arg2):100j]
+    array_hlr  = numpy.array(arg1,ndmin=2).T
+    array_snr  = numpy.array(arg2,ndmin=2).T
+    points = numpy.concatenate((array_hlr,array_snr),axis=1)
+    import scipy.interpolate
+    grid = scipy.interpolate.griddata(points, value, (grid_x, grid_y), method='cubic')
+    return grid.T
+
+
+def plot_add_req(mult=1.):
+
+    corner = pylab.xlim()[0]
+    length = abs(pylab.xlim()[1]) + abs(pylab.xlim()[0])
+    pylab.gca().add_patch(pylab.Rectangle(  (corner,-mult*req3_dg), length , 2*mult*req3_dg , facecolor = '0.9' , edgecolor='k' ))
+    pylab.gca().add_patch(pylab.Rectangle(  (corner,-mult*req2_dg), length , 2*mult*req2_dg , facecolor = '0.8' , edgecolor='k' ))
+    pylab.gca().add_patch(pylab.Rectangle(  (corner,-mult*req1_dg), length , 2*mult*req1_dg , facecolor = '0.7' , edgecolor='k' ))
+
+def plot_add_nfail_req():
+
+    corner = pylab.xlim()[0]
+    length = abs(pylab.xlim()[1]) + abs(pylab.xlim()[0])
+    pylab.gca().add_patch(pylab.Rectangle(  (corner,-req2_nfail), length , 2*req2_nfail , facecolor = '0.9' , edgecolor='k' ))
+    pylab.gca().add_patch(pylab.Rectangle(  (corner,-req1_nfail), length , 2*req1_nfail , facecolor = '0.7' , edgecolor='k' ))
 
 def write_stats(file_stats,stats):
 
@@ -91,7 +125,7 @@ def get_shear(filename_result):
 
 def get_stats():
 
-    truth_cat = numpy.loadtxt(args.filename_input,dtype=dtype_table_cat)
+    truth_cat = numpy.loadtxt(args.filename_input,dtype=dtype_table_cat_O1)
 
     filename_stats = '%s.%s.stats.cat' % (args.filename_input,args.method_id)
     file_stats = open(filename_stats,'w')
@@ -113,10 +147,11 @@ def get_stats():
 def plotsO1():
 
     filename_stats = '%s.%s.stats.cat' % (args.filename_input,args.method_id)
-    truth_cat = numpy.loadtxt(args.filename_input,dtype=dtype_table_cat)
+    truth_cat = numpy.loadtxt(args.filename_input,dtype=dtype_table_cat_O1)
     stats_cat = numpy.loadtxt(filename_stats,dtype=dtype_table_stats)
-    logger.debug('opened %s with %d rows' % (args.filename_input,len(truth_cat)))
-    logger.debug('opened %s with %d rows' % (filename_stats,len(stats_cat)))
+    n_gals_total = sum(truth_cat['n_gals'])
+    logger.info('opened %s with %d rows and %d galaxies total' % (args.filename_input,len(truth_cat),n_gals_total))
+    logger.info('opened %s with %d rows' % (filename_stats,len(stats_cat)))
 
     
     # order 1 plots
@@ -125,95 +160,138 @@ def plotsO1():
 
         select = truth_cat['ihlr'] == ihlr
         snr = truth_cat[select]['snr']
-        angrad = truth_cat[select]['angdeg']/180.*numpy.pi
-        e_true = truth_cat[select]['ellip'] * numpy.exp(1j*angrad*2.)   # angle of galaxy orientation, not complex shear angle
+        fwhm_obj_over_fwhm_psf = truth_cat[select]['fwhm_obj_over_fwhm_psf']
+        angrad = float(config['gal']['shear']['beta'].split()[0])/180.*numpy.pi
+        e_true = config['gal']['shear']['g'] * numpy.exp(1j*angrad*2.)   # angle of galaxy orientation, not complex shear angle
         
         current_stats_cat = stats_cat[select]
         current_truth_cat = truth_cat[select]
 
-        bias_g1 = (current_stats_cat['g1'] - e_true.real)
-        bias_g2 = (current_stats_cat['g2'] - e_true.imag)
+        bias_g1 = (current_stats_cat['g1'] - e_true.real)/e_true.real
+        bias_g2 = (current_stats_cat['g2'] - e_true.imag)/e_true.imag
 
-        g1_err  = stats_cat[select]['stdm_g1']
-        g2_err  = stats_cat[select]['stdm_g2']
+        g1_err  = stats_cat[select]['stdm_g1']/e_true.real
+        g2_err  = stats_cat[select]['stdm_g2']/e_true.imag
 
-        for ig in range(len(e_true)):
-            logger.info('%d e_tru=(% 0.3f,% 0.3f) , e_est=(% 0.3f,% 0.3f) , bias_g1=(% 0.3f,% 0.3f)' % (ig, e_true.real[ig], e_true.imag[ig], current_stats_cat['g1'][ig], current_stats_cat['g2'][ig], bias_g1[ig], bias_g2[ig]))            # bias_g1 = (current_stats_cat['g1'] - e_true.real)
+        n_fail = numpy.float64(stats_cat[select]['n_fail']) / numpy.float64(stats_cat[select]['n_gals'])
+
+        for ig in range(len(snr)):
+            logger.info('%d e_tru=(% 0.3f,% 0.3f) , e_est=(% 0.3f,% 0.3f) , bias_g1=(% 0.3f,% 0.3f)' % (
+                ig, e_true.real, e_true.imag, 
+                current_stats_cat['g1'][ig], current_stats_cat['g2'][ig], 
+                bias_g1[ig], bias_g2[ig]))           
         
         sort = numpy.argsort(snr)
+        pylab.figure()
         pylab.errorbar(snr[sort],bias_g1[sort],yerr=g1_err,fmt='r+--')
         pylab.errorbar(snr[sort],bias_g2[sort],yerr=g2_err,fmt='rx:')
         xlim_add = (max(snr) - min(snr))*0.1
         pylab.xlim([min(snr)-xlim_add,max(snr)+xlim_add])
+        plot_add_req()
         pylab.xlabel('SNR')
-        pylab.ylabel('dg')
-        title_str = 'hlr=%2.2f' % vhlr
+        pylab.ylabel('dg/g')
+        title_str = 'hlr=%2.2f     FWHM_OBJ/FWHM_PSF=%2.2f ' % (vhlr,fwhm_obj_over_fwhm_psf[ihlr])
         pylab.title(title_str)
+        pylab.legend(['%s g1' % args.method_id,'%s g2' % args.method_id],loc='lower left',ncol=2,mode='expand')
         filename_fig = 'fig.%s.hlr%d.png' % (filename_stats,ihlr)
         pylab.savefig(filename_fig)
         logger.info('saved %s' % filename_fig)
         pylab.close()
 
-def plotsO2():
+        pylab.figure()
+        pylab.plot(snr[sort],n_fail[sort],'ro-')
+        xlim_add = (max(snr) - min(snr))*0.1
+        pylab.xlim([min(snr)-xlim_add,max(snr)+xlim_add])
+        plot_add_nfail_req()
+        pylab.xlabel('SNR')
+        pylab.ylabel('n_fail [%]')
+        title_str = 'hlr=%2.2f' % vhlr
+        pylab.title(title_str)
+        filename_fig = 'fig.%s.hlr%d.nfail.png' % (filename_stats,ihlr)
+        pylab.savefig(filename_fig)
+        logger.info('saved %s' % filename_fig)
+        pylab.close()
 
-    filename_stats = '%s.%s.stats.cat' % (args.filename_input,args.method_id)
-    truth_cat = numpy.loadtxt(args.filename_input,dtype=dtype_table_cat)
-    stats_cat = numpy.loadtxt(filename_stats,dtype=dtype_table_stats)
-    logger.debug('opened %s with %d rows' % (args.filename_input,len(truth_cat)))
-    logger.debug('opened %s with %d rows' % (filename_stats,len(stats_cat)))
-    params = config['order2']['deviations'].keys()
+    # plot the surface
+
+    angrad = float(config['gal']['shear']['beta'].split()[0])/180.*numpy.pi
+    e_true = config['gal']['shear']['g'] * numpy.exp(1j*angrad*2.)   # angle of galaxy orientation, not complex shear angle
+
+    n_grid = 100
+    pylab.figure()
+    bias = (stats_cat['g1'] - e_true.real)/e_true.real
+    grid=surf_interp(truth_cat['hlr'],truth_cat['snr'],bias)
+    pylab.imshow(grid, origin='lower',extent=(min(truth_cat['hlr']),max(truth_cat['hlr']),min(truth_cat['snr']),max(truth_cat['snr'])), aspect='auto')
+    pylab.ylabel('SNR')
+    pylab.xlabel('hlr [arcsec]')
+    title_str = '%s' % args.method_id
+    pylab.title(title_str)
+    filename_fig = 'fig.%s.hlr_snr.%s.png' % (filename_stats,args.method_id)
+    pylab.colorbar()
+    pylab.savefig(filename_fig)
+    logger.info('saved %s' % filename_fig)
+    pylab.close()
+
+# def plotsO2():
+
+#     filename_stats = '%s.%s.stats.cat' % (args.filename_input,args.method_id)
+#     truth_cat = numpy.loadtxt(args.filename_input,dtype=dtype_table_cat)
+#     stats_cat = numpy.loadtxt(filename_stats,dtype=dtype_table_stats)
+#     logger.debug('opened %s with %d rows' % (args.filename_input,len(truth_cat)))
+#     logger.debug('opened %s with %d rows' % (filename_stats,len(stats_cat)))
+#     params = config['order2']['deviations'].keys()
     
-    # order 1 plots
-    for ihlr_snr,vhlr_snr in enumerate(config['order2']['hlr_snr']):
+#     # order 1 plots
+#     for ihlr_snr,vhlr_snr in enumerate(config['order2']['hlr_snr']):
 
-        for iparam,vparam in enumerate(params):
+#         for iparam,vparam in enumerate(params):
 
-            select = truth_cat['ihlr'] == ihlr_snr  
-            hlr,snr = vhlr_snr[0],vhlr_snr[1]
+#             select = truth_cat['ihlr'] == ihlr_snr  
+#             hlr,snr = vhlr_snr[0],vhlr_snr[1]
 
-            current_truth_cat = truth_cat[select]
-            current_stats_cat = stats_cat[select]
+#             current_truth_cat = truth_cat[select]
+#             current_stats_cat = stats_cat[select]
             
-            fid_params = copy.deepcopy(params)
-            fid_params.remove(vparam)
+#             fid_params = copy.deepcopy(params)
+#             fid_params.remove(vparam)
 
-            select = numpy.ones(len(current_truth_cat),dtype=bool)
-            # [ print ( current_truth_cat['i'+p] == config['order2']['deviations'][vparam]['fid']  ) for p in fid_params ]
-            for p in fid_params:
-                select *= (current_truth_cat['i'+p] == config['order2']['deviations'][p]['fid'])
+#             select = numpy.ones(len(current_truth_cat),dtype=bool)
+#             # [ print ( current_truth_cat['i'+p] == config['order2']['deviations'][vparam]['fid']  ) for p in fid_params ]
+#             for p in fid_params:
+#                 select *= (current_truth_cat['i'+p] == config['order2']['deviations'][p]['fid'])
 
-            current_stats_cat = current_stats_cat[select]
-            current_truth_cat = current_truth_cat[select]
+#             current_stats_cat = current_stats_cat[select]
+#             current_truth_cat = current_truth_cat[select]
 
-            angrad = current_truth_cat['angdeg']/180.*numpy.pi
-            e_true = current_truth_cat['ellip'] * numpy.exp(1j*angrad*2.)   # angle of galaxy orientation, not complex shear angle
+#             angrad = current_truth_cat['angdeg']/180.*numpy.pi
+#             e_true = current_truth_cat['ellip'] * numpy.exp(1j*angrad*2.)   # angle of galaxy orientation, not complex shear angle
             
-            bias_g1 = (current_stats_cat['g1'] - e_true.real)
-            bias_g2 = (current_stats_cat['g2'] - e_true.imag)
-            g1_err  = current_stats_cat['stdm_g1']
-            g2_err  = current_stats_cat['stdm_g2']
+#             bias_g1 = (current_stats_cat['g1'] - e_true.real)
+#             bias_g2 = (current_stats_cat['g2'] - e_true.imag)
+#             g1_err  = current_stats_cat['stdm_g1']
+#             g2_err  = current_stats_cat['stdm_g2']
 
-            for ig in range(len(e_true)):
-                logger.info('%d e_tru=(% 0.3f,% 0.3f) , e_est=(% 0.3f,% 0.3f) , bias_g1=(% 0.3f,% 0.3f)' % (ig, e_true.real[ig], e_true.imag[ig], current_stats_cat['g1'][ig], current_stats_cat['g2'][ig], bias_g1[ig], bias_g2[ig]))            # bias_g1 = (current_stats_cat['g1'] - e_true.real)            # bias_g2 = (current_stats_cat['g2'] - e_true.imag)
-            # g1_err  = current_stats_cat['stdm_g1']
-            # g2_err  = current_stats_cat['stdm_g2']
+#             for ig in range(len(e_true)):
+#                 logger.info('%d e_tru=(% 0.3f,% 0.3f) , e_est=(% 0.3f,% 0.3f) , bias_g1=(% 0.3f,% 0.3f)' % (ig, e_true.real[ig], e_true.imag[ig], current_stats_cat['g1'][ig], current_stats_cat['g2'][ig], bias_g1[ig], bias_g2[ig]))            # bias_g1 = (current_stats_cat['g1'] - e_true.real)            # bias_g2 = (current_stats_cat['g2'] - e_true.imag)
+#             # g1_err  = current_stats_cat['stdm_g1']
+#             # g2_err  = current_stats_cat['stdm_g2']
 
-            param_grid = current_truth_cat[vparam]
+#             param_grid = current_truth_cat[vparam]
 
-            sort = numpy.argsort(param_grid)
-            pylab.errorbar(param_grid[sort],bias_g1[sort],yerr=g1_err,fmt='b+--')
-            pylab.errorbar(param_grid[sort],bias_g2[sort],yerr=g2_err,fmt='bx:')
-            xlim_add = (max(param_grid) - min(param_grid))*0.1
-            pylab.xlim([min(param_grid)-xlim_add,max(param_grid)+xlim_add])
-            pylab.xlabel(vparam)
-            pylab.ylabel('dg')
-            title_str = 'hlr=%2.2f snr=%2.2f' % (hlr,snr)
-            pylab.title(title_str)
+#             sort = numpy.argsort(param_grid)
+#             pylab.errorbar(param_grid[sort],bias_g1[sort],yerr=g1_err,fmt='b+--')
+#             pylab.errorbar(param_grid[sort],bias_g2[sort],yerr=g2_err,fmt='bx:')
+#             xlim_add = (max(param_grid) - min(param_grid))*0.1
+#             pylab.xlim([min(param_grid)-xlim_add,max(param_grid)+xlim_add])
+#             pylab.xlabel(vparam)
+#             pylab.ylabel('dg')
+#             title_str = 'hlr=%2.2f snr=%2.2f' % (hlr,snr)
+#             pylab.title(title_str)
 
-            filename_fig = 'fig.%s.%d.%s.png' % (filename_stats,ihlr_snr,vparam)
-            pylab.savefig(filename_fig)
-            logger.info('saved %s' % filename_fig)
-            pylab.close()
+#             filename_fig = 'fig.%s.%d.%s.png' % (filename_stats,ihlr_snr,vparam)
+#             pylab.savefig(filename_fig)
+#             logger.info('saved %s' % filename_fig)
+#             pylab.close()
 
 
 
