@@ -255,8 +255,8 @@ class TestGal(object):
             gsobj.draw(img,dx= UNIT_PIXEL_SCALE)
         elif coordinate_origin == 'bottom left':
             # offset = -img.bounds.trueCenter() + (-1,-1)
-            x0 = - float(n_pix)/2.
-            y0 = - float(n_pix)/2.
+            x0 = - (float(n_pix)/2. + 0.5)
+            y0 = - (float(n_pix)/2. + 0.5)
             # gsobj.draw(img,dx= UNIT_PIXEL_SCALE,offset=(-img.bounds.trueCenter()))
             gsobj.draw(img,dx= UNIT_PIXEL_SCALE,offset=galsim.PositionD(x0,y0))
             # gsobj.draw(img,dx= UNIT_PIXEL_SCALE)
@@ -622,7 +622,7 @@ def main():
     config = yaml.load(open(args.filename_config))
 
     get_multiexp_object()
-    # save_psf_images()
+    save_psf_images()
     consistency_check()
 
 

@@ -11,8 +11,8 @@
 # row0 , col0 - position of the u,v point in stamp pixel coordinates
 
 truth:
-    'gal_g1' :  0.5
-    'gal_g2' :  -0.4
+    'gal_g1' :  0.
+    'gal_g2' :  0.
     'gal_x' : 0
     'gal_y' : 0
     'gal_r' : 6

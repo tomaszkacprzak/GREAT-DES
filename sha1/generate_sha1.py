@@ -5,6 +5,7 @@ dtype_table_stats = { 'names'   : ['n_gals','n_fail','g1','g2','size','stdv_g1',
 
 STD_DE_TARGET = 0.001
 DEFAULT_STD_E = 0.25
+N_GALS_DEBUG = 1000
 
 def fpack(filename):
 
@@ -302,7 +303,7 @@ def get_catalog_O1():
 
             # calculate the number of packages for that settings
             if args.debug:
-                n_gals,std_e = 100,0.1
+                n_gals,std_e = N_GALS_DEBUG,0.1
             else:
                 n_gals,std_e = get_n_gals(iall-1, 1)
                 
@@ -452,7 +453,7 @@ def main():
     logger.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
 
     if args.debug: 
-        logger.critical('running in DEBUG MODE on 1000 galaxies')
+        logger.critical('running in DEBUG MODE on %d galaxies' % N_GALS_DEBUG)
 
     if args.o1:
         logger.info('------------- generating order 1 -------------')

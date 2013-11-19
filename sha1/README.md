@@ -54,7 +54,7 @@ SHA1 test
 	
 	now estimate stde by running only 100 galaxies (use debug flag)
 	rm *fz 
-	python $CODE/GREAT-DES/sha1/generate_sha1.py -c sha1-O1.yaml --debug
+	python $CODE/GREAT-DES/sha1/generate_sha1.py -c sha1-O1.yaml --debug --o1
 	python $CODE/GREAT-DES/sha1/run_hsm_sha1.py -i sha1-O1.cat
 	python $CODE/GREAT-DES/sha1/plots_sha1.py -c sha1-O1.yaml -i sha1-O1.cat
 	

@@ -190,6 +190,7 @@ def plotsO1():
         plot_add_req()
         pylab.xlabel('SNR')
         pylab.ylabel('dg/g')
+        pylab.xticks(snr)
         title_str = 'hlr=%2.2f     FWHM_OBJ/FWHM_PSF=%2.2f ' % (vhlr,fwhm_obj_over_fwhm_psf[ihlr])
         pylab.title(title_str)
         pylab.legend(['%s g1' % args.method_id,'%s g2' % args.method_id],loc='lower left',ncol=2,mode='expand')
@@ -205,6 +206,7 @@ def plotsO1():
         plot_add_nfail_req()
         pylab.xlabel('SNR')
         pylab.ylabel('n_fail [%]')
+        pylab.xticks(snr)
         title_str = 'hlr=%2.2f' % vhlr
         pylab.title(title_str)
         filename_fig = 'fig.%s.hlr%d.nfail.png' % (filename_stats,ihlr)
