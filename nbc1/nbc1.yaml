@@ -1,0 +1,79 @@
+pixel_scale        : &pixel_scale          0.27
+n_exposures        : &n_exposures          1
+
+grid:
+    psf_fwhm: [0.7, 0.8, 0.9, 1.0]
+    snr : [5,10,15,20,30,40]
+    shear : [ [0.05, 0.0], [0.0, 0.05] , [-0.05, 0.0], [0.0, -0.05], [0.03536, 0.03536], [0.03536, -0.03536], [-0.03536, -0.03536], [-0.03536, 0.03536] ]
+
+input :
+    real_catalog :
+        dir : /home/kacprzak/code/GalSim//rgc
+        image_dir: /home/kacprzak/code/GalSim//rgc
+        file_name : real_galaxy_catalog.fits
+        # dir : /home/kacprzak/code/GalSim/examples/data/
+        # image_dir: /home/kacprzak/code/GalSim/examples/data
+        # file_name : real_galaxy_catalog_example.fits
+        preload : True   # This usually makes a big improvement in speed
+
+output:
+    type : des_meds
+    nstamps_per_object : *n_exposures
+
+    # get the number of galaxies in a file
+    # this will be determined by the generate_catalog.py script
+    nobjects : 1
+    
+    # nproc = -1 means to try to determine the number of CPUs and use that.
+    nproc : -1
+
+    # this will be overwritten by python
+    file_name : 99  
+
+gal:
+    type : Ring
+    num : 2
+    first :
+        type: RealGalaxy   
+        index: 
+            type: Random
+        rotate :
+            type : Random
+
+    shear : 
+        type : G1G2
+        g1 : 99
+        g2 : 99
+    
+    # A random shift within a 1 pixel circle.
+    signal_to_noise: 99.
+    shift : 
+        type : RandomCircle
+        radius : *pixel_scale
+
+psf:
+    type: Kolmogorov
+    fwhm: 99
+    ellip: 
+        type: GBeta
+        g : 0.0
+        beta: 0.0 deg
+
+image:
+    pixel_scale: *pixel_scale
+    # This doesn't matter much, since we set the S/N above.  It just sets an overall scale for 
+    # the pixel values to something reasonable.  
+    noise : { sky_level : 1.e6 }  
+    size: 64
+
+
+
+
+
+
+
+
+
+
+
+
