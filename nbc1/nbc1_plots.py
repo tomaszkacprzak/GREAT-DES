@@ -1,16 +1,24 @@
 import numpy, galsim, sys, logging, yaml, argparse, time, pylab, copy, itertools
 
-dtype_table_results =  { 'names'   : ['index','g1','g2','size','x0','y0'] ,
-                         'formats' : ['i8'] + ['f8']*5 } 
 
 dtype_table_cat     =  { 'names'   : ['index', 'filename_meds', 'n_gals' , 'ipsf_fwhm', 'isnr', 'ig', 'psf_fwhm', 'snr', 'g1' , 'g2'],
                          'formats' : ['i8'] + ['a40'] + ['i8']*3 + ['f8']*5 } 
 
-dtype_table_bias     =  { 'names'   : ['index', 'ipsf_fwhm', 'isnr' , 'psf_fwhm', 'snr', 'm1', 'm2', 'c1', 'c2', 'm1_std', 'm2_std', 'c1_std', 'c2_std', 'g_std', 'nfail' ],
-                         'formats' : ['i8'] + ['i8']*2 + ['f8']*11 + ['i8']*1 } 
+dtype_table_bias     =  { 'names'   : ['index', 'ipsf_fwhm', 'isnr' ,  'nfail', 'psf_fwhm', 'snr', 'm1', 'm2', 'c1', 'c2', 'm1_std', 'm2_std', 'c1_std', 'c2_std', 'g_std' ],
+                         'formats' : ['i8']*4 + ['f8']*11 } 
 
 dtype_table_stats = { 'names'   : ['index','n_gals','n_fail','g1','g2','size','stdv_g1','stdv_g2','stdm_g1','stdm_g2','stdv_size','stdm_size'] ,
                      'formats' : ['i8'] *3+ ['f8']*9 } 
+
+dtype_table_results =  { 'names'   : ['index','g1','g2','size','x0','y0'] ,
+                         'formats' : ['i8'] + ['f8']*5 } 
+
+dtype_table_results_im3shape = { 
+        'names' : [ 'ID' ,  'catalogx' , 'catalogy' , 'Likelihood' , 'x0' , 'y0' , 'g1' , 'g2' , 'radius' , 'bulge_A' , 'disc_A' , 'flux_ratio' , 'size' , 'snr' , 'min_residuals' , 'max_residuals' , 'model_min' , 'model_max' , 'psf_e1' , 'psf_e2' , 'psf_fwhm' , 'psf_beta' , 'Rgpp_Rp' , 'levmar_e0' , 'levmar_e' , 'levmar_J' , 'levmar_Dp' , 'levmar_mu' , 'levmar_De' , 'levmar_nit' , 'levmar_reason' , 'levmar_neval' , 'levmar_njac' , 'levmar_nlin' , 'time_taken']  ,
+        'formats' : ['i8'] + ['f4']*28 + ['i8']*5 + ['f4']*1 }
+            
+
+dtype_results = { 'hsm' : dtype_table_results , 'im3' : dtype_table_results_im3shape }
 
 req1_dg = 0.003
 req2_dg = 0.02
@@ -102,7 +110,8 @@ def write_stats(file_stats,stats):
 
 def get_shear(filename_result):
 
-    res = numpy.loadtxt(filename_result,dtype=dtype_table_results)
+    use_dtype = dtype_results[args.method_id]
+    res = numpy.loadtxt(filename_result,dtype=use_dtype)
     n_res = len(res)
     select_successful = numpy.abs(res['g1'] + 1j*res['g2'])<1
     n_success = sum(select_successful)
@@ -181,19 +190,35 @@ def get_stats():
     file_stats.close()
     logger.info('saved file %s' % filename_stats)
 
-def write_bias_results(file_bias,bias_result=None,header=True):
+def write_bias_results(file_bias,bias_result=None,header=False):
 
     if header:
-        header = '#' + ' '.join(dtype_table_bias['names'])
+        header = '#  index ipsf_fwhm isnr n_fail psf_fwhm snr m1 m2 c1 c2 m1_std m2_std c1_std c2_std g_std \n'
         file_bias.write(header)
     else:
-        fmt = '%d\t'*3 + '% 2.8f\t'*11 + '%d\t' + '\n'
+        fmt = '%d\t'*4 + '% 2.8f\t'*11 + '\n'
+        line = fmt % (
+            bias_result['index'] ,
+            bias_result['ipsf_fwhm'],
+            bias_result['isnr'] ,
+            bias_result['n_fail'],
+            bias_result['psf_fwhm'],
+            bias_result['snr'],
+            bias_result['m1'],
+            bias_result['m2'],
+            bias_result['c1'],
+            bias_result['c2'],
+            bias_result['m1_std'],
+            bias_result['m2_std'],
+            bias_result['c1_std'],
+            bias_result['c2_std'],
+            bias_result['g_std']
+        )
 
-        line = fmt % bias_result.values()
         file_bias.write(line)
 
 
-def plots():
+def get_mc():
 
     filename_stats = '%s.%s.stats.cat' % (args.filename_input,args.method_id)
     truth_cat = numpy.loadtxt(args.filename_input,dtype=dtype_table_cat)
@@ -263,49 +288,82 @@ def plots():
             bias_result['n_fail'] = n_fail
             logger.info('psf_fwhm=%2.2f\tsnr=%2.2f\tm=% 2.2e\tc=% 2.2f\tm_err=%2.2e\tc_err=%2.2e\tg_std=%2.2f\tn_fail=%2.2f' % (vpsf_fwhm, vsnr,m1,c1,m1_std,c1_std,g_std,n_fail))                
 
+            write_bias_results(file_bias, bias_result=bias_result)
+
             iall+=1
 
+def plot_mc():
+
+        filename_bias = '%s.%s.bias.cat' % (args.filename_input,args.method_id)
+        results_mc = numpy.loadtxt(filename_bias,dtype=dtype_table_bias)  
 
 
 
-    #     for ig in range(len(snr)):
-    #         logger.info('%d e_tru=(% 0.3f,% 0.3f) , e_est=(% 0.3f,% 0.3f) , bias_g1=(% 0.3f,% 0.3f)' % (
-    #             ig, e_true.real, e_true.imag, 
-    #             current_stats_cat['g1'][ig], current_stats_cat['g2'][ig], 
-    #             bias_g1[ig], bias_g2[ig]))           
+        # snr = config['grid']['snr']
+        # for ig in range(len(snr)):
+        #     logger.info('%d e_tru=(% 0.3f,% 0.3f) , e_est=(% 0.3f,% 0.3f) , bias_g1=(% 0.3f,% 0.3f)' % (
+        #         ig, e_true.real, e_true.imag, 
+        #         current_stats_cat['g1'][ig], current_stats_cat['g2'][ig], 
+        #         bias_g1[ig], bias_g2[ig]))           
+
+        psf_fwhm_colors=['r','g','b']
         
-    #     sort = numpy.argsort(snr)
-    #     pylab.figure()
-    #     pylab.errorbar(snr[sort],bias_g1[sort],yerr=g1_err,fmt='r+--')
-    #     pylab.errorbar(snr[sort],bias_g2[sort],yerr=g2_err,fmt='rx:')
-    #     xlim_add = (max(snr) - min(snr))*0.1
-    #     pylab.xlim([min(snr)-xlim_add,max(snr)+xlim_add])
-    #     plot_add_req()
-    #     pylab.xlabel('SNR')
-    #     pylab.ylabel('dg/g')
-    #     pylab.xticks(snr)
-    #     title_str = 'hlr=%2.2f     FWHM_OBJ/FWHM_PSF=%2.2f ' % (vhlr,fwhm_obj_over_fwhm_psf[ihlr])
-    #     pylab.title(title_str)
-    #     pylab.legend(['%s g1' % args.method_id,'%s g2' % args.method_id],loc='lower left',ncol=2,mode='expand')
-    #     filename_fig = 'fig.%s.hlr%d.png' % (filename_stats,ihlr)
-    #     pylab.savefig(filename_fig)
-    #     logger.info('saved %s' % filename_fig)
-    #     pylab.close()
+        for ipsf_fwhm,vpsf_fwhm in enumerate(config['grid']['psf_fwhm']):
+            # for isnr,vsnr in enumerate(config['grid']['snr']):
 
-    #     pylab.figure()
-    #     pylab.plot(snr[sort],n_fail[sort],'ro-')
-    #     xlim_add = (max(snr) - min(snr))*0.1
-    #     pylab.xlim([min(snr)-xlim_add,max(snr)+xlim_add])
-    #     plot_add_nfail_req()
-    #     pylab.xlabel('SNR')
-    #     pylab.ylabel('n_fail [%]')
-    #     pylab.xticks(snr)
-    #     title_str = 'hlr=%2.2f' % vhlr
-    #     pylab.title(title_str)
-    #     filename_fig = 'fig.%s.hlr%d.nfail.png' % (filename_stats,ihlr)
-    #     pylab.savefig(filename_fig)
-    #     logger.info('saved %s' % filename_fig)
-    #     pylab.close()
+            select = (results_mc['ipsf_fwhm'] == ipsf_fwhm)
+            results_select = results_mc[select]
+            sort = numpy.argsort(results_select['snr'])
+            results_select=results_select[sort] 
+
+            pylab.figure(1)
+            pylab.errorbar(results_select['snr'],results_select['m1'],yerr=results_select['m1_std'],fmt='r+--')
+            pylab.errorbar(results_select['snr'],results_select['m2'],yerr=results_select['m2_std'],fmt='rx:')
+            xlim_add = (max(results_select['snr']) - min(results_select['snr']))*0.1
+            pylab.xlim([min(results_select['snr'])-xlim_add,max(results_select['snr'])+xlim_add])
+            plot_add_req()
+            pylab.xlabel('SNR')
+            pylab.ylabel('multiplicative bias m')
+            pylab.xticks(results_select['snr'])
+            title_str = 'PSF FWHM=%2.2f ' % (vpsf_fwhm)
+            pylab.title(title_str)
+            pylab.legend(['%s g1' % args.method_id,'%s g2' % args.method_id],loc='lower left',ncol=2,mode='expand')
+            filename_fig = 'fig.%s.psf_fwhm%d.png' % (filename_bias,ipsf_fwhm)
+            pylab.savefig(filename_fig)
+            logger.info('saved %s' % filename_fig)
+            pylab.close()
+
+            pylab.figure(2)
+            pylab.errorbar(results_select['snr'],results_select['m1'],yerr=results_select['m1_std'],fmt=psf_fwhm_colors[ipsf_fwhm]+'--',label='psf_fwhm=%2.2f m1' % vpsf_fwhm)
+            pylab.errorbar(results_select['snr'],results_select['m2'],yerr=results_select['m2_std'],fmt=psf_fwhm_colors[ipsf_fwhm]+':',label='psf_fwhm=%2.2f m2' % vpsf_fwhm)
+
+        pylab.figure(2)
+        xlim_add = (max(results_select['snr']) - min(results_select['snr']))*0.1
+        pylab.xlim([min(results_select['snr'])-xlim_add,max(results_select['snr'])+xlim_add])
+        plot_add_req()
+        pylab.xlabel('SNR')
+        pylab.ylabel('multiplicative bias m')
+        pylab.xticks(results_select['snr'])
+        pylab.legend(loc='lower left',ncol=2,mode='expand')
+        filename_fig = 'fig.%s.png' % (filename_bias)
+        pylab.savefig(filename_fig)
+        logger.info('saved %s' % filename_fig)
+        pylab.close()
+
+        # pylab.figure()
+        # pylab.plot(snr[sort],n_fail[sort],'ro-')
+        # xlim_add = (max(snr) - min(snr))*0.1
+        # pylab.xlim([min(snr)-xlim_add,max(snr)+xlim_add])
+        # plot_add_nfail_req()
+        # pylab.xlabel('SNR')
+        # pylab.ylabel('n_fail [%]')
+        # pylab.xticks(snr)
+        # title_str = 'hlr=%2.2f' % vhlr
+        # pylab.title(title_str)
+        # filename_fig = 'fig.%s.hlr%d.nfail.png' % (filename_stats,ihlr)
+        # pylab.savefig(filename_fig)
+        # logger.info('saved %s' % filename_fig)
+        # pylab.close()
 
     # # plot the surface
 
@@ -358,7 +416,8 @@ def main():
 
 
     # get_stats()
-    plots()
+    # get_mc()
+    plot_mc()
 
     logger.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
 

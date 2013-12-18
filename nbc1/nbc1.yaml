@@ -1,5 +1,6 @@
 pixel_scale        : &pixel_scale          0.27
 n_exposures        : &n_exposures          1
+cutout_size        : &cutout_size          64
 
 grid:
     psf_fwhm: [0.7, 0.8, 0.9, 1.0]
@@ -8,12 +9,12 @@ grid:
 
 input :
     real_catalog :
-        dir : /home/kacprzak/code/GalSim//rgc
-        image_dir: /home/kacprzak/code/GalSim//rgc
-        file_name : real_galaxy_catalog.fits
-        # dir : /home/kacprzak/code/GalSim/examples/data/
-        # image_dir: /home/kacprzak/code/GalSim/examples/data
-        # file_name : real_galaxy_catalog_example.fits
+        # dir : /home/kacprzak/code/GalSim//rgc
+        # image_dir: /home/kacprzak/code/GalSim//rgc
+        # file_name : real_galaxy_catalog.fits
+        dir : /home/kacprzak/code/GalSim/examples/data/
+        image_dir: /home/kacprzak/code/GalSim/examples/data
+        file_name : real_galaxy_catalog_example.fits
         preload : True   # This usually makes a big improvement in speed
 
 output:
@@ -64,7 +65,7 @@ image:
     # This doesn't matter much, since we set the S/N above.  It just sets an overall scale for 
     # the pixel values to something reasonable.  
     noise : { sky_level : 1.e6 }  
-    size: 64
+    size: *cutout_size
 
 
 

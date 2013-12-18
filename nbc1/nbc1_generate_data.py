@@ -3,11 +3,9 @@ import os, galsim, numpy, argparse, copy, logging, sys, yaml, subprocess, time, 
 dtype_table_stats = { 'names'   : ['index','n_gals','n_fail','g1','g2','size','stdv_g1','stdv_g2','stdm_g1','stdm_g2','stdv_size','stdm_size'] ,
                      'formats' : ['i8'] *3+ ['f8']*9 } 
 
-
-STD_M_TARGET = 0.01
+N_GALS_COLS = 100
 DEFAULT_STD_E = 0.25
 N_GALS_DEBUG = 1000
-USE_FPACK = True
 
 def fpack(filename):
 
@@ -147,7 +145,7 @@ def copy_preloaded_config(config_processed, config_orig):
 
     config_new = copy.deepcopy(config_orig)
     config_new['real_catalog'] = config_processed['real_catalog']
-    config_new['n_exposures'] = config_processed['n_exposures']
+    # config_new['n_exposures'] = config_processed['n_exposures']
     config_new['input_manager'] = config_processed['input_manager']
     config_new['real_catalog_safe'] = config_processed['real_catalog_safe']
     config_new['input']['real_catalog'] = config_processed['input']['real_catalog']
@@ -192,39 +190,54 @@ def get_data():
                 else:
                     n_gals,std_e = get_n_gals(iall, 1)
                     
-                filename_meds = os.path.basename(args.filename_config.replace('.yaml','') + '.%03d.meds.fits' % iall)
+                filename_meds = os.path.basename(args.filename_config.replace('.yaml','') + '.%03d.fits' % iall)
 
                 logger.info('%3d current params psf_fwhm=%2.2f\tsnr=%2.2f\tg1=% 2.3f\tg1=% 2.3f \t processing file %s with std_e=%2.2e and n_gals=%10d' % (
                                     iall,vsize,vsnr,vshear[0],vshear[1],filename_meds,std_e,n_gals))
                                    
                 
 
-                if USE_FPACK:
+                if args.fpack:
                     filename_meds_fz = filename_meds + '.fz'
                 else:
                     filename_meds_fz = filename_meds
 
+                # all this will be skipped in "wet" mode
                 if not args.dry:
-
+                    
                     config_use = copy_preloaded_config(config_copy_processed,config_copy_base)
                     config_use['output']['file_name'] = filename_meds
-                    config_use['output']['nobjects'] = n_gals                                  
                     config_use['psf']['fwhm'] = vsize
                     config_use['gal']['signal_to_noise'] = vsnr
                     config_use['gal']['shear']['g1'] = vshear[0]
                     config_use['gal']['shear']['g2'] = vshear[1]
+
+                    if config_use['output']['type']=='Fits':
+                        config_use['image']['nx_tiles'] = n_gals/N_GALS_COLS
+                        size_key = 'stamp_size'
+                    elif config_use['output']['type'] == 'des_meds':
+                        config_use['output']['nobjects'] = n_gals                                  
+                        size_key = 'size'
+                    
                     galsim.config.Process(config_use,logger=logger_config)              
                     
-                    if USE_FPACK:
+                    if args.fpack:
                         # compress the meds file
                         logger.debug('created file %s, compressing...' % filename_meds)
                         fpack(filename_meds)                
 
-                    save_psf_img(config_use,filename_meds_fz)
+                    if config_use['output']['type']=='Fits':
+                        save_psf_img_tiled(config_use,filename_meds_fz)
+                    elif config_use['output']['type'] == 'des_meds':
+                        save_psf_img_meds(config_use,filename_meds_fz)
+
+                # save input catalog
+                if config_copy_base['output']['type']=='Fits':
+                    save_tiled_input_catalog(filename_meds,n_gals)
 
                 # write the file details in the catalog
                 #index filename_meds n_gals ipsf_fwhm isnr ishear psf_fwhm snr shear1 shear2 
-                line_fmt = '%d\t%s\t%d\t'+ '%d\t'*3 +'% 2.8f'*4 +'\n' 
+                line_fmt = '%d\t%s\t%d\t'+ '%d\t'*3 +'% 2.8f\t'*4 +'\n' 
                 line = line_fmt % ( iall,filename_meds_fz,n_gals,isize,isnr,ishear,vsize,vsnr,vshear[0],vshear[1] )
                 file_catalog.write(line)
                 file_catalog.flush()
@@ -237,6 +250,26 @@ def get_data():
     logger.info('total_n_files=%d' % total_n_files)
     file_catalog.close()
     logger.info('saved %s' % filename_catalog)
+
+def save_tiled_input_catalog(filename_meds,n_gals):
+
+    filename_cat = filename_meds + '.txt'
+    nx_tiles = n_gals / N_GALS_COLS 
+    ny_tiles = N_GALS_COLS
+
+    file_cat = open(filename_cat,'w')
+    header = '# id x y mag(dummy) size(dummy)'
+    iall = 0
+    for ix in range(nx_tiles):
+        for iy in range(ny_tiles):
+            x = ix*config['cutout_size'] + config['cutout_size']/2.
+            y = iy*config['cutout_size'] + config['cutout_size']/2.
+            line = '%d\t%2.4f\t%2.4f\t0\t0\n' % (iall,x,y)
+            file_cat.write(line)
+            iall+=1
+    file_cat.close()
+    logger.info('saved %s' % filename_cat)
+
 
 
 def get_n_gals(ident,order):
@@ -255,10 +288,9 @@ def get_n_gals(ident,order):
     shears =  numpy.array([x[0] for x in config['grid']['shear']])
 
     n_shears = len(shears)
-
     var_e = std_e**2;
     var_s = numpy.mean(shears**2) - numpy.mean(shears)**2
-    var_m_target = STD_M_TARGET**2;
+    var_m_target = args.m_accuracy**2;
 
     n_gals_target = var_e/(var_s*var_m_target) 
     n_gals_per_shear = n_gals_target/n_shears
@@ -268,17 +300,18 @@ def get_n_gals(ident,order):
 
     return n_gals , std_e
 
-def save_psf_img(config,filename_meds):
+def save_psf_img_meds(config,filename_meds):
+
 
     config_copy=config
     hdulist=pyfits.HDUList()
     filename_psf = '%s.psf' % (filename_meds)
 
-    orig_pixel_scale = config_copy['image']['pixel_scale']
-    orig_image_size = config_copy['image']['size']
+    orig_pixel_scale = config_copy['pixel_scale']
+    orig_image_size = config_copy['cutout_size']
 
     logger.debug('getting single PSF at the pixel scale of a galaxy')
-    
+      
     img_gal,img_psf,_,_  = galsim.config.BuildImages(config=config,image_num=0,obj_num=0,make_psf_image=True,nimages=1,logger=logger_config)   
     img_psf[0].write(hdu_list=hdulist)
     
@@ -287,7 +320,7 @@ def save_psf_img(config,filename_meds):
     
     n_sub = 5
     n_pad = 4
-    n_pix_hires = (config['image']['size'] + n_pad) * n_sub
+    n_pix_hires = (orig_image_size + n_pad) * n_sub
     pixel_scale_hires = float(config['image']['pixel_scale']) / float(n_sub)
     config_copy['image']['pixel_scale'] = pixel_scale_hires
     config_copy['image']['size'] = n_pix_hires
@@ -297,16 +330,68 @@ def save_psf_img(config,filename_meds):
     # now field
     logger.debug('getting low res PSF in a field')
     config_copy['image']['pixel_scale'] = orig_pixel_scale
-    config_copy['image']['size'] = orig_image_size
+    config_copy['image']['stamp_size'] = orig_image_size
     config_copy['image']['type'] = 'Tiled'
     config_copy['image']['nx_tiles'] = 10
     config_copy['image']['ny_tiles'] = 10
-    
+
     # This is the size of the postage stamps.
     config_copy['image']['stamp_xsize'] = orig_image_size
     config_copy['image']['stamp_ysize'] = orig_image_size
 
-    del(config_copy['image']['size'])
+    if 'size' in config_copy['image']:
+        del(config_copy['image']['size'])
+
+def save_psf_img_tiled(config,filename_meds):
+
+
+    config_copy=config
+    hdulist=pyfits.HDUList()
+    filename_psf = '%s.psf' % (filename_meds)
+
+    orig_pixel_scale = config_copy['pixel_scale']
+    orig_image_size = config_copy['cutout_size']
+
+    config_copy['image']['nx_tiles'] = 2
+    config_copy['image']['ny_tiles'] = 2
+    config_copy['image']['nproc'] = 1
+
+    logger.debug('getting single PSF at the pixel scale of a galaxy')
+      
+    img_gal,img_psf,_,_  = galsim.config.BuildImages(config=config,image_num=0,obj_num=0,make_psf_image=True,nimages=1,logger=logger_config)   
+    img_psf = img_psf[0]
+    img_psf = img_psf[galsim.BoundsI(1, orig_image_size, 1, orig_image_size)]
+    img_psf.write(hdu_list=hdulist)
+    
+    # now the hires PSF, centered in the middle
+    logger.debug('getting single PSF at high resolution')
+    
+    n_sub = 5
+    n_pad = 4
+    n_pix_hires = (orig_image_size + n_pad) * n_sub
+    pixel_scale_hires = float(config['image']['pixel_scale']) / float(n_sub)
+    config_copy['image']['pixel_scale'] = pixel_scale_hires
+    config_copy['image']['stamp_size'] = n_pix_hires
+    img_gal,img_psf,_,_ = galsim.config.BuildImages(config=config_copy,image_num=0,obj_num=0,make_psf_image=True,nimages=1,logger=logger_config)      
+    img_psf = img_psf[0]
+    img_psf = img_psf[galsim.BoundsI(1, int(n_pix_hires), 1, int(n_pix_hires))]
+    img_psf.write(hdu_list=hdulist)
+
+    # now field
+    logger.debug('getting low res PSF in a field')
+    config_copy['image']['pixel_scale'] = orig_pixel_scale
+    config_copy['image']['stamp_size'] = orig_image_size
+    config_copy['image']['type'] = 'Tiled'
+    config_copy['image']['nx_tiles'] = 10
+    config_copy['image']['ny_tiles'] = 10
+
+    # This is the size of the postage stamps.
+    config_copy['image']['stamp_xsize'] = orig_image_size
+    config_copy['image']['stamp_ysize'] = orig_image_size
+
+    if 'size' in config_copy['image']:
+        del(config_copy['image']['size'])
+
 
     img_gal,img_psf,_,_ = galsim.config.BuildImage(config=config_copy,image_num=0,obj_num=0,make_psf_image=True,logger=logger_config)    
     img_psf.write(hdu_list=hdulist)
@@ -323,8 +408,10 @@ def main():
     parser = argparse.ArgumentParser(description=description, add_help=True)
     parser.add_argument('-v', '--verbosity', type=int, action='store', default=2, choices=(0, 1, 2, 3, 4 ), help='integer verbosity level: min=0, max=4 [default=2]')
     parser.add_argument('-c', '--filename_config', default='sha1.yaml',type=str, action='store', help='name of the yaml config file')
+    parser.add_argument('-m', '--m_accuracy', default=0.01,type=float, action='store', help='desired sigma_m')
     parser.add_argument('-d', '--dry', default=False,  action='store_true', help='Dry run, do not generate data')
     parser.add_argument('--debug', default=False, action='store_true', help='debug mode, runs on only a subset of galaxies')
+    parser.add_argument('--fpack', default=False, action='store_true', help='compress images')
     
     args = parser.parse_args()
     # Parse the integer verbosity level from the command line args into a logging_level string
@@ -353,9 +440,11 @@ def main():
     if args.debug: 
         logger.critical('running in DEBUG MODE on %d galaxies' % N_GALS_DEBUG)
 
+    STD_M_TARGET = args.m_accuracy
+
     get_data()
         
-    
+    logger.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))    
 
 if __name__ == "__main__":
 
