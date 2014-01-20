@@ -402,4 +402,5 @@ def main():
     logger.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
 
 
-main()
+if __name__ == '__main__':
+    main()
