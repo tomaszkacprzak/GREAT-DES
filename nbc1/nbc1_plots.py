@@ -1,24 +1,9 @@
 import numpy, galsim, sys, logging, yaml, argparse, time, pylab, copy, itertools
+from nbc1_dtypes import *
 
-
-dtype_table_cat     =  { 'names'   : ['index', 'filename_meds', 'n_gals' , 'ipsf_fwhm', 'isnr', 'ig', 'psf_fwhm', 'snr', 'g1' , 'g2'],
-                         'formats' : ['i8'] + ['a40'] + ['i8']*3 + ['f8']*5 } 
-
-dtype_table_bias     =  { 'names'   : ['index', 'ipsf_fwhm', 'isnr' ,  'nfail', 'psf_fwhm', 'snr', 'm1', 'm2', 'c1', 'c2', 'm1_std', 'm2_std', 'c1_std', 'c2_std', 'g_std' ],
-                         'formats' : ['i8']*4 + ['f8']*11 } 
-
-dtype_table_stats = { 'names'   : ['index','n_gals','n_fail','g1','g2','size','stdv_g1','stdv_g2','stdm_g1','stdm_g2','stdv_size','stdm_size'] ,
-                     'formats' : ['i8'] *3+ ['f8']*9 } 
-
-dtype_table_results =  { 'names'   : ['index','g1','g2','size','x0','y0'] ,
-                         'formats' : ['i8'] + ['f8']*5 } 
-
-dtype_table_results_im3shape = { 
-        'names' : [ 'ID' ,  'catalogx' , 'catalogy' , 'Likelihood' , 'x0' , 'y0' , 'g1' , 'g2' , 'radius' , 'bulge_A' , 'disc_A' , 'flux_ratio' , 'size' , 'snr' , 'min_residuals' , 'max_residuals' , 'model_min' , 'model_max' , 'psf_e1' , 'psf_e2' , 'psf_fwhm' , 'psf_beta' , 'Rgpp_Rp' , 'levmar_e0' , 'levmar_e' , 'levmar_J' , 'levmar_Dp' , 'levmar_mu' , 'levmar_De' , 'levmar_nit' , 'levmar_reason' , 'levmar_neval' , 'levmar_njac' , 'levmar_nlin' , 'time_taken']  ,
-        'formats' : ['i8'] + ['f4']*28 + ['i8']*5 + ['f4']*1 }
             
 
-dtype_results = { 'hsm' : dtype_table_results , 'im3' : dtype_table_results_im3shape }
+dtype_results = { 'hsm' : dtype_table_results , 'im3' : dtype_table_results_im3shape, 'im3_cleaned' : dtype_table_results_im3shape_cleaned}
 
 req1_dg = 0.003
 req2_dg = 0.02
@@ -108,7 +93,7 @@ def write_stats(file_stats,stats):
     file_stats.write(line)
 
 
-def get_shear(filename_result):
+def get_shear(filename_result,id_result):
 
     use_dtype = dtype_results[args.method_id]
     res = numpy.loadtxt(filename_result,dtype=use_dtype)
@@ -161,14 +146,14 @@ def get_shear(filename_result):
     pylab.title('%s ellipticity' % filename_result)
     pylab.xlabel('ellip [g]')
     pylab.ylabel('histogram')
-    filename_fig = 'fig.ellip.%s.png' % filename_result
+    filename_fig = 'figs/fig.ellip.%03d.png' % id_result
     pylab.savefig(filename_fig)
     logger.info('saved %s' % filename_fig)
     pylab.close()
 
     return stats
 
-def get_stats():
+def get_stats(results_filename_fmt = 'nbc1.%s.cat'):
 
     truth_cat = numpy.loadtxt(args.filename_input,dtype=dtype_table_cat)
 
@@ -181,9 +166,9 @@ def get_stats():
 
     for it,vt in enumerate(truth_cat):
 
-        filename_result = '%s.%s.cat' % (vt['filename_meds'],args.method_id)
+        filename_result = results_filename_fmt % (it)
         logger.debug('getting stats for file %s' % filename_result)
-        stats = get_shear(filename_result)
+        stats = get_shear(filename_result,it)
         stats['index'] = it
         write_stats(file_stats,stats)
 
@@ -265,7 +250,7 @@ def get_mc():
             pylab.plot(g2_true,g2_true*m2 + c2,'r-')
             pylab.title('snr=%2.2f psf_fwhm=%2.2f' % (vsnr,vpsf_fwhm))
             pylab.legend()
-            filename_fig = 'fig.bias.snr%03d.psf%03d.png' % (isnr,ipsf_fwhm)
+            filename_fig = 'figs/fig.bias.snr%03d.psf%03d.png' % (isnr,ipsf_fwhm)
             pylab.savefig(filename_fig)
             pylab.close()
             logger.info('saved %s' % filename_fig)
@@ -297,15 +282,6 @@ def plot_mc():
         filename_bias = '%s.%s.bias.cat' % (args.filename_input,args.method_id)
         results_mc = numpy.loadtxt(filename_bias,dtype=dtype_table_bias)  
 
-
-
-        # snr = config['grid']['snr']
-        # for ig in range(len(snr)):
-        #     logger.info('%d e_tru=(% 0.3f,% 0.3f) , e_est=(% 0.3f,% 0.3f) , bias_g1=(% 0.3f,% 0.3f)' % (
-        #         ig, e_true.real, e_true.imag, 
-        #         current_stats_cat['g1'][ig], current_stats_cat['g2'][ig], 
-        #         bias_g1[ig], bias_g2[ig]))           
-
         psf_fwhm_colors=['r','g','b']
         
         for ipsf_fwhm,vpsf_fwhm in enumerate(config['grid']['psf_fwhm']):
@@ -328,14 +304,17 @@ def plot_mc():
             title_str = 'PSF FWHM=%2.2f ' % (vpsf_fwhm)
             pylab.title(title_str)
             pylab.legend(['%s g1' % args.method_id,'%s g2' % args.method_id],loc='lower left',ncol=2,mode='expand')
-            filename_fig = 'fig.%s.psf_fwhm%d.png' % (filename_bias,ipsf_fwhm)
+            filename_fig = 'figs/fig.%s.psf_fwhm%d.png' % (filename_bias,ipsf_fwhm)
             pylab.savefig(filename_fig)
             logger.info('saved %s' % filename_fig)
             pylab.close()
 
+            m_mean = (results_select['m1'] + results_select['m2'])/2.
+            m_mean_std = numpy.sqrt((results_select['m1_std']**2 + results_select['m2_std']**2)/2.)
             pylab.figure(2)
             pylab.errorbar(results_select['snr'],results_select['m1'],yerr=results_select['m1_std'],fmt=psf_fwhm_colors[ipsf_fwhm]+'--',label='psf_fwhm=%2.2f m1' % vpsf_fwhm)
             pylab.errorbar(results_select['snr'],results_select['m2'],yerr=results_select['m2_std'],fmt=psf_fwhm_colors[ipsf_fwhm]+':',label='psf_fwhm=%2.2f m2' % vpsf_fwhm)
+            pylab.errorbar(results_select['snr'],m_mean,yerr=m_mean_std,fmt=psf_fwhm_colors[ipsf_fwhm]+'-',label='psf_fwhm=%2.2f m2' % vpsf_fwhm)
 
         pylab.figure(2)
         xlim_add = (max(results_select['snr']) - min(results_select['snr']))*0.1
@@ -345,7 +324,7 @@ def plot_mc():
         pylab.ylabel('multiplicative bias m')
         pylab.xticks(results_select['snr'])
         pylab.legend(loc='lower left',ncol=2,mode='expand')
-        filename_fig = 'fig.%s.png' % (filename_bias)
+        filename_fig = 'figs/fig.%s.png' % (filename_bias)
         pylab.savefig(filename_fig)
         logger.info('saved %s' % filename_fig)
         pylab.close()
@@ -415,8 +394,9 @@ def main():
     config = yaml.load(open(args.filename_config))
 
 
-    # get_stats()
-    # get_mc()
+    results_filename_fmt = 'calib.v4.2013.12.20/cleaned_calib.v4.2013.12.20/nbc_%03d.fits.im3.cleaned.cat'
+    # get_stats(results_filename_fmt)  
+    get_mc()
     plot_mc()
 
     logger.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))

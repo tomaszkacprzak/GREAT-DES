@@ -1,10 +1,6 @@
 import numpy, galsim, sys, logging, yaml, argparse, time, pylab, copy, itertools, meds, pyfits
+from nbc1_dtypes import *
 
-dtype_table_results =  { 'names'   : ['index','g1','g2','size','x0','y0'] ,
-                         'formats' : ['i8'] + ['f8']*5 } 
-
-dtype_table_cat     =  { 'names'   : ['index', 'filename_meds', 'n_gals' , 'ipsf_fwhm', 'isnr', 'ig', 'hlr', 'snr', 'g1' , 'g2'],
-                         'formats' : ['i8'] + ['a40'] + ['i8']*3 + ['f8']*5 } 
 
 ERR_FLAG = -99;
 

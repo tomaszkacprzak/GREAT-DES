@@ -1,7 +1,5 @@
-import os, galsim, numpy, argparse, copy, logging, sys, yaml, subprocess, time, itertools, copy, galsim.des, pyfits
-
-dtype_table_stats = { 'names'   : ['index','n_gals','n_fail','g1','g2','size','stdv_g1','stdv_g2','stdm_g1','stdm_g2','stdv_size','stdm_size'] ,
-                     'formats' : ['i8'] *3+ ['f8']*9 } 
+import os, galsim, numpy, argparse, copy, logging, sys, yaml, subprocess, time, itertools, copy, galsim.des, pyfits, 
+from nbc1_dtypes import *
 
 N_GALS_COLS = 100
 DEFAULT_STD_E = 0.25

@@ -13,3 +13,7 @@ cp nbc1.cat.hsm.stats.cat nbc1.cat.hsm.stats.stde.cat
 python $CODE/GREAT-DES/nbc1/nbc1_generate_data.py -c $CODE/GREAT-DES/nbc1/nbc1.yaml  -v2
 # use results from im3shape
 python $CODE/GREAT-DES/nbc1/nbc1_plots.py -i nbc1.tiled.cat -c nbc1.tiled.yaml --method_id im3
+# 20140114 use run-tiled-001, im3shape 'cleaned' catalogs from Michael Hirsch
+python $CODE/GREAT-DES/nbc1/nbc1_plots.py -i nbc1.tiled.cat -c nbc1.tiled.yaml --method_id im3_cleaned
+# then run the calibration 
+python $CODE/GREAT-DES/nbc1/nbc1_calibrate.py -i run-tiled-001/nbc1.tiled.cat -c run-tiled-001/nbc1.tiled.yaml --method_id im3_cleaned

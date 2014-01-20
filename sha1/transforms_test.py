@@ -402,6 +402,7 @@ def get_multiexp_object():
         # save the image to fits file
         filename_fits = 'SE-%03d.fits' % itr
         img.write(filename_fits)
+        logger.info('saved %s' % filename_fits)
 
         # add to lists
         list_wcstrans += [wcstr]
@@ -423,6 +424,7 @@ def get_multiexp_object():
         # save file
         filename_fits = 'SE-coaddview-%03d.fits' % itr
         img.write(filename_fits)
+        logger.info('saved %s' % filename_fits)
 
         logger.info('------------------------------------- inv -------------------------------------')
         # now get the inverse transform, to get back to (u,v) -- sanity check
