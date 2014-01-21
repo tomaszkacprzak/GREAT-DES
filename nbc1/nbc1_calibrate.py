@@ -2,6 +2,9 @@ import numpy, galsim, sys, logging, yaml, argparse, time, copy, itertools, table
 import numpy as np; import pylab as pl
 from nbc1_dtypes import * ; 
 
+bins_ell = np.linspace(0.,1.,8)
+bins_size = np.linspace(1.2,2.2,8)
+bins_snr = [2.5,7.5,12.5,17.5,22.5,40]
 
 
 def get_results_sample(filelist_svclusters,filename_all_svclusters_results):
@@ -26,9 +29,6 @@ def get_results_sample(filelist_svclusters,filename_all_svclusters_results):
 def create_histogram(ell,size,snr,filename_hist='hist.test.png',show=False,close=True):
 
 
-    bins_ell = np.linspace(0.,1.,10)
-    bins_size = np.linspace(1.2,2.2,10)
-    bins_snr = [2.5,7.5,12.5,17.5,22.5,40]
     # bins_snr = np.linspace(0,100,50)
     samples=np.concatenate([ell[:,None],size[:,None],snr[:,None]],axis=1)
 
@@ -72,7 +72,7 @@ def create_histogram(ell,size,snr,filename_hist='hist.test.png',show=False,close
 
 
 
-def match_properties(filename_results_calib,filename_all_svclusters_results):
+def match_properties(filename_results_calib,filename_all_svclusters_results,filename_bias_in_bins):
 
     results_calib = tabletools.loadTable(filename_results_calib)
     results_svclusters = tabletools.loadTable(filename_all_svclusters_results)
@@ -124,6 +124,8 @@ def match_properties(filename_results_calib,filename_all_svclusters_results):
     n_bins_total = len(bins_ell[:-1])*len(bins_size[:-1])*len(bins_snr[:-1])
     log.info('getting m and for %d bins' % n_bins_total)
 
+    list_rows=[]
+
     for isize,vsize in enumerate(bins_size[:-1]):
         for isnr,vsnr in enumerate(bins_snr[:-1]):
 
@@ -157,7 +159,7 @@ def match_properties(filename_results_calib,filename_all_svclusters_results):
                 select = (cal_ell > bins_ell[iell]) * (cal_ell < bins_ell[iell+1]) * (cal_size > bins_size[isize]) * (cal_size < bins_size[isize+1]) *(cal_snr > bins_snr[isnr]) * (cal_snr < bins_snr[isnr+1])
                 current_sampels = results_calib[select]
                 n_gal = len(current_sampels)
-                if n_gal<10:
+                if n_gal<100:
                     log.info('%4d ell=[%2.2f,%2.2f] size=[%2.2f,%2.2f] snr=[%2.2f,%2.2f] ngals=%d' % (
                                     iall,
                                     bins_ell[iell],bins_ell[iell+1],
@@ -165,6 +167,8 @@ def match_properties(filename_results_calib,filename_all_svclusters_results):
                                     bins_snr[isnr],bins_snr[isnr+1], 
                                     n_gal
                                     ))
+                    row = np.array([iall,iell,isize,isnr,n_gal,1.,0.001,0.,0.0001])[:,None]
+                    list_rows.append(row.T)
                     continue
 
                 g1_true = current_sampels['g1_true']
@@ -201,6 +205,9 @@ def match_properties(filename_results_calib,filename_all_svclusters_results):
                 hist_c_std[iell,isize,isnr] = c_std
                 hist_ngal[iell,isize,isnr] = n_gal
 
+                row = np.array([iall,iell,isize,isnr,n_gal,m,m_std,c,c_std])[:,None]
+                list_rows.append(row.T)
+
                 # log.info('size=%2.2f\tsnr=%2.2f\tm=% 2.2e\tc=% 2.2f\tm_err=%2.2e\tc_err=%2.2e\tg_std=%2.2f' % (vsize, vsnr,m1,c1,m1_std,c1_std,g_std))                
 
                 log.info('%4d\tell=[%2.2f,%2.2f]\tsize=[%2.2f,%2.2f]\tsnr=[%2.2f,%2.2f]\tngals=%d\tm=% 2.4f (%2.4f)\tc=% 2.4f (%2.4f)\tg_std=%2.3f' % (
@@ -216,7 +223,6 @@ def match_properties(filename_results_calib,filename_all_svclusters_results):
                                     g_err
                                     ))
 
-
                 iall+=1
 
             mean_ebin = sum( hist_m[:,isize,isnr] / hist_m_std[:,isize,isnr]**2 ) / sum(1./hist_m_std[:,isize,isnr]**2)
@@ -224,11 +230,12 @@ def match_properties(filename_results_calib,filename_all_svclusters_results):
             log.info('m calculated for that size and snr bin=%2.4f (%2.4f)' % (alle_m,alle_m_std))
             log.info('mean from bins of e for that size and snr bin=%2.4f' % mean_ebin)
 
-    tabletools.saveTable('hist_m.fits', hist_m,logger=log)
-    tabletools.saveTable('hist_m_std.fits', hist_m_std,logger=log)
-    tabletools.saveTable('hist_c.fits', hist_m,logger=log)
-    tabletools.saveTable('hist_c_std.fits', hist_c_std,logger=log)
-    tabletools.saveTable('hist_ngal.fits', hist_ngal,logger=log)
+    bias_in_bins = np.concatenate(list_rows,axis=0)
+    bias_in_bins = tabletools.array2recarray(bias_in_bins,dtype_table_bias_in_bins)
+
+
+    tabletools.saveTable(filename_bias_in_bins, bias_in_bins,logger=log)
+    
 
     for e_slice in range(hist_cal.shape[0]):
         
@@ -311,6 +318,103 @@ def get_calibration_sample(filename_results_calib,dirpath_results):
     all_results = np.concatenate(list_results)
     tabletools.saveTable(filename_results_calib,all_results)
 
+def add_calibration_columns(filelist_svclusters,filename_bias_in_bins):
+
+    bias_in_bins = tabletools.loadTable(filename_bias_in_bins)
+  
+    files_svclusters = [line.strip() for line in open(filelist_svclusters)]
+    
+    total_gals= 0
+    list_results = []
+
+    for filename_sv in files_svclusters:
+
+        results_svclusters = tabletools.loadTable(filename_sv, dtype=dtype_table_results_sv)
+        n_gals = len(results_svclusters)
+        log.info('opened %s with %d gals, total number %d' % (filename_sv, len(results_svclusters),total_gals) )
+        list_results.append(results_svclusters)
+
+        filaname_calib = filename_sv.replace('.cat','.calib.cat') 
+
+        bias_table = np.ones([n_gals],dtype=dtype_table_bias_in_bins)
+
+        cal_ell = np.abs(results_svclusters['g1'] + 1j*results_svclusters['g2'])
+        cal_size = results_svclusters['size']
+        cal_snr = results_svclusters['snr']
+
+        # assign ID
+        bias_table['ID'] = results_svclusters['ID']
+        bias_table['m'] = 1
+        bias_table['m_std'] = 0.001
+        bias_table['c'] = 0.0
+        bias_table['c_std'] = 0.0001
+        bias_table['ngal'] = 1
+        bias_table['iell'] = -1
+        bias_table['isize'] = -1
+        bias_table['isnr'] = -1
+
+        iall=0
+        n_all_selected = 0
+        for isize,vsize in enumerate(bins_size[:-1]):
+            for isnr,vsnr in enumerate(bins_snr[:-1]):
+                for iell,vell in enumerate(bins_ell[:-1]):
+
+                    select1 = (cal_ell > bins_ell[iell]) * (cal_ell < bins_ell[iell+1]) * (cal_size > bins_size[isize]) * (cal_size < bins_size[isize+1]) *(cal_snr > bins_snr[isnr]) * (cal_snr < bins_snr[isnr+1])
+                    select2 = (bias_in_bins['iell'] == iell) * (bias_in_bins['isize'] == isize) * (bias_in_bins['isnr'] == isnr)
+
+                    n_selected = sum(select1)
+                    n_all_selected += n_selected
+                    log.info('% 4d n_gals in this bin = %d' % (iall,n_selected))
+
+                    if sum(select2) > 1:
+                        logger.error('sth is wron with bias_in_bins')
+
+
+                    # bias_table[select1]['m'] = bias_in_bins['m'][select2][0]
+                    # bias_table[select1]['m_std'] = bias_in_bins['m_std'][select2][0]
+                    # bias_table[select1]['c'] = bias_in_bins['c'][select2][0]
+                    # bias_table[select1]['c_std'] = bias_in_bins['c_std'][select2][0]
+                    # bias_table[select1]['ngal'] = bias_in_bins['ngal'][select2][0]
+                    # bias_table[select1]['iell'] = iell
+                    # bias_table[select1]['isize'] = isize
+                    # bias_table[select1]['isnr'] = isnr
+                    # omg numpy is so dumb! I miss matlab
+                    for ii in np.nonzero(select1)[0]: 
+                        bias_table[ii]['iell'] = iell
+                        bias_table[ii]['isize'] = isize
+                        bias_table[ii]['isnr'] = isnr
+                        bias_table[ii]['m'] = bias_in_bins['m'][select2][0]
+                        bias_table[ii]['m_std'] = bias_in_bins['m_std'][select2][0]
+                        bias_table[ii]['c'] = bias_in_bins['c'][select2][0]
+                        bias_table[ii]['c_std'] = bias_in_bins['c_std'][select2][0]
+                        bias_table[ii]['ngal'] = bias_in_bins['ngal'][select2][0]
+                    
+                    iall+=1
+
+        log.info('all %d / %d' % (n_all_selected,len(results_svclusters)))
+        tabletools.saveTable(filaname_calib,bias_table,logger=log)
+        # import pdb; pdb.set_trace()
+                    
+                    
+
+
+
+
+
+
+
+
+
+
+    all_results = np.concatenate(list_results)
+    print len(all_results)
+    tabletools.saveTable(filename_all_svclusters_results,all_results)
+
+
+
+
+
+
 
 def main():
 
@@ -347,13 +451,15 @@ def main():
     filename_all_svclusters_results = 'sv_clusters.all.fits'
     filename_results_calib = 'calib.v4.2013.12.20.all.fits'
     dirpath_results = 'run-tiled-001/calib.v4.2013.12.20/cleaned_calib.v4.2013.12.20'
+    filename_bias_in_bins = 'bias_in_bins.fits'
 
     cat = tabletools.loadTable(args.filename_input,dtype=dtype_table_cat)
     config = yaml.load(open(args.filename_config))
 
     # get_results_sample(filelist_svclusters,filename_all_svclusters_results)
     # get_calibration_sample(filename_results_calib,dirpath_results)
-    match_properties(filename_results_calib,filename_all_svclusters_results)
+    # match_properties(filename_results_calib,filename_all_svclusters_results)
+    add_calibration_columns(filelist_svclusters,filename_bias_in_bins)
 
     log.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
 

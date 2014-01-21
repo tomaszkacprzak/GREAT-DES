@@ -5,7 +5,7 @@ import sys
 loaded_tables = {}
 
 default_log = logging.getLogger("tabletools") 
-default_log.setLevel(logging.INFO)  
+default_log.setLevel(logging.WARNING)  
 log_formatter = logging.Formatter("%(asctime)s  %(name)s  %(levelname)s  %(message)s ")
 stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setFormatter(log_formatter)
@@ -61,7 +61,7 @@ def loadTable(filepath,table_name='do_not_store',dtype=None,hdu=1,logger=default
                 table = numpy.loadtxt(filepath,dtype=dtype)
         
     
-    logger.debug('loaded %s correctly, got %d rows' % (filepath,len(table)))
+    logger.info('loaded %s correctly, got %d rows' % (filepath,len(table)))
 
     if ( table_name != 'do_not_store' ): loaded_tables[table_name] = table
 
