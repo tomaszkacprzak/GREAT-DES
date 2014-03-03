@@ -1,0 +1,31 @@
+pixel_scale        : &pixel_scale          0.27
+n_exposures        : &n_exposures          1
+cutout_size        : &cutout_size          48
+n_gals_per_file    : 1e6  # this is total number of galaxies, each will have a 90 deg rotated pair
+n_files            : 10
+
+shear : [ [0.05, 0.0], [0.0, 0.05] , [-0.05, 0.0], [0.0, -0.05], [0.03536, 0.03536], [0.03536, -0.03536], [-0.03536, -0.03536], [-0.03536, 0.03536] ]
+
+input :
+    real_catalog :
+        # dir : /home/kacprzak/code/GalSim//rgc
+        # image_dir: /home/kacprzak/code/GalSim//rgc
+        # file_name : real_galaxy_catalog.fits
+        dir : /home/tomek/code/GalSim/examples/data/
+        image_dir: /home/tomek/code/GalSim/examples/data
+        file_name : real_galaxy_catalog_example.fits
+        preload : True   # This usually makes a big improvement in speed
+
+output:
+    type : des_meds
+    nstamps_per_object : *n_exposures
+
+    # get the number of galaxies in a file
+    # this will be determined by the generate_catalog.py script
+    nobjects : 1
+    
+    # nproc = -1 means to try to determine the number of CPUs and use that.
+    nproc : -1
+
+    # this will be overwritten by python
+    file_name : 99  
