@@ -422,10 +422,12 @@ def plot_ellipticity_variance():
 def plot_mc_in_fwhm_ratio_bins():
 
     # get the colorscale over full range for n_colors
-    size_bin_width=0.2
-    # bins_size = np.arange(1.2,2.2,size_bin_width)
-    bins_size = np.arange(1.2,2.01,0.2).tolist()
-    bins_snr = [2.5,7.5,12.5,17.5,22.5,40]
+    size_bin_width=0.1
+    bins_size = np.arange(1.1,2.01,size_bin_width).tolist()
+    # bins_size = np.arange(1.2,2.01,0.1).tolist()
+    # bins_size = np.arange(1.2,2.01,0.1).tolist()
+    # bins_snr = [2.5,7.5,12.5,17.5,22.5,40]
+    bins_snr = [5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 30]
 
 
     import colorsys
@@ -729,7 +731,7 @@ def main():
     # get_stats()  
     # get_weights_with_histograms()
     plot_mc_in_fwhm_ratio_bins()
-    plot_ellipticity_variance()
+    # plot_ellipticity_variance()
     # get_mc()
     # plot_mc()
     # plot_mc_cuts()

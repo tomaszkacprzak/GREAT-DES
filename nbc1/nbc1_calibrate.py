@@ -361,8 +361,8 @@ def main():
 
 
     # get_calibration_bins()
-    # calibrate_results()
-    test_calibration_procedure()
+    calibrate_results()
+    # test_calibration_procedure()
 
     log.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
 

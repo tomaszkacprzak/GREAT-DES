@@ -1,4 +1,4 @@
-import os, sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, nbc2_dtypes, galsim
+import os, sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, nbc2_dtypes, galsim, copy, galsim.des
 import pylab as pl
 import numpy as np
 from astropy.stats import sigma_clip
@@ -10,6 +10,16 @@ log_formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s   %(messag
 stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setFormatter(log_formatter)
 log.addHandler(stream_handler)
+
+bins_fwhm_centers = np.arange(0.7,1.2,0.1)
+bins_ell_centers  = np.array( [-0.06 , -0.02 , 0.02 , 0.06 ])
+bins_snr_centers  = np.linspace(1,100,100)
+
+bins_fwhm = plotstools.get_bins_edges( bins_fwhm_centers )
+bins_ell  = plotstools.get_bins_edges( bins_ell_centers )
+bins_snr  = plotstools.get_bins_edges( bins_snr_centers )
+
+DES_PIXEL_SIZE = 0.27
 
 def plot_meds():
     
@@ -132,22 +142,21 @@ def get_psf_snr_dist():
    
     # init histograms
     cat=pyfits.getdata(files_im3[0])
-    n_bins=1000
-    bins_fwhm=np.linspace(0.5,3,n_bins)
-    bins_ell=np.linspace(-0.2,0.2,n_bins)
-    bins_snr=np.linspace(0,100,n_bins)
 
-    hist_fwhm_all = np.zeros(n_bins-1)
-    hist_e1_all   = np.zeros(n_bins-1)
-    hist_e2_all   = np.zeros(n_bins-1)
-    hist_snr_all  = np.zeros(n_bins-1)
 
-    for fi , fv in enumerate(files_im3[:50]):
+    hist_fwhm_all = np.ones_like(bins_fwhm_centers)
+    hist_e1_all   = np.ones_like(bins_ell_centers)
+    hist_e2_all   = np.ones_like(bins_ell_centers)
+    hist_snr_all  = np.ones_like(bins_snr_centers)
+
+    for fi , fv in enumerate(files_im3[:10]):
         try:
             cat=pyfits.getdata(fv)
         except:
             print 'opening failed' , fv
             continue
+
+        n_gals_total = len(cat)
 
         list_fwhm = []
         list_e1 = []
@@ -162,7 +171,7 @@ def get_psf_snr_dist():
 
         list_snr = cat['snr']
 
-        list_fwhm = np.array(list_fwhm)*0.27
+        list_fwhm = np.array(list_fwhm)*DES_PIXEL_SIZE
         list_e1 = np.array(list_e1)
         list_e2 = np.array(list_e2)
         
@@ -174,17 +183,17 @@ def get_psf_snr_dist():
         select= (np.array(list_snr)>0)
         list_snr = list_snr[select]
 
-        hist_fwhm,bins_fwhm=pl.histogram(list_fwhm,bins=bins_fwhm)
-        hist_e1,bins_e1=pl.histogram(list_e1,bins=bins_ell)
-        hist_e2,bins_e2=pl.histogram(list_e2,bins=bins_ell)
-        hist_snr,bins_snr=pl.histogram(list_snr,bins=bins_snr)
+        hist_fwhm,_=pl.histogram(list_fwhm,bins=bins_fwhm)
+        hist_e1,_=pl.histogram(list_e1,bins=bins_ell)
+        hist_e2,_=pl.histogram(list_e2,bins=bins_ell)
+        hist_snr,_=pl.histogram(list_snr,bins=bins_snr)
 
         hist_fwhm_all += hist_fwhm
         hist_e1_all   += hist_e1
         hist_e2_all   += hist_e2
         hist_snr_all  += hist_snr
 
-        log.info('%3d %50s %8d' , fi, fv, len(list_fwhm))
+        log.info('%3d %50s %8d %8d' , fi, fv, n_gals_total, len(list_fwhm))
 
         del(cat)
 
@@ -201,7 +210,7 @@ def get_psf_snr_dist():
     pl.close()
     print 'saved' , filename_fig
 
-    bins_e1_centered = plotstools.get_bins_centers(bins_e1)
+    bins_e1_centered = plotstools.get_bins_centers(bins_ell)
     pl.plot(bins_e1_centered,hist_e1_all,'+-')
     pl.xlabel('psf e1')
     filename_fig = 'psf_e1_dist.png'
@@ -209,7 +218,7 @@ def get_psf_snr_dist():
     pl.close()
     print 'saved' , filename_fig
 
-    bins_e2_centered = plotstools.get_bins_centers(bins_e2)
+    bins_e2_centered = plotstools.get_bins_centers(bins_ell)
     pl.plot(bins_e2_centered,hist_e2_all,'+-')
     pl.xlabel('psf e2')
     filename_fig = 'psf_e2_dist.png'
@@ -252,6 +261,155 @@ def median_absolute_deviation(data):
     import numpy as np
     return np.median(np.absolute(data - np.median(data)))
 
+def get_psf_images():
+
+
+    filename_lores = 'nbc2.psf.lores.fits' 
+    filename_hires = 'nbc2.psf.hires.fits' 
+    filename_field = 'nbc2.psf.field.fits' 
+
+    if os.path.isfile(filename_lores): raise Exception('file %s exists' % filename_lores)
+    if os.path.isfile(filename_hires): raise Exception('file %s exists' % filename_hires)
+    if os.path.isfile(filename_field): raise Exception('file %s exists' % filename_field)
+
+    orig_pixel_scale = config['pixel_scale']
+    orig_image_size = config['cutout_size']
+
+    # make a master PSF config copy
+    config_psf = copy.deepcopy(config)
+
+    filename_cat = 'psf_key.fits'
+    config_psf['input']['catalog']['file_name'] = filename_cat
+
+    # make a dummy galaxy to simplify PSF generation
+    config_psf['gal'] = {}
+    config_psf['gal']['type'] = 'Exponential'
+    config_psf['gal']['half_light_radius'] = 3
+
+    n_psfs = len(bins_fwhm_centers)*len(bins_ell_centers)**2
+    
+    iall = 0
+    for ifwhm,fwhm in enumerate(bins_fwhm_centers):
+        for ie1,e1 in enumerate(bins_ell_centers):
+            for ie2,e2 in enumerate(bins_ell_centers):
+                                                          
+                log.debug('getting single PSF at the pixel scale of a galaxy')
+                
+                config_copy1=copy.deepcopy(config_psf)
+                config_copy1['psf']['fwhm'] = fwhm
+                config_copy1['psf']['ellip']['g1'] = e1
+                config_copy1['psf']['ellip']['g2'] = e2
+                img_gal,img_psf,_,_  = galsim.config.BuildImages(config=config_copy1,image_num=0,obj_num=0,make_psf_image=True,nimages=1)   
+                img_psf = img_psf[0]
+                img_psf = img_psf[galsim.BoundsI(1, orig_image_size, 1, orig_image_size)]
+                pyfits.append(filename_lores,img_psf.array)
+                # filename_lores = 'nbc2.psf.lores.%03d.fits' % iall
+                # img_psf.write(filename_lores)
+                                                              
+                # now the hires PSF, centered in the middle
+                log.debug('getting single PSF at high resolution')                 
+                config_copy2=copy.deepcopy(config_psf)
+                n_sub = config['upsampling']
+                n_pad = config['padding']
+                n_pix_hires = (orig_image_size + n_pad) * n_sub
+                pixel_scale_hires = float(config_copy2['image']['pixel_scale']) / float(n_sub)
+                config_copy2['image']['pixel_scale'] = pixel_scale_hires
+                config_copy2['image']['size'] = n_pix_hires
+                config_copy2['psf']['fwhm'] = fwhm
+                config_copy2['psf']['ellip']['g1'] = e1
+                config_copy2['psf']['ellip']['g2'] = e2            
+                img_gal,img_psf,_,_ = galsim.config.BuildImages(config=config_copy2,image_num=0,obj_num=0,make_psf_image=True,nimages=1)      
+                img_psf = img_psf[0]
+                img_psf = img_psf[galsim.BoundsI(1, int(n_pix_hires), 1, int(n_pix_hires))]             
+                pyfits.append(filename_hires,img_psf.array)
+                # filename_hires = 'nbc2.psf.hires.%03d.fits' % iall
+                # img_psf.write(filename_hires)
+
+                # now field
+                log.debug('getting low res PSF in a field')
+                config_copy3=copy.deepcopy(config_psf) 
+                config_copy3['image']['pixel_scale'] = orig_pixel_scale
+                config_copy3['image']['stamp_size'] = orig_image_size
+                config_copy3['image']['type'] = 'Tiled'
+                config_copy3['image']['nx_tiles'] = 10
+                config_copy3['image']['ny_tiles'] = 10
+                config_copy3['image']['stamp_xsize'] = orig_image_size
+                config_copy3['image']['stamp_ysize'] = orig_image_size
+                config_copy3['psf']['fwhm'] = fwhm
+                config_copy3['psf']['ellip']['g1'] = e1
+                config_copy3['psf']['ellip']['g2'] = e2
+                if 'size' in config_copy3['image']:    del(config_copy3['image']['size'])
+                img_gal,img_psf,_,_ = galsim.config.BuildImage(config=config_copy3,image_num=0,obj_num=0,make_psf_image=True)    
+                pyfits.append(filename_field,img_psf.array)
+                # filename_field = 'nbc2.psf.field.%03d.fits' % iall
+                # img_psf.write(filename_field)
+
+                iall += 1
+                log.info('generated %3d / %3d psfs fwhm=%2.2f e1=% 2.2f e2=% 2.2f  ' , iall, n_psfs , fwhm, e1, e2)
+
+
+
+    hdus_lores=pyfits.open(filename_lores)
+    hdus_hires=pyfits.open(filename_hires)
+    hdus_field=pyfits.open(filename_field)
+
+    log.info('finished writing %s with %d hdus' , filename_lores , len(hdus_lores))
+    log.info('finished writing %s with %d hdus' , filename_hires , len(hdus_hires))
+    log.info('finished writing %s with %d hdus' , filename_field , len(hdus_field))
+    
+
+
+
+def get_meds():
+
+    for ip in range(config['n_files']):
+    
+        for ig,vg in enumerate(config['shear']):
+
+            filename_cat = 'nbc2.truth.%03d.g%02d.fits' % (ip,ig)
+            filename_meds = 'nbc2.meds.%03d.g%02d.fits' % (ip,ig)
+
+            config_copy = copy.deepcopy(config)
+            config_copy['input']['catalog']['file_name'] = filename_cat
+            config_copy['output']['file_name'] = filename_meds
+
+            log.info('getting %s' % filename_meds )
+            galsim.config.Process(config_copy)
+    
+    log.info('done all meds')
+
+
+
+def get_psf_index(ifwhm,ie1,ie2):
+
+    filename_key = 'psf_key.fits'
+    psf_table = tabletools.loadTable(filename_key)
+    key_all , key_fwhm , key_e1 , key_e2  = psf_table['id_psf'] , psf_table['id_psf_fwhm'] , psf_table['id_psf_e1'] , psf_table['id_psf_e2']
+
+    indices = np.ones_like(ifwhm)
+    for ii,vv in enumerate(ifwhm):
+        select = (ifwhm[ii]==key_fwhm) * (ie1[ii]==key_e1) * (ie2[ii]==key_e2)
+        nz = np.nonzero(select)[0][0]
+        indices[ii] = key_all[nz] 
+
+    return indices
+
+def get_psf_key():
+
+    n_psfs = len(bins_fwhm_centers)*len(bins_ell_centers)**2
+    psf_key = np.zeros([n_psfs,7])
+    iall = 0
+    for ifwhm,fwhm in enumerate(bins_fwhm_centers):
+        for ie1,e1 in enumerate(bins_ell_centers):
+            for ie2,e2 in enumerate(bins_ell_centers):
+                                                          
+                psf_key[iall,:] = iall,ifwhm,ie1,ie2,fwhm,e1,e2
+                iall+=1
+
+    filename_key = 'psf_key.fits'
+    tabletools.saveTable(filename_key,psf_key,dtype=nbc2_dtypes.dtype_psfkey)
+    log.info('saved %s' , filename_key )
+
 def get_catalogs():
 
     filename_psf_fwhm = 'psf_fwhm_dist.txt'
@@ -272,38 +430,50 @@ def get_catalogs():
     log.info('opened %s with %d images' , filename_cosmos_catalog, n_cosmos_gals)
 
     for ip in range(config['n_files']):
+    
+        for ig,vg in enumerate(config['shear']):
 
-        filename_cat = 'nbc2_truth.%03d.fits' % ip
+            filename_cat = 'nbc2.truth.%03d.g%02d.fits' % (ip,ig)
+            
+            ids = np.arange(n_gals)[:,None]
 
-        shear_ids = np.random.choice(n_shears,size=n_pairs)
-        shear_g1 = np.array(config['shear'])[shear_ids,0]
-        shear_g2 = np.array(config['shear'])[shear_ids,1]
-        psf_fwhm = np.random.choice(a=bins_psf_fwhm,size=n_pairs,p=prob_psf_fwhm)
-        psf_e1 = np.random.choice(a=bins_psf_e,size=n_pairs,p=prob_psf_e1)
-        psf_e2 = np.random.choice(a=bins_psf_e,size=n_pairs,p=prob_psf_e2)
-        obj_snr = np.random.choice(a=bins_snr,size=n_pairs,p=prob_snr)
-        cosmos_ids = np.random.choice(n_cosmos_gals,size=n_pairs)
-        rotation_angle = np.random.uniform(low=0,high=2*np.pi,size=n_pairs)
+            cosmos_ids = np.random.choice(n_cosmos_gals,size=n_pairs)
+            rotation_angle = np.random.uniform(low=0,high=2*np.pi,size=n_pairs)          
+            obj_snr = np.random.choice(a=bins_snr,size=n_pairs,p=prob_snr)
+            # shear_ids = np.random.choice(n_shears,size=n_pairs)
+            
+            # get pairs
+            obj_snr = np.concatenate([obj_snr[:,None] , obj_snr[:,None]] , axis=1) ; obj_snr = obj_snr.flatten()[:,None]
+            cosmos_ids = np.concatenate([cosmos_ids[:,None] , cosmos_ids[:,None]] , axis=1) ; cosmos_ids = cosmos_ids.flatten()[:,None]
+            rotation_angle = np.concatenate([rotation_angle[:,None] , rotation_angle[:,None] + np.pi/2.] , axis=1) ; rotation_angle = rotation_angle.flatten()[:,None] # rotate one of the pair nby 90 deg
+            # shear_ids = np.concatenate([shear_ids[:,None] , shear_ids[:,None]] , axis=1) ; shear_ids = shear_ids.flatten()[:,None]
+            # shear_g1 = np.concatenate([shear_g1[:,None] , shear_g1[:,None]] , axis=1) ; shear_g1 = shear_g1.flatten()[:,None]
+            # shear_g2 = np.concatenate([shear_g2[:,None] , shear_g2[:,None]] , axis=1) ; shear_g2 = shear_g2.flatten()[:,None]
 
-        # create pairs
-        shear_ids = np.concatenate([shear_ids[:,None] , shear_ids[:,None]] , axis=1) ; shear_ids = shear_ids.flatten()[:,None]
-        shear_g1 = np.concatenate([shear_g1[:,None] , shear_g1[:,None]] , axis=1) ; shear_g1 = shear_g1.flatten()[:,None]
-        shear_g2 = np.concatenate([shear_g2[:,None] , shear_g2[:,None]] , axis=1) ; shear_g2 = shear_g2.flatten()[:,None]
-        psf_fwhm = np.concatenate([psf_fwhm[:,None] , psf_fwhm[:,None]] , axis=1) ; psf_fwhm = psf_fwhm.flatten()[:,None]
-        psf_e1 = np.concatenate([psf_e1[:,None] , psf_e1[:,None]] , axis=1) ; psf_e1 = psf_e1.flatten()[:,None]
-        psf_e2 = np.concatenate([psf_e2[:,None] , psf_e2[:,None]] , axis=1) ; psf_e2 = psf_e2.flatten()[:,None]
-        obj_snr = np.concatenate([obj_snr[:,None] , obj_snr[:,None]] , axis=1) ; obj_snr = obj_snr.flatten()[:,None]
-        cosmos_ids = np.concatenate([cosmos_ids[:,None] , cosmos_ids[:,None]] , axis=1) ; cosmos_ids = cosmos_ids.flatten()[:,None]
-        # rotate one of the pair nby 90 deg
-        rotation_angle = np.concatenate([rotation_angle[:,None] , rotation_angle[:,None] + np.pi/2.] , axis=1) ; rotation_angle = rotation_angle.flatten()[:,None]
-        ids = np.arange(n_gals)[:,None]
+            shear_ids = np.ones_like(ids) * ig
+            shear_g1  = np.ones_like(ids) * vg[0]
+            shear_g2  = np.ones_like(ids) * vg[1]
 
-        # 'names' : [ 'id' ,  'id_cosmos' , 'id_shear' , 'g1_true' , 'g2_true' ,  'snr' ,  'psf_fwhm' , 'psf_e1' , 'psf_e2' , 'rotation_angle']  ,
-        catalog = np.concatenate([ids,cosmos_ids,shear_ids,shear_g1,shear_g2,obj_snr,psf_fwhm,psf_e1,psf_e2,rotation_angle],axis=1)
-        catalog = tabletools.array2recarray(catalog,dtype=nbc2_dtypes.dtype_truth)
+            # create pairs
+            
+            psf_fwhm_ids = np.random.choice(a=len(bins_psf_fwhm),size=n_gals,p=prob_psf_fwhm)
+            psf_e1_ids = np.random.choice(a=len(bins_psf_e),size=n_gals,p=prob_psf_e1)
+            psf_e2_ids = np.random.choice(a=len(bins_psf_e),size=n_gals,p=prob_psf_e2)
+            psf_fwhm = bins_psf_fwhm[psf_fwhm_ids]
+            psf_e1 = bins_psf_e[psf_e1_ids]
+            psf_e2 = bins_psf_e[psf_e2_ids]
+            psf_ids = get_psf_index(psf_fwhm_ids ,psf_e1_ids,psf_e2_ids)
 
-        tabletools.saveTable(filename_cat,catalog)
+            psf_fwhm=psf_fwhm[:,None]
+            psf_e1=psf_e1[:,None]
+            psf_e2=psf_e2[:,None]
+            psf_ids=psf_ids[:,None]
 
+            # 'names' : [ 'id' ,  'id_cosmos' , 'id_shear' , 'id_psf' ,  'g1_true' , 'g2_true' ,  'snr' ,  'psf_fwhm' , 'psf_e1' , 'psf_e2' , 'rotation_angle']  ,
+            catalog = np.concatenate([ids,cosmos_ids,shear_ids,psf_ids,shear_g1,shear_g2,obj_snr,psf_fwhm,psf_e1,psf_e2,rotation_angle],axis=1)
+            catalog = tabletools.array2recarray(catalog,dtype=nbc2_dtypes.dtype_truth)
+
+            tabletools.saveTable(filename_cat,catalog)
 
 def main():
 
@@ -329,7 +499,10 @@ def main():
     # plot_meds()
     # get_noise_level() 16.7552914481
     # get_psf_snr_dist()
+    # get_psf_key()
     get_catalogs()
+    # get_psf_images()
+    get_meds()
 
     log.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
 
