@@ -475,6 +475,25 @@ def get_catalogs():
 
             tabletools.saveTable(filename_cat,catalog)
 
+# def get_snr_from_cosmos():
+
+#     filename_realcat = os.path.join(config['input']['real_catalog']['dir'],config['input']['real_catalog']['file_name'])
+#     realcat = tabletools.loadTable(filename_realcat)
+
+#     for ic in range(len(realcat)):
+
+#         filename_gal = os.path.join(config['input']['real_catalog']['dir'],realcat['GAL_FILENAME'][ic])
+#         index_gal = realcat['GAL_HDU'][ic]
+#         image_gal = pyfits.getdata(filename_gal,hdu=index_gal)
+
+        
+
+#         import pdb; pdb.set_trace()
+
+
+#     import pdb; pdb.set_trace()
+
+
 def main():
 
 
@@ -503,6 +522,7 @@ def main():
     get_catalogs()
     # get_psf_images()
     get_meds()
+    # get_snr_from_cosmos()
 
     log.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
 

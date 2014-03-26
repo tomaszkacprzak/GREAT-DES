@@ -1,7 +1,7 @@
 pixel_scale        : &pixel_scale          0.27
 n_exposures        : &n_exposures          1
 cutout_size        : &cutout_size          48
-n_gals_per_file    : &n_gals_per_file      100  # this is total number of galaxies, each will have a 90 deg rotated pair
+n_gals_per_file    : &n_gals_per_file      1000  # this is total number of galaxies, each will have a 90 deg rotated pair
 n_files            : 2
 shear : [ [0.05, 0.0], [0.0, 0.05] , [-0.05, 0.0], [0.0, -0.05], [0.03536, 0.03536], [0.03536, -0.03536], [-0.03536, -0.03536], [-0.03536, 0.03536] ]
 padding : 4
@@ -12,12 +12,12 @@ upsampling : 3
 
 input :
     real_catalog :
-        # dir : /home/tomek/code/GalSim//rgc
-        # image_dir: /home/tomek/code/GalSim//rgc
-        # file_name : real_galaxy_catalog.fits
-        dir : /home/tomek/code/GalSim/examples/data/
-        image_dir: /home/tomek/code/GalSim/examples/data
-        file_name : real_galaxy_catalog_example.fits
+        dir : /home/tomek/code/GalSim//rgc
+        image_dir: /home/tomek/code/GalSim//rgc
+        file_name : real_galaxy_catalog.fits
+        # dir : /home/tomek/code/GalSim/examples/data/
+        # image_dir: /home/tomek/code/GalSim/examples/data
+        # file_name : real_galaxy_catalog_example.fits
         preload : True   # This usually makes a big improvement in speed
 
     catalog : 

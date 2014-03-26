@@ -1,0 +1,48 @@
+pixel_scale        : &pixel_scale          0.27
+n_exposures        : &n_exposures          1
+cutout_size        : &cutout_size          48
+n_files            : 2
+shear : [ [0.05, 0.0], [0.0, 0.05] , [-0.05, 0.0], [0.0, -0.05], [0.03536, 0.03536], [0.03536, -0.03536], [-0.03536, -0.03536], [-0.03536, 0.03536] ]
+padding : 4
+upsampling : 3
+
+# --------- galsim config starts here ---------
+
+
+input :
+    real_catalog :
+        dir : /home/tomek/data/GREAT3/COSMOS_23.5_training_sample_sub/
+        image_dir: /home/tomek/data/GREAT3/COSMOS_23.5_training_sample_sub
+        file_name : real_galaxy_catalog_23.5_sub.fits
+        # dir : /home/tomek/code/GalSim/examples/data/
+        # image_dir: /home/tomek/code/GalSim/examples/data
+        # file_name : real_galaxy_catalog_example.fits
+        preload : True   # This usually makes a big improvement in speed
+output:
+    type : des_meds
+    nstamps_per_object : *n_exposures
+    nobjects : 26000
+    nproc : -1
+    file_name : noisless_galaxies.meds.fits
+
+gal:
+    type: RealGalaxy      
+    shift : 
+        type : RandomCircle
+        radius : *pixel_scale
+    whiten: True
+
+psf:
+    type: Kolmogorov
+    fwhm: 0.9
+
+image:
+    pixel_scale: *pixel_scale
+    # This doesn't matter much, since we set the S/N above.  It just sets an overall scale for 
+    # the pixel values to something reasonable.  
+    # noise : {  type: Gaussian, sigma: 16.75  }  
+    size: *cutout_size
+    nproc : 4
+
+
+
