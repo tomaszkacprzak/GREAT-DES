@@ -475,24 +475,74 @@ def get_catalogs():
 
             tabletools.saveTable(filename_cat,catalog)
 
-# def get_snr_from_cosmos():
+def get_snr_from_cosmos():
 
-#     filename_realcat = os.path.join(config['input']['real_catalog']['dir'],config['input']['real_catalog']['file_name'])
-#     realcat = tabletools.loadTable(filename_realcat)
+    filename_noiseless = 'noisless_galaxies.meds.fits'
+    noisless_gals = meds.MEDS(filename_noiseless)
 
-#     for ic in range(len(realcat)):
+    n_gals = len(noisless_gals._cat)
 
-#         filename_gal = os.path.join(config['input']['real_catalog']['dir'],realcat['GAL_FILENAME'][ic])
-#         index_gal = realcat['GAL_HDU'][ic]
-#         image_gal = pyfits.getdata(filename_gal,hdu=index_gal)
+    filename_snr = 'snr_dist.txt'   
+    b_des, h_des = np.loadtxt(filename_snr,unpack=True)
+    h_des = h_des/sum(h_des)
 
+    list_normsq = []
+
+    for ni in range(n_gals):
+
+        img = noisless_gals.get_cutout(ni,0)
+        normsq= np.sum( img.flatten()**2 )
+        list_normsq.append(normsq)
+        if ni % 1000 == 0: print ni
+
+    from scipy.optimize import fmin
+    arr_normsq = np.array(list_normsq)
+
+    noise_std = 16.
+
+    def get_kl(x):
         
+        snr = np.sqrt(arr_normsq*(x**2)) / noise_std     
+        h_sim, b_sim = pl.histogram(snr,bins=plotstools.get_bins_edges(b_des),normed=True)
+        h_sim = h_sim/sum(h_sim)
 
-#         import pdb; pdb.set_trace()
+        KL_divergence = -sum(  h_des * np.log(h_sim)  ) + sum( h_des * np.log(h_des) )
+
+        print 'KL_divergence=' , KL_divergence , 'scale=' , x
+        return KL_divergence
+
+    def get_kl_sigma(sigma):
+        
+        snr = np.sqrt(arr_normsq) / sigma     
+        h_sim, b_sim = pl.histogram(snr,bins=plotstools.get_bins_edges(b_des),normed=True)
+        h_sim = h_sim/sum(h_sim)
+
+        KL_divergence = -sum(  h_des * np.log(h_sim)  ) + sum( h_des * np.log(h_des) )
+
+        print 'KL_divergence=' , KL_divergence , 'sigma=' , sigma
+        return KL_divergence
 
 
-#     import pdb; pdb.set_trace()
+    # best_scale = fmin(get_kl,100.)
+    best_sigma = fmin(get_kl_sigma,0.05)
 
+    # snr = np.sqrt(arr_normsq*(best_scale**2)) / noise_std     
+    snr = np.sqrt(arr_normsq) / best_sigma     
+    # snr = np.sqrt(arr_normsq) / 0.1
+    h_sim, b_sim = pl.histogram(snr,bins=plotstools.get_bins_edges(b_des),normed=True)
+    h_sim = h_sim/sum(h_sim)
+
+    print 'use noise_sigma=' , best_sigma
+    print 'post multiply images by scale=' , noise_std / best_sigma
+
+    
+    pl.plot(b_des,h_sim,'rx-',label='GREAT-DES')
+    pl.plot(b_des,h_des,'bo-',label='im3shape 011 v3')
+    pl.xlabel('SNR')
+    pl.legend()
+    filename_fig = 'match_GREATDES_and_IM3011v3.png'
+    pl.savefig(filename_fig)
+    print 'saved' , filename_fig
 
 def main():
 
@@ -519,10 +569,10 @@ def main():
     # get_noise_level() 16.7552914481
     # get_psf_snr_dist()
     # get_psf_key()
-    get_catalogs()
+    # get_catalogs()
     # get_psf_images()
-    get_meds()
-    # get_snr_from_cosmos()
+    # get_meds()
+    get_snr_from_cosmos()
 
     log.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
 
