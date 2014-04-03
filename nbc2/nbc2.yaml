@@ -2,23 +2,26 @@ pixel_scale        : &pixel_scale          0.27
 n_exposures        : &n_exposures          1
 cutout_size        : &cutout_size          48
 n_gals_per_file    : &n_gals_per_file      1000  # this is total number of galaxies, each will have a 90 deg rotated pair
-n_files            : 2
+n_files            : 1
 shear : [ [0.05, 0.0], [0.0, 0.05] , [-0.05, 0.0], [0.0, -0.05], [0.03536, 0.03536], [0.03536, -0.03536], [-0.03536, -0.03536], [-0.03536, 0.03536] ]
 padding : 4
 upsampling : 3
+des_scale_pixels :  86.52302493
+des_pixel_noise_sigma : 16.7552909851
+
 
 # --------- galsim config starts here ---------
 
 
 input :
     real_catalog :
-        dir : /home/tomek/code/GalSim//rgc
-        image_dir: /home/tomek/code/GalSim//rgc
-        file_name : real_galaxy_catalog.fits
-        # dir : /home/tomek/code/GalSim/examples/data/
-        # image_dir: /home/tomek/code/GalSim/examples/data
-        # file_name : real_galaxy_catalog_example.fits
-        preload : True   # This usually makes a big improvement in speed
+        # dir : /home/tomek/code/GalSim//rgc
+        # image_dir: /home/tomek/code/GalSim//rgc
+        # file_name : real_galaxy_catalog.fits
+        dir : /home/tomek/data/GREAT3/COSMOS_23.5_training_sample_sub/
+        image_dir: /home/tomek/data/GREAT3/COSMOS_23.5_training_sample_sub
+        file_name : real_galaxy_catalog_23.5_sub.fits
+        preload : False   # This usually makes a big improvement in speed
 
     catalog : 
         # this will be overwritten by python
@@ -31,9 +34,9 @@ output:
     # get the number of galaxies in a file
     # this will be determined by nbc2_generate_catalogs.py script
     nobjects : *n_gals_per_file
-    nproc : -1
     # this will be overwritten by python
     file_name : 99  
+    nproc : -1
 
 gal:
     type: RealGalaxy   
@@ -48,7 +51,6 @@ gal:
         g2 : {type: Catalog, col : g2_true}
     
     # A random shift within a 1 pixel circle.
-    signal_to_noise: {type: Catalog, col : snr}
     shift : 
         type : RandomCircle
         radius : *pixel_scale
@@ -66,9 +68,9 @@ image:
     pixel_scale: *pixel_scale
     # This doesn't matter much, since we set the S/N above.  It just sets an overall scale for 
     # the pixel values to something reasonable.  
-    noise : {  type: Gaussian, sigma: 16.75  }  
+    noise : {  type: Gaussian, sigma:  0.18492188  }  
     size: *cutout_size
-    nproc : -1
+    
 
 
 

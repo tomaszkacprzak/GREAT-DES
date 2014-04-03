@@ -1,7 +1,8 @@
-import os, sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, nbc2_dtypes, galsim, copy, galsim.des
+import os, sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, nbc2_dtypes, galsim, copy, galsim.des, warnings
 import pylab as pl
 import numpy as np
 from astropy.stats import sigma_clip
+warnings.simplefilter('once')
 
 logging_level = logging.INFO
 log = logging.getLogger("nbc2_generate_catalogs") 
@@ -11,9 +12,10 @@ stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setFormatter(log_formatter)
 log.addHandler(stream_handler)
 
-bins_fwhm_centers = np.arange(0.7,1.2,0.1)
-bins_ell_centers  = np.array( [-0.06 , -0.02 , 0.02 , 0.06 ])
+bins_fwhm_centers = np.array([0.7, 0.8, 0.9, 1., 1.1, 1.2, 1.3])
+bins_ell_centers  = np.array([-0.02, 0.0, 0.02])
 bins_snr_centers  = np.linspace(1,100,100)
+
 
 bins_fwhm = plotstools.get_bins_edges( bins_fwhm_centers )
 bins_ell  = plotstools.get_bins_edges( bins_ell_centers )
@@ -143,6 +145,8 @@ def get_psf_snr_dist():
     # init histograms
     cat=pyfits.getdata(files_im3[0])
 
+    log.info('using %d im3shape tiles' % len(cat))
+
 
     hist_fwhm_all = np.ones_like(bins_fwhm_centers)
     hist_e1_all   = np.ones_like(bins_ell_centers)
@@ -150,6 +154,7 @@ def get_psf_snr_dist():
     hist_snr_all  = np.ones_like(bins_snr_centers)
 
     for fi , fv in enumerate(files_im3[:10]):
+    # for fi , fv in enumerate(files_im3):
         try:
             cat=pyfits.getdata(fv)
         except:
@@ -202,39 +207,40 @@ def get_psf_snr_dist():
     pl.figure()
     pl.clf()
 
+    pl.figure()
     bins_fwhm_centered = plotstools.get_bins_centers(bins_fwhm)
     pl.plot(bins_fwhm_centered,hist_fwhm_all,'+-')
     pl.xlabel('exposure fwhm [arsec]')
     filename_fig = 'psf_fwhm_dist.png'
     pl.savefig(filename_fig)
-    pl.close()
     print 'saved' , filename_fig
 
+    pl.figure()
     bins_e1_centered = plotstools.get_bins_centers(bins_ell)
     pl.plot(bins_e1_centered,hist_e1_all,'+-')
     pl.xlabel('psf e1')
     filename_fig = 'psf_e1_dist.png'
     pl.savefig(filename_fig)
-    pl.close()
     print 'saved' , filename_fig
 
+    pl.figure()
     bins_e2_centered = plotstools.get_bins_centers(bins_ell)
     pl.plot(bins_e2_centered,hist_e2_all,'+-')
     pl.xlabel('psf e2')
     filename_fig = 'psf_e2_dist.png'
     pl.savefig(filename_fig)
-    pl.close()
     print 'saved' , filename_fig
 
+    pl.figure()
     bins_snr_centered = plotstools.get_bins_centers(bins_snr)
     pl.plot(bins_snr_centered,hist_snr_all,'+-')
     pl.xlabel('snr')
+    pl.xscale('log')
     filename_fig = 'snr_dist.png'
     pl.savefig(filename_fig)
-    pl.close()
     print 'saved' , filename_fig
 
-    
+   
     filename_psf = 'psf_fwhm_dist.txt'
     hist_fwhm_all /= sum(hist_fwhm_all)
     data_save = np.array([bins_fwhm_centered,hist_fwhm_all]).T
@@ -268,9 +274,9 @@ def get_psf_images():
     filename_hires = 'nbc2.psf.hires.fits' 
     filename_field = 'nbc2.psf.field.fits' 
 
-    if os.path.isfile(filename_lores): raise Exception('file %s exists' % filename_lores)
-    if os.path.isfile(filename_hires): raise Exception('file %s exists' % filename_hires)
-    if os.path.isfile(filename_field): raise Exception('file %s exists' % filename_field)
+    if os.path.isfile(filename_lores): os.remove(filename_lores)
+    if os.path.isfile(filename_hires): os.remove(filename_hires)
+    if os.path.isfile(filename_field): os.remove(filename_field)
 
     orig_pixel_scale = config['pixel_scale']
     orig_image_size = config['cutout_size']
@@ -360,20 +366,22 @@ def get_psf_images():
 
 
 
-def get_meds():
+def get_meds(noise=True):
 
     for ip in range(config['n_files']):
     
         for ig,vg in enumerate(config['shear']):
 
             filename_cat = 'nbc2.truth.%03d.g%02d.fits' % (ip,ig)
-            filename_meds = 'nbc2.meds.%03d.g%02d.fits' % (ip,ig)
+            if noise: filename_meds = 'nbc2.meds.%03d.g%02d.fits' % (ip,ig)
+            else: filename_meds = 'nbc2.meds.%03d.g%02d.noisefree.fits' % (ip,ig)
 
             config_copy = copy.deepcopy(config)
+            if noise==False: del(config_copy['image']['noise'])
             config_copy['input']['catalog']['file_name'] = filename_cat
             config_copy['output']['file_name'] = filename_meds
 
-            log.info('getting %s' % filename_meds )
+            log.info('getting %s, noise=%s' % (filename_meds , noise ))
             galsim.config.Process(config_copy)
     
     log.info('done all meds')
@@ -410,7 +418,7 @@ def get_psf_key():
     tabletools.saveTable(filename_key,psf_key,dtype=nbc2_dtypes.dtype_psfkey)
     log.info('saved %s' , filename_key )
 
-def get_catalogs():
+def get_truth_catalogs():
 
     filename_psf_fwhm = 'psf_fwhm_dist.txt'
     filename_psf_ell = 'psf_ell_dist.txt'
@@ -418,6 +426,7 @@ def get_catalogs():
 
     bins_psf_fwhm,prob_psf_fwhm=np.loadtxt(filename_psf_fwhm).T
     bins_psf_e,prob_psf_e1,prob_psf_e2=np.loadtxt(filename_psf_ell).T
+    # prob_psf_e1 = np.ones_like(bins_psf_e)/float(len(bins_psf_e)) , np.ones_like(bins_psf_e)/float(len(bins_psf_e))
     bins_snr,prob_snr=np.loadtxt(filename_snr).T
 
     n_shears = len(config['shear'])
@@ -439,11 +448,11 @@ def get_catalogs():
 
             cosmos_ids = np.random.choice(n_cosmos_gals,size=n_pairs)
             rotation_angle = np.random.uniform(low=0,high=2*np.pi,size=n_pairs)          
-            obj_snr = np.random.choice(a=bins_snr,size=n_pairs,p=prob_snr)
+            # obj_snr = np.random.choice(a=bins_snr,size=n_pairs,p=prob_snr)
             # shear_ids = np.random.choice(n_shears,size=n_pairs)
             
             # get pairs
-            obj_snr = np.concatenate([obj_snr[:,None] , obj_snr[:,None]] , axis=1) ; obj_snr = obj_snr.flatten()[:,None]
+            # obj_snr = np.concatenate([obj_snr[:,None] , obj_snr[:,None]] , axis=1) ; obj_snr = obj_snr.flatten()[:,None]
             cosmos_ids = np.concatenate([cosmos_ids[:,None] , cosmos_ids[:,None]] , axis=1) ; cosmos_ids = cosmos_ids.flatten()[:,None]
             rotation_angle = np.concatenate([rotation_angle[:,None] , rotation_angle[:,None] + np.pi/2.] , axis=1) ; rotation_angle = rotation_angle.flatten()[:,None] # rotate one of the pair nby 90 deg
             # shear_ids = np.concatenate([shear_ids[:,None] , shear_ids[:,None]] , axis=1) ; shear_ids = shear_ids.flatten()[:,None]
@@ -468,15 +477,57 @@ def get_catalogs():
             psf_e1=psf_e1[:,None]
             psf_e2=psf_e2[:,None]
             psf_ids=psf_ids[:,None]
+            obj_snr = np.ones_like(psf_ids)
+            obj_flux = np.ones_like(psf_ids)
 
             # 'names' : [ 'id' ,  'id_cosmos' , 'id_shear' , 'id_psf' ,  'g1_true' , 'g2_true' ,  'snr' ,  'psf_fwhm' , 'psf_e1' , 'psf_e2' , 'rotation_angle']  ,
-            catalog = np.concatenate([ids,cosmos_ids,shear_ids,psf_ids,shear_g1,shear_g2,obj_snr,psf_fwhm,psf_e1,psf_e2,rotation_angle],axis=1)
+            catalog = np.concatenate([ids,cosmos_ids,shear_ids,psf_ids,shear_g1,shear_g2,obj_snr,obj_flux,psf_fwhm,psf_e1,psf_e2,rotation_angle],axis=1)
             catalog = tabletools.array2recarray(catalog,dtype=nbc2_dtypes.dtype_truth)
 
             tabletools.saveTable(filename_cat,catalog)
 
+def get_snr_in_truth_table():
+
+
+    noise_std = config['des_pixel_noise_sigma']
+
+    for ip in range(config['n_files']):
+   
+        for ig,vg in enumerate(config['shear']):
+
+            list_normsq = []
+
+            filename_cat = 'nbc2.truth.%03d.g%02d.fits' % (ip,ig)
+            filename_meds = 'nbc2.meds.%03d.g%02d.fits' % (ip,ig)
+
+            log.info('using %s and %s' , filename_meds, filename_cat)
+
+            noisless_gals = meds.MEDS(filename_meds)
+            n_gals = len(noisless_gals._cat)
+            cat = tabletools.loadTable(filename_cat)
+
+            for ig in range(n_gals):
+
+                img = noisless_gals.get_cutout(ig,0)
+                normsq= np.sum( img.flatten()**2 )
+                snr = np.sqrt(normsq)/noise_std
+                flux = np.sum(img.flatten())
+                cat[ig]['snr'] = snr
+                cat[ig]['flux'] = flux
+                
+                if ig % 1000 == 0: print 'getting norm of galaxy ' , ig
+
+            tabletools.saveTable(filename_cat, cat)
+
+        pl.hist(cat['snr'],bins=np.linspace(0,100))
+        pl.show()
+
+
+
+
 def get_snr_from_cosmos():
 
+    # filename_noiseless = 'nbc2.meds.%03d.g%02d.fits' % (0,0)
     filename_noiseless = 'noisless_galaxies.meds.fits'
     noisless_gals = meds.MEDS(filename_noiseless)
 
@@ -493,20 +544,24 @@ def get_snr_from_cosmos():
         img = noisless_gals.get_cutout(ni,0)
         normsq= np.sum( img.flatten()**2 )
         list_normsq.append(normsq)
-        if ni % 1000 == 0: print ni
+        if ni % 1000 == 0: print 'getting norm of galaxy ' , ni
 
     from scipy.optimize import fmin
     arr_normsq = np.array(list_normsq)
 
-    noise_std = 16.
+    noise_std = 16.7552909851
+    min_snr_to_use=15
+
+    print 'using' , sum(h_des[b_des>min_snr_to_use])/sum(h_des)
 
     def get_kl(x):
         
         snr = np.sqrt(arr_normsq*(x**2)) / noise_std     
-        h_sim, b_sim = pl.histogram(snr,bins=plotstools.get_bins_edges(b_des),normed=True)
+        h_sim, b_sim = pl.histogram(snr,bins=plotstools.get_bins_edges(b_des[b_des>min_snr_to_use],constant_spacing=True),normed=True)
         h_sim = h_sim/sum(h_sim)
 
-        KL_divergence = -sum(  h_des * np.log(h_sim)  ) + sum( h_des * np.log(h_des) )
+        h_des_use = h_des[b_des>min_snr_to_use]
+        KL_divergence = -sum(  h_des_use * np.log(h_sim)  ) + sum( h_des_use * np.log(h_des_use) )
 
         print 'KL_divergence=' , KL_divergence , 'scale=' , x
         return KL_divergence
@@ -514,35 +569,53 @@ def get_snr_from_cosmos():
     def get_kl_sigma(sigma):
         
         snr = np.sqrt(arr_normsq) / sigma     
-        h_sim, b_sim = pl.histogram(snr,bins=plotstools.get_bins_edges(b_des),normed=True)
+        h_sim, b_sim = pl.histogram(snr,bins=plotstools.get_bins_edges(b_des[b_des>min_snr_to_use],constant_spacing=True),normed=True)
         h_sim = h_sim/sum(h_sim)
+        # pl.plot(b_des,h_sim)
+        # pl.show()
 
-        KL_divergence = -sum(  h_des * np.log(h_sim)  ) + sum( h_des * np.log(h_des) )
+        h_des_use = h_des[b_des>min_snr_to_use]
+        KL_divergence = -sum(  h_des_use * np.log(h_sim)  ) + sum( h_des_use * np.log(h_des_use) )
 
         print 'KL_divergence=' , KL_divergence , 'sigma=' , sigma
         return KL_divergence
 
 
     # best_scale = fmin(get_kl,100.)
-    best_sigma = fmin(get_kl_sigma,0.05)
+    best_sigma = fmin(get_kl_sigma,0.2)
+    # best_sigma=0.18
+
 
     # snr = np.sqrt(arr_normsq*(best_scale**2)) / noise_std     
     snr = np.sqrt(arr_normsq) / best_sigma     
     # snr = np.sqrt(arr_normsq) / 0.1
-    h_sim, b_sim = pl.histogram(snr,bins=plotstools.get_bins_edges(b_des),normed=True)
+    h_sim, b_sim = pl.histogram(snr,bins=plotstools.get_bins_edges(b_des,constant_spacing=True),normed=True)
     h_sim = h_sim/sum(h_sim)
 
+    best_test = 0.3
+    snr = np.sqrt(arr_normsq) / best_test     
+    # snr = np.sqrt(arr_normsq) / 0.1
+    h_sim2, b_sim = pl.histogram(snr,bins=plotstools.get_bins_edges(b_des,constant_spacing=True),normed=True)
+    h_sim2 = h_sim2/sum(h_sim2)
+
+
+    des_scale_pixels = noise_std / best_sigma
+    print 'des images noise sigma=' , noise_std
     print 'use noise_sigma=' , best_sigma
-    print 'post multiply images by scale=' , noise_std / best_sigma
+    print 'post multiply images by scale=' , des_scale_pixels
 
     
     pl.plot(b_des,h_sim,'rx-',label='GREAT-DES')
+    pl.plot(b_des,h_sim2,'cx-',label='GREAT-DES -test')
     pl.plot(b_des,h_des,'bo-',label='im3shape 011 v3')
     pl.xlabel('SNR')
+    # pl.xscale('log')
     pl.legend()
     filename_fig = 'match_GREATDES_and_IM3011v3.png'
     pl.savefig(filename_fig)
     print 'saved' , filename_fig
+
+    return best_sigma, des_scale_pixels , noise_std
 
 def main():
 
@@ -566,13 +639,20 @@ def main():
 
     config = yaml.load(open(args.filename_config))
     # plot_meds()
-    # get_noise_level() 16.7552914481
-    # get_psf_snr_dist()
+    # get_noise_level() # 16.7552914481
+    best_sigma, des_scale_pixels , noise_std =  get_snr_from_cosmos();pl.show()
+    
+    # get_psf_snr_dist();     
     # get_psf_key()
-    # get_catalogs()
     # get_psf_images()
-    # get_meds()
-    get_snr_from_cosmos()
+    get_truth_catalogs()
+    get_meds(noise=False)
+    # config['des_scale_pixels'] = des_scale_pixels
+    # config['des_pixel_noise_sigma'] = niose_std
+    # config['image']['noise']['sigma'] = best_sigma
+    get_snr_in_truth_table()
+    get_meds(noise=True)
+    
 
     log.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
 
