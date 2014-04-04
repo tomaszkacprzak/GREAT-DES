@@ -1,4 +1,9 @@
-import os, sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, nbc2_dtypes, galsim, copy, galsim.des, warnings
+import os 
+import matplotlib as mpl
+if 'DISPLAY' not in os.environ:
+    mpl.use('agg')
+    print 'using backend ' , mpl.get_backend()
+import sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, nbc2_dtypes, galsim, copy, galsim.des, warnings, subprocess
 import pylab as pl
 import numpy as np
 from astropy.stats import sigma_clip
@@ -153,8 +158,8 @@ def get_psf_snr_dist():
     hist_e2_all   = np.ones_like(bins_ell_centers)
     hist_snr_all  = np.ones_like(bins_snr_centers)
 
-    for fi , fv in enumerate(files_im3[:10]):
-    # for fi , fv in enumerate(files_im3):
+    # for fi , fv in enumerate(files_im3[:10]):
+    for fi , fv in enumerate(files_im3):
         try:
             cat=pyfits.getdata(fv)
         except:
@@ -383,9 +388,21 @@ def get_meds(noise=True):
 
             log.info('getting %s, noise=%s' % (filename_meds , noise ))
             galsim.config.Process(config_copy)
+            fpack(filename_meds)
     
     log.info('done all meds')
 
+def fpack(filename):
+
+    filename_fz = filename + '.fz'
+    if os.path.isfile(filename_fz):
+        os.remove(filename_fz)
+
+    cmd=['fpack' , '-t' , '10240,1' , filename]
+    subprocess.call(cmd)
+    os.remove(filename)
+    os.rename(filename_fz,filename)
+    log.debug('compressed file %s ...' % filename)
 
 
 def get_psf_index(ifwhm,ie1,ie2):
@@ -492,13 +509,15 @@ def get_snr_in_truth_table():
     noise_std = config['des_pixel_noise_sigma']
 
     for ip in range(config['n_files']):
+
+        all_snr=[]
    
         for ig,vg in enumerate(config['shear']):
 
             list_normsq = []
 
             filename_cat = 'nbc2.truth.%03d.g%02d.fits' % (ip,ig)
-            filename_meds = 'nbc2.meds.%03d.g%02d.fits' % (ip,ig)
+            filename_meds = 'nbc2.meds.%03d.g%02d.noisefree.fits' % (ip,ig)
 
             log.info('using %s and %s' , filename_meds, filename_cat)
 
@@ -514,13 +533,18 @@ def get_snr_in_truth_table():
                 flux = np.sum(img.flatten())
                 cat[ig]['snr'] = snr
                 cat[ig]['flux'] = flux
-                
+
+                                
                 if ig % 1000 == 0: print 'getting norm of galaxy ' , ig
 
             tabletools.saveTable(filename_cat, cat)
+            all_snr+=cat['snr'].tolist()
 
-        pl.hist(cat['snr'],bins=np.linspace(0,100))
-        pl.show()
+        pl.hist(all_snr,bins=np.linspace(0,100,200),histtype='step')
+        filename_fig = 'truth_table_snr.png'
+        pl.savefig(filename_fig)
+        log.info('saved %s' , filename_fig)
+        # pl.show()
 
 
 
@@ -617,6 +641,13 @@ def get_snr_from_cosmos():
 
     return best_sigma, des_scale_pixels , noise_std
 
+def preview_result():
+
+    import meds
+    m=meds.MEDS('nbc2.meds.000.g05.fits.fz')
+    for i in range(100): print tru['snr'][i];pl.imshow(m.get_cutout(i,0),interpolation='nearest');pl.show()
+
+
 def main():
 
 
@@ -640,20 +671,16 @@ def main():
     config = yaml.load(open(args.filename_config))
     # plot_meds()
     # get_noise_level() # 16.7552914481
-    best_sigma, des_scale_pixels , noise_std =  get_snr_from_cosmos();pl.show()
+    # get_snr_from_cosmos()
     
-    # get_psf_snr_dist();     
-    # get_psf_key()
-    # get_psf_images()
+    get_psf_snr_dist();     
+    get_psf_key()
+    get_psf_images()
     get_truth_catalogs()
     get_meds(noise=False)
-    # config['des_scale_pixels'] = des_scale_pixels
-    # config['des_pixel_noise_sigma'] = niose_std
-    # config['image']['noise']['sigma'] = best_sigma
     get_snr_in_truth_table()
     get_meds(noise=True)
     
-
     log.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
 
 main()
