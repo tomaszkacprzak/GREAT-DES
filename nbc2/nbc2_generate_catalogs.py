@@ -586,7 +586,7 @@ def get_truth_catalogs():
 
 def update_truth_table():
 
-    log.info('getting snr for the truth table')
+    log.info('getting snr, flux and fwhm for the truth table')
 
     noise_std = config['des_pixel_noise_sigma']
 
@@ -601,11 +601,13 @@ def update_truth_table():
             filename_cat = 'nbc2.truth.%03d.g%02d.fits' % (ip,ig)
             filename_meds = 'nbc2.meds.%03d.g%02d.noisefree.fits' % (ip,ig)
 
-            log.info('using %s and %s' , filename_meds, filename_cat)
+            log.info('part %d shear %d : getting snr, flux and fwhm, using %s and %s' , ip, ig, filename_meds, filename_cat)
 
             noisless_gals = meds.MEDS(filename_meds)
             n_gals = len(noisless_gals._cat)
             cat = tabletools.loadTable(filename_cat)
+            if 'fwhm' not in cat.dtype.names:
+                cat=tabletools.appendColumn(rec=cat,name='fwhm',arr=np.zeros(len(cat)),dtype='f8')
 
             for ig in range(n_gals):
 
@@ -615,13 +617,15 @@ def update_truth_table():
                 flux = np.sum(img.flatten())
                 cat[ig]['snr'] = snr
                 cat[ig]['flux'] = flux
+
                 try:
                     cat[ig]['fwhm'] = get_fwhm(img)
                 except:
+                    log.error('getting FWHM failed for galaxy %d in %s' , ig , filename_meds )
                     cat[ig]['fwhm'] = 666
 
                                 
-                if ig % 1000 == 0: log.info('getting snr, flux and fwhm of galaxy %d' , ig)
+                if ig % 1000 == 0: log.debug('getting snr, flux and fwhm of galaxy %d' , ig)
 
 
             tabletools.saveTable(filename_cat, cat)
