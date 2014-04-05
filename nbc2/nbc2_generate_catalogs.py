@@ -444,13 +444,10 @@ def get_meds(noise=True):
 
     # get the start and end index of files
 
-    id_start = args.first
-    if args.num == -1:
-        id_last = config['n_files']
-    else:
-        id_last = id_start + args.num
+    id_first = args.first
+    id_last = id_first + args.num
 
-    for ip in range(config['n_files']):
+    for ip in range(id_first,id_last):
     
         for ig,vg in enumerate(config['shear']):
 
@@ -535,7 +532,10 @@ def get_truth_catalogs():
     n_cosmos_gals = len(cosmos_catalog)
     log.info('opened %s with %d images' , filename_cosmos_catalog, n_cosmos_gals)
 
-    for ip in range(config['n_files']):
+    id_first = args.first
+    id_last = id_first + args.num
+
+    for ip in range(id_first,id_last):
     
         for ig,vg in enumerate(config['shear']):
 
@@ -590,7 +590,11 @@ def update_truth_table():
 
     noise_std = config['des_pixel_noise_sigma']
 
-    for ip in range(config['n_files']):
+    id_first = args.first
+    id_last = id_first + args.num
+
+
+    for ip in range(id_first,id_last):
 
         # all_snr=[]
    
