@@ -6,7 +6,6 @@ if 'DISPLAY' not in os.environ:
 import sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, nbc2_dtypes, galsim, copy, galsim.des, warnings, subprocess
 import pylab as pl
 import numpy as np
-from astropy.stats import sigma_clip
 warnings.simplefilter('once')
 
 logging_level = logging.INFO
@@ -27,6 +26,66 @@ bins_ell  = plotstools.get_bins_edges( bins_ell_centers )
 bins_snr  = plotstools.get_bins_edges( bins_snr_centers )
 
 DES_PIXEL_SIZE = 0.27
+
+def get_fwhm(image, fwxm=0.5, upsampling=1):
+    """
+    @ brief Computes the FWHM of an i3 image. Per default, it computes the
+    radial averaged profile for determining the FWHM. Alternatively,
+    it computes the FWHMs of the profiles along the x and y axes in +
+    and - direction (total of 4) and returns their average as an
+    estimator of the FWHM.    
+    @param image np.array with pixels
+    """
+    # compute weighted moments to get centroid
+    x0,y0=np.unravel_index(np.argmax(image), image.shape)
+    # x0 = numpy.floor(moments.x0)
+    # y0 = numpy.floor(moments.y0)
+
+    profile_x = image[int(x0), :]
+    profile_y = image[:, int(y0)]
+
+    max_val = image[int(x0), int(y0)]
+    cut_val = max_val * fwxm
+
+    fwhms = []
+    for i in range(4):
+        if i == 0:
+            profile = profile_x[int(y0)::]
+            dc0 = int(x0) - x0
+        if i == 1:
+            profile = profile_x[0:int(y0)+1][::-1]
+            dc0 = -int(x0) + x0
+        if i == 2:
+            profile = profile_y[int(x0)::]
+            dc0 = int(y0) - y0
+        if i == 3:
+            profile = profile_y[0:int(x0)+1][::-1]
+            dc0 = -int(y0) + y0
+     
+        diff = abs(profile - cut_val)
+     
+        # fhwm code from Tomek
+        f1 = 0.
+        f2 = 0.
+        x1 = 0
+        x2 = 0
+        
+        x1 = np.argmin(diff)
+        f1 = profile[x1]
+     
+        if( f1 < cut_val ):  x2 = x1+1
+        else:       x2 = x1-1
+        f2 = profile[x2];
+     
+        a = (f1-f2)/(x1 - x2)
+        b = f1 - a*x1;
+        x3 = (cut_val - b)/a;
+     
+        fwhms.append(2.* (dc0 + x3))
+
+        fwhm =  np.mean(np.array(fwhms))/upsampling
+
+    return fwhm
 
 def plot_meds():
     
@@ -139,6 +198,7 @@ def get_std(mosaic):
     mos_select=mos[select]
 
     n_sigma = 3
+    from astropy.stats import sigma_clip
     clipped_mosaic,_ = sigma_clip(mos_select,sig=n_sigma)
 
     return np.std(clipped_mosaic,ddof=1)
@@ -158,8 +218,17 @@ def get_psf_snr_dist():
     hist_e2_all   = np.ones_like(bins_ell_centers)
     hist_snr_all  = np.ones_like(bins_snr_centers)
 
-    # for fi , fv in enumerate(files_im3[:10]):
-    for fi , fv in enumerate(files_im3):
+    if 'n_im3shape_results_files' in config:
+
+        if config['n_im3shape_results_files'] == -1:
+            n_files_use = len(files_im3)
+        else:
+            n_files_use = config['n_im3shape_results_files']
+    else: 
+        n_files_use = config['n_im3shape_results_files']
+    
+    for fi , fv in enumerate(files_im3[:n_files_use]):
+    # for fi , fv in enumerate(files_im3):
         try:
             cat=pyfits.getdata(fv)
         except:
@@ -373,6 +442,14 @@ def get_psf_images():
 
 def get_meds(noise=True):
 
+    # get the start and end index of files
+
+    id_start = args.first
+    if args.num == -1:
+        id_last = config['n_files']
+    else:
+        id_last = id_start + args.num
+
     for ip in range(config['n_files']):
     
         for ig,vg in enumerate(config['shear']):
@@ -387,7 +464,10 @@ def get_meds(noise=True):
             config_copy['output']['file_name'] = filename_meds
 
             log.info('getting %s, noise=%s' % (filename_meds , noise ))
-            galsim.config.Process(config_copy)
+            if args.verbosity > 2:
+                galsim.config.Process(config_copy,logger=log)
+            else:
+                galsim.config.Process(config_copy)
             fpack(filename_meds)
     
     log.info('done all meds')
@@ -496,21 +576,23 @@ def get_truth_catalogs():
             psf_ids=psf_ids[:,None]
             obj_snr = np.ones_like(psf_ids)
             obj_flux = np.ones_like(psf_ids)
+            obj_fwhm = np.ones_like(psf_ids)
 
             # 'names' : [ 'id' ,  'id_cosmos' , 'id_shear' , 'id_psf' ,  'g1_true' , 'g2_true' ,  'snr' ,  'psf_fwhm' , 'psf_e1' , 'psf_e2' , 'rotation_angle']  ,
-            catalog = np.concatenate([ids,cosmos_ids,shear_ids,psf_ids,shear_g1,shear_g2,obj_snr,obj_flux,psf_fwhm,psf_e1,psf_e2,rotation_angle],axis=1)
+            catalog = np.concatenate([ids,cosmos_ids,shear_ids,psf_ids,shear_g1,shear_g2,obj_snr,obj_flux,obj_fwhm,psf_fwhm,psf_e1,psf_e2,rotation_angle],axis=1)
             catalog = tabletools.array2recarray(catalog,dtype=nbc2_dtypes.dtype_truth)
 
             tabletools.saveTable(filename_cat,catalog)
 
-def get_snr_in_truth_table():
+def update_truth_table():
 
+    log.info('getting snr for the truth table')
 
     noise_std = config['des_pixel_noise_sigma']
 
     for ip in range(config['n_files']):
 
-        all_snr=[]
+        # all_snr=[]
    
         for ig,vg in enumerate(config['shear']):
 
@@ -533,17 +615,22 @@ def get_snr_in_truth_table():
                 flux = np.sum(img.flatten())
                 cat[ig]['snr'] = snr
                 cat[ig]['flux'] = flux
+                try:
+                    cat[ig]['fwhm'] = get_fwhm(img)
+                except:
+                    cat[ig]['fwhm'] = 666
 
                                 
-                if ig % 1000 == 0: print 'getting norm of galaxy ' , ig
+                if ig % 1000 == 0: log.info('getting snr, flux and fwhm of galaxy %d' , ig)
+
 
             tabletools.saveTable(filename_cat, cat)
-            all_snr+=cat['snr'].tolist()
+            # all_snr+=cat['snr'].tolist()
 
-        pl.hist(all_snr,bins=np.linspace(0,100,200),histtype='step')
-        filename_fig = 'truth_table_snr.png'
-        pl.savefig(filename_fig)
-        log.info('saved %s' , filename_fig)
+        # pl.hist(all_snr,bins=np.linspace(0,100,200),histtype='step')
+        # filename_fig = 'truth_table_snr.png'
+        # pl.savefig(filename_fig)
+        # log.info('saved %s' , filename_fig)
         # pl.show()
 
 
@@ -657,6 +744,8 @@ def main():
     parser = argparse.ArgumentParser(description=description, add_help=True)
     parser.add_argument('-v', '--verbosity', type=int, action='store', default=2, choices=(0, 1, 2, 3 ), help='integer verbosity level: min=0, max=3 [default=2]')
     parser.add_argument('-c', '--filename_config', type=str, action='store', default='nbc2.yaml', help='name of the config file')
+    parser.add_argument('-f', '--first', type=int, action='store', default=0, help='index of the first file to create')
+    parser.add_argument('-n', '--num', type=int, action='store', default=-1, help='number of files to create, if -1 then =config[n_files]')
 
     args = parser.parse_args()
     logging_levels = { 0: logging.CRITICAL, 
@@ -673,14 +762,32 @@ def main():
     # get_noise_level() # 16.7552914481
     # get_snr_from_cosmos()
     
-    get_psf_snr_dist();     
-    get_psf_key()
-    get_psf_images()
-    get_truth_catalogs()
-    get_meds(noise=False)
-    get_snr_in_truth_table()
-    get_meds(noise=True)
+    if 'actions' in config:
+
+        if 'prepare' in config['actions']:
+                get_psf_snr_dist();     
+                get_psf_key()
+                get_psf_images()
+        if 'generate-truth' in config['actions']:
+                get_truth_catalogs()
+        if 'generate-noiseless' in config['actions']:
+            get_meds(noise=False)
+        if 'update-truth' in config['actions']:
+            update_truth_table()
+        if 'generate-noisy' in config['actions']:
+            get_meds(noise=True)
+
+        else:
+
+            get_psf_snr_dist();     
+            get_psf_key()
+            get_psf_images()
+            get_truth_catalogs()
+            get_meds(noise=False)
+            update_truth_table()
+            get_meds(noise=True)
     
     log.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
 
 main()
+
