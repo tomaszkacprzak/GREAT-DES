@@ -373,6 +373,14 @@ def get_psf_images():
 
 def get_meds(noise=True):
 
+    # get the start and end index of files
+
+    id_start = args.first
+    if args.num == -1:
+        id_last = config['n_files']
+    else:
+        id_last = id_start + args.num
+
     for ip in range(config['n_files']):
     
         for ig,vg in enumerate(config['shear']):
@@ -657,6 +665,8 @@ def main():
     parser = argparse.ArgumentParser(description=description, add_help=True)
     parser.add_argument('-v', '--verbosity', type=int, action='store', default=2, choices=(0, 1, 2, 3 ), help='integer verbosity level: min=0, max=3 [default=2]')
     parser.add_argument('-c', '--filename_config', type=str, action='store', default='nbc2.yaml', help='name of the config file')
+    parser.add_argument('-f', '--first', type=int, action='store', default=0, help='index of the first file to create')
+    parser.add_argument('-n', '--num', type=int, action='store', default=-1, help='number of files to create, if -1 then =config[n_files]')
 
     args = parser.parse_args()
     logging_levels = { 0: logging.CRITICAL, 
