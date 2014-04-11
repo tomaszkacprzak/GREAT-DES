@@ -145,7 +145,6 @@ def plot_meds():
  
     clipped_mosaic,_ = sigma_clip(mosaic.flatten(),sig=2)
     print 'np.std(clipped_mosaic)' , np.std(clipped_mosaic,ddof=1)
-    import pdb; pdb.set_trace()
 
     pl.figure()
     pl.plot(clipped_mosaic.flatten())
@@ -411,6 +410,12 @@ def get_psf_images():
                 config_copy2['psf']['fwhm'] = fwhm
                 config_copy2['psf']['ellip']['g1'] = e1
                 config_copy2['psf']['ellip']['g2'] = e2            
+
+                # no pixel convolut
+                config_copy2['pix'] = {}
+                config_copy2['pix']['type'] = 'Pixel'
+                config_copy2['pix']['xw'] = orig_pixel_scale
+
                 img_gal,img_psf,_,_ = galsim.config.BuildImages(config=config_copy2,image_num=0,obj_num=0,make_psf_image=True,nimages=1)      
                 img_psf = img_psf[0]
                 img_psf = img_psf[galsim.BoundsI(1, int(n_pix_hires), 1, int(n_pix_hires))]             
@@ -469,8 +474,7 @@ def get_meds(noise=True):
     id_first = args.first
     id_last = id_first + args.num
 
-    for ip in range(id_first,id_last):
-    
+    for ip in range(id_first,id_last):  
         for ig,vg in enumerate(config['shear']):
 
             filename_cat = 'nbc2.truth.%03d.g%02d.fits' % (ip,ig)
@@ -565,9 +569,9 @@ def get_truth_catalogs():
 
             filename_cat = 'nbc2.truth.%03d.g%02d.fits' % (ip,ig)
             
-            catalog = np.zeros(args.num,dtype=dtype_truth)
+            catalog = np.zeros(n_gals,dtype=dtype_truth)
             
-            ids = np.arange(n_gals)[:,None]
+            ids = np.arange(n_gals)
             cosmos_ids = np.random.choice(n_cosmos_gals,size=n_pairs)
             rotation_angle = np.random.uniform(low=0,high=2*np.pi,size=n_pairs)          
             # obj_snr = np.random.choice(a=bins_snr,size=n_pairs,p=prob_snr)
@@ -575,11 +579,11 @@ def get_truth_catalogs():
             
             # get pairs
             # obj_snr = np.concatenate([obj_snr[:,None] , obj_snr[:,None]] , axis=1) ; obj_snr = obj_snr.flatten()[:,None]
-            cosmos_ids = np.concatenate([cosmos_ids[:,None] , cosmos_ids[:,None]] , axis=1) ; cosmos_ids = cosmos_ids.flatten()[:,None]
-            rotation_angle = np.concatenate([rotation_angle[:,None] , rotation_angle[:,None] + np.pi/2.] , axis=1) ; rotation_angle = rotation_angle.flatten()[:,None] # rotate one of the pair nby 90 deg
-            # shear_ids = np.concatenate([shear_ids[:,None] , shear_ids[:,None]] , axis=1) ; shear_ids = shear_ids.flatten()[:,None]
-            # shear_g1 = np.concatenate([shear_g1[:,None] , shear_g1[:,None]] , axis=1) ; shear_g1 = shear_g1.flatten()[:,None]
-            # shear_g2 = np.concatenate([shear_g2[:,None] , shear_g2[:,None]] , axis=1) ; shear_g2 = shear_g2.flatten()[:,None]
+            cosmos_ids = np.concatenate([cosmos_ids[:,None] , cosmos_ids[:,None]] , axis=1) ; cosmos_ids = cosmos_ids.flatten()
+            rotation_angle = np.concatenate([rotation_angle[:,None] , rotation_angle[:,None] + np.pi/2.] , axis=1) ; rotation_angle = rotation_angle.flatten() # rotate one of the pair nby 90 deg
+            # shear_ids = np.concatenate([shear_ids[:,None] , shear_ids[:,None]] , axis=1) ; shear_ids = shear_ids.flatten()
+            # shear_g1 = np.concatenate([shear_g1[:,None] , shear_g1[:,None]] , axis=1) ; shear_g1 = shear_g1.flatten()
+            # shear_g2 = np.concatenate([shear_g2[:,None] , shear_g2[:,None]] , axis=1) ; shear_g2 = shear_g2.flatten()
 
             shear_ids = np.ones_like(ids) * ig
             shear_g1  = np.ones_like(ids) * vg[0]
@@ -593,12 +597,7 @@ def get_truth_catalogs():
             psf_fwhm = bins_psf_fwhm[psf_fwhm_ids]
             psf_e1 = bins_psf_e[psf_e1_ids]
             psf_e2 = bins_psf_e[psf_e2_ids]
-            psf_ids = get_psf_index(psf_fwhm_ids ,psf_e1_ids,psf_e2_ids)
-
-            psf_fwhm=psf_fwhm[:,None]
-            psf_e1=psf_e1[:,None]
-            psf_e2=psf_e2[:,None]
-            psf_ids=psf_ids[:,None]
+            psf_ids = get_psf_index(psf_fwhm_ids, psf_e1_ids, psf_e2_ids)
 
             catalog['id'] = ids
             catalog['id_cosmos'] = cosmos_ids
@@ -612,10 +611,6 @@ def get_truth_catalogs():
             catalog['rotation_angle'] = rotation_angle
             warnings.warn('test this part of code!')
 
-            # 'names' : [ 'id' ,  'id_cosmos' , 'id_shear' , 'id_psf' ,  'g1_true' , 'g2_true' ,  'snr' ,  'psf_fwhm' , 'psf_e1' , 'psf_e2' , 'rotation_angle']  ,
-            # catalog = np.concatenate([ids,cosmos_ids,shear_ids,psf_ids,shear_g1,shear_g2,obj_snr,obj_flux,obj_fwhm,psf_fwhm,psf_e1,psf_e2,rotation_angle],axis=1)
-            # catalog = tabletools.array2recarray(catalog,dtype=dtype_truth)
-
             tabletools.saveTable(filename_cat,catalog)
 
 def update_truth_table():
@@ -627,6 +622,7 @@ def update_truth_table():
     id_first = args.first
     id_last = id_first + args.num
 
+    psf_images = None
 
     for ip in range(id_first,id_last):
 
@@ -650,7 +646,7 @@ def update_truth_table():
             if 'hsm_obs_g1'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_obs_g1',     arr=np.zeros(len(cat)), dtype='f8')
             if 'hsm_obs_g2'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_obs_g2',     arr=np.zeros(len(cat)), dtype='f8')
             if 'hsm_cor_g1'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_cor_g1',     arr=np.zeros(len(cat)), dtype='f8')
-            if 'hsm_cor_g1'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_cor_g1',     arr=np.zeros(len(cat)), dtype='f8')
+            if 'hsm_cor_g2'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_cor_g2',     arr=np.zeros(len(cat)), dtype='f8')
             if 'hsm_obs_sigma'   not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_obs_sigma',  arr=np.zeros(len(cat)), dtype='f8')
             if 'hsm_cor_sigma'   not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_cor_sigma',  arr=np.zeros(len(cat)), dtype='f8')
             if 'hsm_centroid_x'  not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_centroid_x', arr=np.zeros(len(cat)), dtype='f8')
@@ -666,14 +662,14 @@ def update_truth_table():
                 flux = np.sum(img_gal.flatten())
                 cat[ig]['snr'] = snr
                 cat[ig]['flux'] = flux
-                img_psf = pyfits.getdata('data/nbc2.psf.lores.fits',cat[ig]['id_psf'])
+                img_psf = pyfits.getdata('nbc2.psf.lores.fits',cat[ig]['id_psf'])
                 gs_img_gal = image_array_to_galsim(img_gal)
                 gs_img_psf = image_array_to_galsim(img_psf)
 
                 try:
                     shearobj1=galsim.hsm.EstimateShear(gs_img_gal,gs_img_psf)
-                    cat[ig]['hsm_cor_g1'] = shearobj1.corrected_e2
-                    cat[ig]['hsm_cor_g1'] = shearobj1.corrected_e1
+                    cat[ig]['hsm_cor_g1'] = shearobj1.corrected_e1 / 2.
+                    cat[ig]['hsm_cor_g2'] = shearobj1.corrected_e2 / 2.
                     cat[ig]['hsm_mom_amp'] = shearobj1.moments_amp
                 except:
                     log.error('HSM failed for object ig=%d ip=%d id_cosmos=%d psf_fwhm=%2.2f' , ig, ip , cat['id_cosmos'][ig] , cat['psf_fwhm'][ig])
@@ -702,6 +698,15 @@ def update_truth_table():
                 except:
                     log.error('getting FWHM failed for galaxy %d in %s' , ig , filename_meds )
                     cat[ig]['fwhm'] = 666
+
+                try:
+                    if psf_images == None: psf_images = pyfits.open('nbc2.psf.hires.fits')
+                    img_hires_psf = psf_images[cat[ig]['id_psf']].data
+                    cat[ig]['psf_fwhm_measured'] = get_fwhm(img_hires_psf,upsampling=config['upsampling'])
+                except:
+                    log.error('getting FWHM failed for galaxy %d in %s' , ig , filename_meds )
+                    cat[ig]['psf_fwhm_measured'] = 666
+
                                 
                 if ig % 100 == 0: log.debug('getting snr, flux, hsm and fwhm of galaxy %d' , ig)
 
@@ -822,13 +827,14 @@ def main():
 
     global log , config , args , cat
 
+    valid_actions = ['prepare', 'generate-psf', 'generate-truth', 'generate-noiseless', 'update-truth', 'generate-noisy']
     description = 'Get input catalogs for GREAT-DES NBC2 simulation'
     parser = argparse.ArgumentParser(description=description, add_help=True)
     parser.add_argument('-v', '--verbosity', type=int, action='store', default=2, choices=(0, 1, 2, 3 ), help='integer verbosity level: min=0, max=3 [default=2]')
     parser.add_argument('-c', '--filename_config', type=str, action='store', default='nbc2.yaml', help='name of the config file')
     parser.add_argument('-f', '--first', type=int, action='store', default=0, help='index of the first file to create')
     parser.add_argument('-n', '--num', type=int, action='store', default=-1, help='number of files to create, if -1 then =config[n_files]')
-    parser.add_argument('-a', '--actions', nargs='+' , type=str, action='store',  help='generate-truth, generate-noiseless , update-truth , generate-noisy')
+    parser.add_argument('-a', '--actions', nargs='+' , type=str, action='store',  help='valid actions %s' % str(valid_actions))
 
     args = parser.parse_args()
     logging_levels = { 0: logging.CRITICAL, 
@@ -844,22 +850,27 @@ def main():
     # plot_meds()
     # get_noise_level() # 16.7552914481
     # get_snr_from_cosmos()
-    
+
+    for act in args.actions:
+        if act not in valid_actions:
+            raise Exception('%s not a valid action. Choose from %s' % (act,valid_actions))
+   
 
 
     if 'prepare' in args.actions:
-            get_psf_snr_dist();     
-            get_psf_key()
+        get_psf_snr_dist();     
+        get_psf_key()
     if 'generate-psf' in args.actions:
-            get_psf_images()
+        get_psf_images()
     if 'generate-truth' in args.actions:
-            get_truth_catalogs()
+        get_truth_catalogs()
     if 'generate-noiseless' in args.actions:
         get_meds(noise=False)
     if 'update-truth' in args.actions:
         update_truth_table()
     if 'generate-noisy' in args.actions:
         get_meds(noise=True)
+
 
     # else:
     #         get_psf_snr_dist()
