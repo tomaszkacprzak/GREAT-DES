@@ -17,15 +17,6 @@ stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setFormatter(log_formatter)
 log.addHandler(stream_handler)
 
-bins_fwhm_centers = np.array([0.7, 0.8, 0.9, 1., 1.1, 1.2, 1.3])
-bins_ell_centers  = np.array([-0.02, 0.0, 0.02])
-bins_snr_centers  = np.linspace(1,100,100)
-
-
-bins_fwhm = plotstools.get_bins_edges( bins_fwhm_centers )
-bins_ell  = plotstools.get_bins_edges( bins_ell_centers )
-bins_snr  = plotstools.get_bins_edges( bins_snr_centers )
-
 DES_PIXEL_SIZE = 0.27
 
 def image_array_to_galsim(array):
@@ -214,7 +205,7 @@ def get_std(mosaic):
 
     return np.std(clipped_mosaic,ddof=1)
 
-def get_psf_snr_dist():
+def get_psf_snr_dist_from_DES():
 
     files_im3 = np.loadtxt('filelist_im3.txt',dtype='a1024')
    
@@ -224,10 +215,10 @@ def get_psf_snr_dist():
     log.info('using %d im3shape tiles' % len(cat))
 
 
-    hist_fwhm_all = np.ones_like(bins_fwhm_centers)
-    hist_e1_all   = np.ones_like(bins_ell_centers)
-    hist_e2_all   = np.ones_like(bins_ell_centers)
-    hist_snr_all  = np.ones_like(bins_snr_centers)
+    hist_fwhm_all = np.ones_like(config['bins_fwhm_centers'])
+    hist_e1_all   = np.ones_like(config['bins_ell_centers'])
+    hist_e2_all   = np.ones_like(config['bins_ell_centers'])
+    hist_snr_all  = np.ones_like(config['bins_snr_centers'])
 
     if 'n_im3shape_results_files' in config:
 
@@ -273,10 +264,10 @@ def get_psf_snr_dist():
         select= (np.array(list_snr)>0)
         list_snr = list_snr[select]
 
-        hist_fwhm,_=pl.histogram(list_fwhm,bins=bins_fwhm)
-        hist_e1,_=pl.histogram(list_e1,bins=bins_ell)
-        hist_e2,_=pl.histogram(list_e2,bins=bins_ell)
-        hist_snr,_=pl.histogram(list_snr,bins=bins_snr)
+        hist_fwhm,_=pl.histogram(list_fwhm,bins=config['bins_fwhm'])
+        hist_e1,_=pl.histogram(list_e1,bins=config['bins_ell'])
+        hist_e2,_=pl.histogram(list_e2,bins=config['bins_ell'])
+        hist_snr,_=pl.histogram(list_snr,bins=config['bins_snr'])
 
         hist_fwhm_all += hist_fwhm
         hist_e1_all   += hist_e1
@@ -293,32 +284,28 @@ def get_psf_snr_dist():
     pl.clf()
 
     pl.figure()
-    bins_fwhm_centered = plotstools.get_bins_centers(bins_fwhm)
-    pl.plot(bins_fwhm_centered,hist_fwhm_all,'+-')
+    pl.plot(config['bins_fwhm_centers'],hist_fwhm_all,'+-')
     pl.xlabel('exposure fwhm [arsec]')
     filename_fig = 'psf_fwhm_dist.png'
     pl.savefig(filename_fig)
     print 'saved' , filename_fig
 
     pl.figure()
-    bins_e1_centered = plotstools.get_bins_centers(bins_ell)
-    pl.plot(bins_e1_centered,hist_e1_all,'+-')
+    pl.plot(config['bins_ell_centers'],hist_e1_all,'+-')
     pl.xlabel('psf e1')
     filename_fig = 'psf_e1_dist.png'
     pl.savefig(filename_fig)
     print 'saved' , filename_fig
 
     pl.figure()
-    bins_e2_centered = plotstools.get_bins_centers(bins_ell)
-    pl.plot(bins_e2_centered,hist_e2_all,'+-')
+    pl.plot(config['bins_ell_centers'],hist_e2_all,'+-')
     pl.xlabel('psf e2')
     filename_fig = 'psf_e2_dist.png'
     pl.savefig(filename_fig)
     print 'saved' , filename_fig
 
     pl.figure()
-    bins_snr_centered = plotstools.get_bins_centers(bins_snr)
-    pl.plot(bins_snr_centered,hist_snr_all,'+-')
+    pl.plot(config['bins_snr_centers'],hist_snr_all,'+-')
     pl.xlabel('snr')
     pl.xscale('log')
     filename_fig = 'snr_dist.png'
@@ -328,24 +315,45 @@ def get_psf_snr_dist():
    
     filename_psf = 'psf_fwhm_dist.txt'
     hist_fwhm_all /= sum(hist_fwhm_all)
-    data_save = np.array([bins_fwhm_centered,hist_fwhm_all]).T
+    data_save = np.array([config['bins_fwhm_centers'],hist_fwhm_all]).T
     np.savetxt(filename_psf,data_save,header='# bin_center_fwhm prob_fwhm')
     print 'saved' , filename_psf
 
     filename_psf = 'psf_ell_dist.txt'
     hist_e1_all /= sum(hist_e1_all)
     hist_e2_all /= sum(hist_e2_all)
-    data_save = np.array([bins_e1_centered,hist_e1_all,hist_e2_all]).T
+    data_save = np.array([config['bins_ell_centers'],hist_e1_all,hist_e2_all]).T
     np.savetxt(filename_psf,data_save,header='# bin_center_e e1 e2')
     print 'saved' , filename_psf
 
     filename_snr = 'snr_dist.txt'
     hist_snr_all /= sum(hist_snr_all)
-    data_save = np.array([bins_snr_centered,hist_snr_all]).T
+    data_save = np.array([config['bins_snr_centers'],hist_snr_all]).T
     np.savetxt(filename_snr,data_save,header='# bin_center_snr snr')
     print 'saved' , filename_snr
 
+
+def get_psf_snr_dist():
     
+    p_fwhm = np.ones_like(config['bins_fwhm_centers'])  / float(len(config['bins_fwhm_centers']))
+    p_ell  = np.ones_like(config['bins_ell_centers'])  / float(len(config['bins_ell_centers']))
+    p_snr  = np.ones_like(config['bins_snr_centers'])  / float(len(config['bins_snr_centers']))
+
+    filename_psf = 'psf_fwhm_dist.txt'
+
+    data_save = np.array([config['bins_fwhm_centers'],p_fwhm]).T
+    np.savetxt(filename_psf,data_save,header='# bin_center_fwhm prob_fwhm')
+    print 'saved' , filename_psf
+
+    filename_psf = 'psf_ell_dist.txt'
+    data_save = np.array([config['bins_ell_centers'],p_ell,p_ell]).T
+    np.savetxt(filename_psf,data_save,header='# bin_center_e e1 e2')
+    print 'saved' , filename_psf
+
+    filename_snr = 'snr_dist.txt'
+    data_save = np.array([config['bins_snr_centers'],p_snr]).T
+    np.savetxt(filename_snr,data_save,header='# bin_center_snr snr')
+    print 'saved' , filename_snr
 
 def median_absolute_deviation(data):
 
@@ -378,12 +386,12 @@ def get_psf_images():
     config_psf['gal']['type'] = 'Exponential'
     config_psf['gal']['half_light_radius'] = 3
 
-    n_psfs = len(bins_fwhm_centers)*len(bins_ell_centers)**2
+    n_psfs = len(config['bins_fwhm_centers'])*len(config['bins_ell_centers'])**2
     
     iall = 0
-    for ifwhm,fwhm in enumerate(bins_fwhm_centers):
-        for ie1,e1 in enumerate(bins_ell_centers):
-            for ie2,e2 in enumerate(bins_ell_centers):
+    for ifwhm,fwhm in enumerate(config['bins_fwhm_centers']):
+        for ie1,e1 in enumerate(config['bins_ell_centers']):
+            for ie2,e2 in enumerate(config['bins_ell_centers']):
                                                           
                 log.debug('getting single PSF at the pixel scale of a galaxy')
                 
@@ -398,7 +406,7 @@ def get_psf_images():
                 # filename_lores = 'nbc2.psf.lores.%03d.fits' % iall
                 # img_psf.write(filename_lores)
                                                               
-                # now the hires PSF, centered in the middle
+                # now the hires PSF, centers in the middle
                 log.debug('getting single PSF at high resolution')                 
                 config_copy2=copy.deepcopy(config_psf)
                 n_sub = config['upsampling']
@@ -502,7 +510,10 @@ def fpack(filename):
         os.remove(filename_fz)
 
     cmd=['fpack' , '-t' , '10240,1' , filename]
-    subprocess.call(cmd)
+    try:
+        subprocess.call(cmd)
+    except:
+        raise Exception('command failed: %s', cmd )
     os.remove(filename)
     os.rename(filename_fz,filename)
     log.debug('compressed file %s ...' % filename)
@@ -524,12 +535,12 @@ def get_psf_index(ifwhm,ie1,ie2):
 
 def get_psf_key():
 
-    n_psfs = len(bins_fwhm_centers)*len(bins_ell_centers)**2
+    n_psfs = len(config['bins_fwhm_centers'])*len(config['bins_ell_centers'])**2
     psf_key = np.zeros([n_psfs,7])
     iall = 0
-    for ifwhm,fwhm in enumerate(bins_fwhm_centers):
-        for ie1,e1 in enumerate(bins_ell_centers):
-            for ie2,e2 in enumerate(bins_ell_centers):
+    for ifwhm,fwhm in enumerate(config['bins_fwhm_centers']):
+        for ie1,e1 in enumerate(config['bins_ell_centers']):
+            for ie2,e2 in enumerate(config['bins_ell_centers']):
                                                           
                 psf_key[iall,:] = iall,ifwhm,ie1,ie2,fwhm,e1,e2
                 iall+=1
@@ -547,7 +558,7 @@ def get_truth_catalogs():
     bins_psf_fwhm,prob_psf_fwhm=np.loadtxt(filename_psf_fwhm).T
     bins_psf_e,prob_psf_e1,prob_psf_e2=np.loadtxt(filename_psf_ell).T
     # prob_psf_e1 = np.ones_like(bins_psf_e)/float(len(bins_psf_e)) , np.ones_like(bins_psf_e)/float(len(bins_psf_e))
-    bins_snr,prob_snr=np.loadtxt(filename_snr).T
+    config['bins_snr'],prob_snr=np.loadtxt(filename_snr).T
 
     n_shears = len(config['shear'])
     n_gals = int(float(config['n_gals_per_file'])) 
@@ -574,7 +585,7 @@ def get_truth_catalogs():
             ids = np.arange(n_gals)
             cosmos_ids = np.random.choice(n_cosmos_gals,size=n_pairs)
             rotation_angle = np.random.uniform(low=0,high=2*np.pi,size=n_pairs)          
-            # obj_snr = np.random.choice(a=bins_snr,size=n_pairs,p=prob_snr)
+            # obj_snr = np.random.choice(a=config['bins_snr'],size=n_pairs,p=prob_snr)
             # shear_ids = np.random.choice(n_shears,size=n_pairs)
             
             # get pairs
@@ -854,11 +865,22 @@ def main():
     for act in args.actions:
         if act not in valid_actions:
             raise Exception('%s not a valid action. Choose from %s' % (act,valid_actions))
+
+
+    config['bins_fwhm_centers'] = np.linspace(config['grid_fwhm']['min'],config['grid_fwhm']['max'],config['grid_fwhm']['n_grid'])
+    config['bins_ell_centers']  = np.linspace(config['grid_ell']['min'],config['grid_ell']['max'],config['grid_ell']['n_grid'])
+    config['bins_snr_centers']  = np.linspace(config['grid_snr']['min'],config['grid_snr']['max'],config['grid_snr']['n_grid'])
+
+
+    config['bins_fwhm'] = plotstools.get_bins_edges( config['bins_fwhm_centers'] )
+    config['bins_ell']  = plotstools.get_bins_edges( config['bins_ell_centers'] )
+    config['bins_snr']  = plotstools.get_bins_edges( config['bins_snr_centers'] )
    
-
-
     if 'prepare' in args.actions:
-        get_psf_snr_dist();     
+        if config['population_source'] == 'flat':
+            get_psf_snr_dist();     
+        if config['population_source'] == 'des':
+            get_psf_snr_dist_from_DES();     
         get_psf_key()
     if 'generate-psf' in args.actions:
         get_psf_images()
