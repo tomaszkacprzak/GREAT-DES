@@ -205,7 +205,7 @@ def get_std(mosaic):
 
     return np.std(clipped_mosaic,ddof=1)
 
-def get_psf_snr_dist_from_DES():
+def get_psf_dist_from_DES():
 
     files_im3 = np.loadtxt('filelist_im3.txt',dtype='a1024')
    
@@ -218,7 +218,6 @@ def get_psf_snr_dist_from_DES():
     hist_fwhm_all = np.ones_like(config['bins_fwhm_centers'])
     hist_e1_all   = np.ones_like(config['bins_ell_centers'])
     hist_e2_all   = np.ones_like(config['bins_ell_centers'])
-    hist_snr_all  = np.ones_like(config['bins_snr_centers'])
 
     if 'n_im3shape_results_files' in config:
 
@@ -230,7 +229,6 @@ def get_psf_snr_dist_from_DES():
         n_files_use = config['n_im3shape_results_files']
     
     for fi , fv in enumerate(files_im3[:n_files_use]):
-    # for fi , fv in enumerate(files_im3):
         try:
             cat=pyfits.getdata(fv)
         except:
@@ -250,8 +248,6 @@ def get_psf_snr_dist_from_DES():
             field_name = 'psf_e2_%d' % i
             list_e2.extend(cat[field_name])
 
-        list_snr = cat['snr']
-
         list_fwhm = np.array(list_fwhm)*DES_PIXEL_SIZE
         list_e1 = np.array(list_e1)
         list_e2 = np.array(list_e2)
@@ -261,18 +257,13 @@ def get_psf_snr_dist_from_DES():
         list_e1 = list_e1[select]
         list_e2 = list_e2[select]
         
-        select= (np.array(list_snr)>0)
-        list_snr = list_snr[select]
-
         hist_fwhm,_=pl.histogram(list_fwhm,bins=config['bins_fwhm'])
         hist_e1,_=pl.histogram(list_e1,bins=config['bins_ell'])
         hist_e2,_=pl.histogram(list_e2,bins=config['bins_ell'])
-        hist_snr,_=pl.histogram(list_snr,bins=config['bins_snr'])
 
         hist_fwhm_all += hist_fwhm
         hist_e1_all   += hist_e1
         hist_e2_all   += hist_e2
-        hist_snr_all  += hist_snr
 
         log.info('%3d %50s %8d %8d' , fi, fv, n_gals_total, len(list_fwhm))
 
@@ -304,14 +295,6 @@ def get_psf_snr_dist_from_DES():
     pl.savefig(filename_fig)
     print 'saved' , filename_fig
 
-    pl.figure()
-    pl.plot(config['bins_snr_centers'],hist_snr_all,'+-')
-    pl.xlabel('snr')
-    pl.xscale('log')
-    filename_fig = 'snr_dist.png'
-    pl.savefig(filename_fig)
-    print 'saved' , filename_fig
-
    
     filename_psf = 'psf_fwhm_dist.txt'
     hist_fwhm_all /= sum(hist_fwhm_all)
@@ -326,18 +309,13 @@ def get_psf_snr_dist_from_DES():
     np.savetxt(filename_psf,data_save,header='# bin_center_e e1 e2')
     print 'saved' , filename_psf
 
-    filename_snr = 'snr_dist.txt'
-    hist_snr_all /= sum(hist_snr_all)
-    data_save = np.array([config['bins_snr_centers'],hist_snr_all]).T
-    np.savetxt(filename_snr,data_save,header='# bin_center_snr snr')
-    print 'saved' , filename_snr
 
 
-def get_psf_snr_dist():
+
+def get_psf_dist():
     
     p_fwhm = np.ones_like(config['bins_fwhm_centers'])  / float(len(config['bins_fwhm_centers']))
     p_ell  = np.ones_like(config['bins_ell_centers'])  / float(len(config['bins_ell_centers']))
-    p_snr  = np.ones_like(config['bins_snr_centers'])  / float(len(config['bins_snr_centers']))
 
     filename_psf = 'psf_fwhm_dist.txt'
 
@@ -350,10 +328,6 @@ def get_psf_snr_dist():
     np.savetxt(filename_psf,data_save,header='# bin_center_e e1 e2')
     print 'saved' , filename_psf
 
-    filename_snr = 'snr_dist.txt'
-    data_save = np.array([config['bins_snr_centers'],p_snr]).T
-    np.savetxt(filename_snr,data_save,header='# bin_center_snr snr')
-    print 'saved' , filename_snr
 
 def median_absolute_deviation(data):
 
@@ -553,12 +527,9 @@ def get_truth_catalogs():
 
     filename_psf_fwhm = 'psf_fwhm_dist.txt'
     filename_psf_ell = 'psf_ell_dist.txt'
-    filename_snr = 'snr_dist.txt'
 
     bins_psf_fwhm,prob_psf_fwhm=np.loadtxt(filename_psf_fwhm).T
     bins_psf_e,prob_psf_e1,prob_psf_e2=np.loadtxt(filename_psf_ell).T
-    # prob_psf_e1 = np.ones_like(bins_psf_e)/float(len(bins_psf_e)) , np.ones_like(bins_psf_e)/float(len(bins_psf_e))
-    config['bins_snr'],prob_snr=np.loadtxt(filename_snr).T
 
     n_shears = len(config['shear'])
     n_gals = int(float(config['n_gals_per_file'])) 
@@ -620,7 +591,6 @@ def get_truth_catalogs():
             catalog['psf_e1'] = psf_e1
             catalog['psf_e2'] = psf_e2
             catalog['rotation_angle'] = rotation_angle
-            warnings.warn('test this part of code!')
 
             tabletools.saveTable(filename_cat,catalog)
 
@@ -697,6 +667,7 @@ def update_truth_table():
                     cat[ig]['hsm_centroid_x'] = shearobj2.moments_centroid.x
                     cat[ig]['hsm_centroid_y'] = shearobj2.moments_centroid.y
                 except:
+                    log.error('FindAdaptiveMom failed for object ig=%d ip=%d id_cosmos=%d psf_fwhm=%2.2f' , ig, ip , cat['id_cosmos'][ig] , cat['psf_fwhm'][ig])
                     cat[ig]['hsm_obs_g1'] = -99
                     cat[ig]['hsm_obs_g2'] = -99
                     cat[ig]['hsm_obs_sigma'] = -99
@@ -862,25 +833,23 @@ def main():
     # get_noise_level() # 16.7552914481
     # get_snr_from_cosmos()
 
+    if args.actions==None:
+        raise Exception('supply at least one of the actions -a %s' % str(valid_actions))
+
     for act in args.actions:
         if act not in valid_actions:
             raise Exception('%s not a valid action. Choose from %s' % (act,valid_actions))
 
-
     config['bins_fwhm_centers'] = np.linspace(config['grid_fwhm']['min'],config['grid_fwhm']['max'],config['grid_fwhm']['n_grid'])
     config['bins_ell_centers']  = np.linspace(config['grid_ell']['min'],config['grid_ell']['max'],config['grid_ell']['n_grid'])
-    config['bins_snr_centers']  = np.linspace(config['grid_snr']['min'],config['grid_snr']['max'],config['grid_snr']['n_grid'])
-
-
     config['bins_fwhm'] = plotstools.get_bins_edges( config['bins_fwhm_centers'] )
     config['bins_ell']  = plotstools.get_bins_edges( config['bins_ell_centers'] )
-    config['bins_snr']  = plotstools.get_bins_edges( config['bins_snr_centers'] )
    
     if 'prepare' in args.actions:
         if config['population_source'] == 'flat':
-            get_psf_snr_dist();     
+            get_psf_dist();     
         if config['population_source'] == 'des':
-            get_psf_snr_dist_from_DES();     
+            get_psf_dist_from_DES();     
         get_psf_key()
     if 'generate-psf' in args.actions:
         get_psf_images()
