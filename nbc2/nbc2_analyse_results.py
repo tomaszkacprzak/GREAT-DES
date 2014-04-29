@@ -21,6 +21,25 @@ req3_dg = 0.1
 req1_nfail = 0.01
 req2_nfail = 0.05
 
+figsize = [10,7]
+params = {'legend.fontsize': 10,
+        'legend.linewidth': 2}
+pl.rcParams.update(params)
+
+def plot_add_requirements(mult=1.):
+
+    req1_dg = 0.003
+    req2_dg = 0.02
+    req3_dg = 0.1
+    req1_nfail = 0.01
+    req2_nfail = 0.05
+
+    corner = pl.xlim()[0]
+    length = abs(pl.xlim()[1]) + abs(pl.xlim()[0])
+    pl.gca().add_patch(pl.Rectangle(  (corner, 0 -mult*req3_dg), length , 2*mult*req3_dg , facecolor = '0.9' , edgecolor='k' ))
+    pl.gca().add_patch(pl.Rectangle(  (corner, 0 -mult*req2_dg), length , 2*mult*req2_dg , facecolor = '0.8' , edgecolor='k' ))
+    pl.gca().add_patch(pl.Rectangle(  (corner, 0 -mult*req1_dg), length , 2*mult*req1_dg , facecolor = '0.7' , edgecolor='k' ))
+
 def get_line_fit(x,y,sig):
         """
         @brief get linear least squares fit with uncertainity estimates
@@ -64,12 +83,14 @@ def get_shear_estimator(res):
     col_size = config['methods'][args.method]['col_size']
     flip_g1 =  config['methods'][args.method]['flip_g1']
     flip_g2 =  config['methods'][args.method]['flip_g2']
-    select_successful = ((np.abs(res[col_g1] + 1j*res[col_g2]))<1) * (~np.isnan(res[col_size])) * (~np.isinf(res[col_size]))
+    select_successful = ((np.abs(res[col_g1] + 1j*res[col_g2]))<1) * (~np.isnan(res[col_size])) * (~np.isinf(res[col_size])) * (~np.isnan(res[col_g1])) * (~np.isinf(res[col_g1]))
     n_success = len(np.nonzero(select_successful)[0])
     n_fail = n_res - n_success
     res_success = res[select_successful]
 
-    
+    if (n_res==0) or (n_success<2): 
+        raise Exception('no galaxies in sample')
+   
     if n_fail == n_res:
         stats['est_g1']  = 0.01
         stats['est_g2'] = 0.01
@@ -98,7 +119,6 @@ def get_shear_estimator(res):
         stats['n_fail'] = n_fail
         stats['n_gals'] = n_res
 
-    if stats['n_gals'] < 2: raise Exception('only one galaxy in sample')
 
     # check nans and infs
     for key in stats.dtype.names:
@@ -136,7 +156,7 @@ def get_selection(selection_string, cols_res, cols_tru):
 
 
 
-def get_selection_split(selection_string, cols_res, cols_tru):
+def get_selection_split(selection_string, cols_res, cols_tru,n_split=30):
 
     results_filename_fmt = config['methods'][args.method]['filename_results']  
     truth_filename_fmt = config['filename_truth']  
@@ -173,6 +193,7 @@ def get_selection_split(selection_string, cols_res, cols_tru):
  
             if 'patch_g2' in config['methods'][args.method]:
                 if config['methods'][args.method]['patch_g2']:
+                    log.info('patching g2--')
                     cat_res = tabletools.appendColumn(rec=cat_res, arr=cat_res['hsm_cor_g1'].copy(), name='hsm_cor_g2', dtype='f4')          
  
 
@@ -183,7 +204,10 @@ def get_selection_split(selection_string, cols_res, cols_tru):
 
             exec selection_string
             if len(np.nonzero(select)[0]) < 1:
-                raise Exception('select didnt give any results %s' % selection_string)
+                log.debug('select didnt give any results %s' % selection_string)
+                # import pdb;pdb.set_trace()
+                # raise Exception('select didnt give any results %s' % selection_string)
+
 
             selected_res = cat_res[select][cols_res]
             selected_tru = cat_tru[select][cols_tru]
@@ -194,6 +218,18 @@ def get_selection_split(selection_string, cols_res, cols_tru):
 
             list_all_res.append(selected_res)
             list_all_tru.append(selected_tru)
+
+    all_res = np.concatenate(list_all_res)
+    all_tru = np.concatenate(list_all_tru)
+
+    n_per_split = len(all_res)/n_split
+    list_split_res = []
+    list_split_tru = []
+    for il in range(n_split):
+        istart = il*n_per_split
+        iend = (il+1)*n_per_split
+        list_split_res.append(all_res[istart:iend])
+        list_split_tru.append(all_tru[istart:iend])
    
     n_total = 0
     for res in list_all_res:
@@ -201,21 +237,12 @@ def get_selection_split(selection_string, cols_res, cols_tru):
 
         
     log.info('selected %d parts with average %d, total %d' % (len(list_all_res) , float(n_total)/float(len(list_all_res)), n_total) )
-    return list_all_res, list_all_tru
+    return list_split_res, list_split_tru
 
 
 
-def get_shear_results(selection_string):
+def get_shear_results(list_all_res, list_all_tru ):
 
-    # these are the columns that we select for the results catalog (we are interested only in few, don't need all columns)
-    col_g1 = config['methods'][args.method]['col_g1']
-    col_g2 = config['methods'][args.method]['col_g2']
-    col_size = config['methods'][args.method]['col_size']
-    col_snr = config['methods'][args.method]['col_snr']
-    cols_res = [col_g1, col_g2, col_size , col_snr]
-    cols_tru = ['g1_true', 'g2_true' , 'snr','flux']
-
-    list_all_res, list_all_tru = get_selection_split(selection_string, cols_res, cols_tru)
     n_split = len(list_all_tru)
     list_shears = []
 
@@ -224,7 +251,7 @@ def get_shear_results(selection_string):
         try:
             stats=get_shear_estimator(list_all_res[il])
         except:
-            log.error('not enough galaxies in sample %d' % il)
+            log.error('not enough galaxies in sample %d' % len(list_all_res[il]))
             continue
         stats['tru_g1'] = np.mean(list_all_tru[il]['g1_true'])
         stats['tru_g2'] = np.mean(list_all_tru[il]['g2_true'])
@@ -251,8 +278,20 @@ def get_shear_results(selection_string):
 
 
 def get_mc(selection_string,tag):
+
+    # these are the columns that we select for the results catalog (we are interested only in few, don't need all columns)
+    col_g1 = config['methods'][args.method]['col_g1']
+    col_g2 = config['methods'][args.method]['col_g2']
+    col_size = config['methods'][args.method]['col_size']
+    col_snr = config['methods'][args.method]['col_snr']
+    cols_res = [col_g1, col_g2, col_size , col_snr]
+    cols_tru = ['g1_true', 'g2_true' , 'snr','flux' , 'hsm_obs_sigma']
     
-    stats = get_shear_results(selection_string)
+    split_all_res, split_all_tru = get_selection_split(selection_string, cols_res, cols_tru)
+    all_tru = np.concatenate(split_all_tru)
+    all_res = np.concatenate(split_all_res)
+
+    stats = get_shear_results(split_all_res, split_all_tru)
 
     # for i in stats: print i['tru_g1'], i['est_g1'], i['est_g1'] - i['tru_g1'] 
 
@@ -268,17 +307,18 @@ def get_mc(selection_string,tag):
 
     [c1,m1,C1cm] = get_line_fit(g1_tru,g1_bias,g1_err)
     [c2,m2,C2cm] = get_line_fit(g2_tru,g2_bias,g2_err)
-    # d1 = np.std(g1_bias - g1_tru*m1,ddof=1)
-    # d2 = np.std(g2_bias - g2_tru*m2,ddof=1)
-    # [c1,m1,C1cm] = get_line_fit(g1_tru,g1_bias,np.ones_like(g1_tru)*d1)
-    # [c2,m2,C2cm] = get_line_fit(g2_tru,g2_bias,np.ones_like(g2_tru)*d2)
+    d1 = np.std(g1_bias - g1_tru*m1,ddof=1)
+    d2 = np.std(g2_bias - g2_tru*m2,ddof=1)
+    [c1,m1,C1cm] = get_line_fit(g1_tru,g1_bias,np.ones_like(g1_tru)*d1)
+    [c2,m2,C2cm] = get_line_fit(g2_tru,g2_bias,np.ones_like(g2_tru)*d2)
     m1_std = np.sqrt(C1cm[1,1])
     m2_std = np.sqrt(C2cm[1,1])
     c1_std = np.sqrt(C1cm[0,0])
     c2_std = np.sqrt(C2cm[0,0])
 
 
-    g_std = np.mean(stats['est_stdv_g1'])
+    g1_std = np.mean(stats['est_stdv_g1'])
+    g2_std = np.mean(stats['est_stdv_g2'])
     n_fail = float(sum(stats['n_fail'])) / float(sum(stats['n_gals']))
 
     bias_result=np.empty(1,dtype=dtype_bias)
@@ -290,114 +330,253 @@ def get_mc(selection_string,tag):
     bias_result['c2_std'] = c2_std
     bias_result['m1_std'] = m1_std
     bias_result['m2_std'] = m2_std
-    bias_result['g_std'] = g_std
+    bias_result['g1_std'] = g1_std
+    bias_result['g2_std'] = g2_std
     bias_result['n_fail'] = n_fail
 
     global fig_counter
     pl.figure()
+    pl.subplot(2,2,1)
     pl.errorbar(g1_tru,g1_bias,yerr=g1_err,fmt='b.',label='m1=%2.3f +/- %2.3f' % (m1,m1_std))
     pl.plot(g1_tru,g1_tru*m1 + c1,'b-')
-    pl.errorbar(g2_tru,g2_bias,yerr=g2_err,fmt='r.',label='m1=%2.3f +/- %2.3f' % (m2,m2_std))
+    pl.errorbar(g2_tru,g2_bias,yerr=g2_err,fmt='r.',label='m2=%2.3f +/- %2.3f' % (m2,m2_std))
     pl.plot(g2_tru,g2_tru*m2 + c2,'r-')
+    ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
     pl.title(tag)
     pl.legend()
     # pl.show()
-    filename_fig = 'figs/fig.bias.%s.png' % (tag)
+
+    pl.subplot(2,2,2)
+    pl.hist(all_res[col_g1], bins=np.linspace(-1,1,100),histtype='step',normed=True , label='e1', color='b')
+    pl.hist(all_res[col_g2], bins=np.linspace(-1,1,100),histtype='step',normed=True , label='e2', color='r')
+    ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+    pl.legend()
+
+    pl.subplot(2,2,3)
+    pl.hist(all_res[col_size], bins=np.linspace(0,4,100),histtype='step',normed=True , label='Rgpp/Rpp', color='r')
+    pl.hist(all_tru['hsm_obs_sigma'], bins=np.linspace(2,4,100),histtype='step',normed=True , label='hsm_mom_sigma', color='b')
+    ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+    pl.legend()
+
+    filename_fig = 'figs/fig.bias+hist.%s.png' % (tag)
     pl.savefig(filename_fig)
     pl.close()
     log.info('saved %s' % filename_fig)
  
     # exec('func_get_shear='+config['methods'][args.method]['func_shear'])
 
-    return bias_result
+    return bias_result, all_tru, all_res
 
 
 def get_plots():
 
-    # --------------------------------------------------------------------------------------------------
-    # list_bias_result = []
-    # list_psf = [0.8,0.9,1.1,1.2,1.3]
-    # for ipsf,vpsf in enumerate(list_psf):
+    size_cut = 0 #2.45
+    snr_cut = 20
 
-    #     tag = 'psf_fwhm=%2.2f' % vpsf
-    #     selection_string = "select=cat_tru['psf_fwhm']==%1.1f" % vpsf
-
-    #     bias_result = get_mc(selection_string,tag)
-    #     list_bias_result.append(bias_result)
-    #     print vpsf , bias_result['m1'], bias_result['m1_std'] , bias_result['m2'], bias_result['m2_std']
-
-    # bias_results = np.concatenate(list_bias_result)
-
-    # pl.figure()
-    # pl.errorbar(list_psf,bias_results['m1'],yerr=bias_results['m1_std'],fmt='r',label='m1')
-    # pl.errorbar(list_psf,bias_results['m2'],yerr=bias_results['m2_std'],fmt='b',label='m2')
-    # pl.legend()
-    # pl.xlabel('PSF_FWHM')
-    # pl.ylabel('multiplicative bias')
-    # plotstools.adjust_limits()
-    # filename_fig = 'figs/bias_vs_psf.png' 
-    # pl.savefig(filename_fig)
-    # log.info('saved %s', filename_fig)
+    list_plots = [1,3,4,5]
 
     # --------------------------------------------------------------------------------------------------
-    # list_snr_centers = [5,10,15,20,25,30,40,50,60,70,80,90,100]
-    # list_snr_edges = [2.5,7.5,12.5,17.5,22.5,27.5,35,45,55,65,75,85,95,100]
-    # list_bias_result = []
-    # for isnr in range(1,len(list_snr_edges)):
+    if 1 in list_plots:
+        list_bias_result = []
+        list_psf = [0.8,0.9,1.1,1.2,1.3]
+        for ipsf,vpsf in enumerate(list_psf):
 
-    #     tag = 'snr=%.2f' % list_snr_centers[isnr-1]
-    #     snr = list_snr_edges[isnr]
-    #     selection_string = "select= ( cat_res['snr'] > %2.4f) * (cat_res['snr'] < %2.4f) " % (list_snr_edges[isnr-1],list_snr_edges[isnr])
+            tag = 'psf_fwhm=%2.2f' % vpsf
+            # selection_string = "select=  ( np.isclose(cat_tru['psf_fwhm'],%1.1f)) * ( (cat_tru['fwhm']*0.27/cat_tru['psf_fwhm']) > %f)" % (vpsf,size_cut)
+            selection_string = "select=  ( np.isclose(cat_tru['psf_fwhm'],%1.1f)) * ( cat_tru['hsm_obs_sigma']  > %f) * (cat_res['snr']>%f)" % (vpsf,size_cut,snr_cut)
 
-    #     bias_result = get_mc(selection_string,tag)
-    #     print list_snr_centers[isnr-1], bias_result['m1'], bias_result['m1_std']
-    #     list_bias_result.append(bias_result)
 
-    # bias_results = np.concatenate(list_bias_result)
+            bias_result, all_res, all_tru = get_mc(selection_string,tag)
+            list_bias_result.append(bias_result)
 
-    # pl.figure()
-    # pl.errorbar(list_snr_centers,bias_results['m1'],yerr=bias_results['m1_std'],fmt='r',label='m1')
-    # pl.errorbar(list_snr_centers,bias_results['m2'],yerr=bias_results['m2_std'],fmt='b',label='m2')
-    # pl.legend()
-    # pl.xlabel('SNR')
-    # pl.ylabel('multiplicative bias')
-    # plotstools.adjust_limits()
-    # filename_fig = 'figs/bias_vs_snr.png' 
-    # pl.savefig(filename_fig)
-    # log.info('saved %s', filename_fig)
-    # pl.show()
+        bias_results = np.concatenate(list_bias_result)
+
+        m_mean = (bias_results['m1'] + bias_results['m2'])/2.
+        m_mean_std = np.sqrt((bias_results['m1_std']**2 + bias_results['m2_std']**2))/np.sqrt(2.)
+
+        pl.figure(figsize=figsize)
+        pl.errorbar(list_psf,bias_results['m1'],yerr=bias_results['m1_std'],fmt=':r',label='m1')
+        pl.errorbar(list_psf,bias_results['m2'],yerr=bias_results['m2_std'],fmt=':b',label='m2')
+        # pl.errorbar(list_psf,m_mean,m_mean_std,fmt='k',label='<m>')
+        pl.legend()
+        pl.xlabel('PSF_FWHM')
+        pl.ylabel('multiplicative bias')
+        plotstools.adjust_limits()
+        plot_add_requirements()
+        filename_fig = 'figs/bias_vs_psf.png' 
+        pl.savefig(filename_fig)
+        log.info('saved %s', filename_fig)
 
     # --------------------------------------------------------------------------------------------------
+    # plot m vs SNR in bins of true SNR. use only galaxies with hsm_obs_sigma>x
+    if 2 in list_plots:
+        list_snr_centers = [5,10,15,20,25,30,40,50,60,70,80,90,100]
+        list_snr_edges = plotstools.get_bins_edges(list_snr_centers)
+        list_bias_result = []
+        for isnr in range(1,len(list_snr_edges)):
 
-    # selection_string = "select = cat_tru['fwhm']*0.27/cat_tru['psf_fwhm']>1.2"
+            tag = 'snr=%.2f' % list_snr_centers[isnr-1]
+            snr = list_snr_edges[isnr]
+            selection_string = "select=  (cat_tru['snr'] > %2.4f) * (cat_tru['snr'] < %2.4f) * (cat_tru['hsm_obs_sigma']  > %f) * (cat_res['snr']>%f)" % (
+                                                list_snr_edges[isnr-1],
+                                                list_snr_edges[isnr],
+                                                size_cut,snr_cut)
+
+            bias_result, all_res, all_tru = get_mc(selection_string,tag)
+            list_bias_result.append(bias_result)
+
+        bias_results = np.concatenate(list_bias_result)
+        m_mean = (bias_results['m1'] + bias_results['m2'])/2.
+        m_mean_std = np.sqrt((bias_results['m1_std']**2 + bias_results['m2_std']**2))/np.sqrt(2.)
 
 
-    list_size_centers = np.arange(1.5,4,0.25)
-    list_size_edges = plotstools.get_bins_edges(list_size_centers)
-    list_bias_result = []
-    for isize in range(1,len(list_size_edges)):
+        pl.figure(figsize=figsize)
+        pl.errorbar(list_snr_centers,bias_results['m1'],yerr=bias_results['m1_std'],fmt=':r',label='m1')
+        pl.errorbar(list_snr_centers,bias_results['m2'],yerr=bias_results['m2_std'],fmt=':b',label='m2')
+        # pl.errorbar(list_snr_centers,m_mean,m_mean_std,fmt='k',label='<m>')
 
-        tag = 'size=%.2f' % list_size_centers[isize-1]
-        size = list_size_edges[isize]
-        selection_string = "select= ( cat_tru['hsm_obs_sigma'] > %2.4f) * (cat_tru['hsm_obs_sigma'] < %2.4f) * (cat_res['snr']>40) " % (list_size_edges[isize-1],list_size_edges[isize])
+        pl.legend()
+        pl.xlabel('SNR')
+        pl.ylabel('multiplicative bias')
+        plotstools.adjust_limits()
+        plot_add_requirements()
+        filename_fig = 'figs/bias_vs_snr.png' 
+        pl.savefig(filename_fig)
+        log.info('saved %s', filename_fig)
 
-        bias_result = get_mc(selection_string,tag)
-        print list_size_centers[isize-1], bias_result['m1'], bias_result['m1_std'] , bias_result['m2'], bias_result['m2_std']
-        list_bias_result.append(bias_result)
+    # --------------------------------------------------------------------------------------------------
+    # plot m vs true size, using true FWHM measured from noise -free images, restrict SNR>x
 
-    bias_results = np.concatenate(list_bias_result)
+    if 3 in list_plots:
+        list_size_centers = np.arange(3.,5.,0.25)
+        list_size_edges = plotstools.get_bins_edges(list_size_centers)
+        list_bias_result = []
+        for isize in range(1,len(list_size_edges)):
 
-    pl.figure()
-    pl.errorbar(list_size_centers,bias_results['m1'],yerr=bias_results['m1_std'],fmt='r',label='m1')
-    pl.errorbar(list_size_centers,bias_results['m2'],yerr=bias_results['m2_std'],fmt='b',label='m2')
-    pl.legend()
-    pl.xlabel('size')
-    pl.ylabel('multiplicative bias')
-    plotstools.adjust_limits()
-    filename_fig = 'figs/bias_vs_size.png' 
-    pl.savefig(filename_fig)
-    log.info('saved %s', filename_fig)
+            tag = 'hsmsize=%.2f' % list_size_centers[isize-1]
+            size = list_size_edges[isize]
+            selection_string = "select=     (cat_tru['hsm_obs_sigma']  > %f) * (cat_tru['hsm_obs_sigma']  < %f) * (cat_res['snr']>%f) " % (list_size_edges[isize-1],list_size_edges[isize],snr_cut)
+
+            bias_result, all_res, all_tru = get_mc(selection_string,tag)
+            list_bias_result.append(bias_result)
+
+        bias_results = np.concatenate(list_bias_result)
+        m_mean = (bias_results['m1'] + bias_results['m2'])/2.
+        m_mean_std = np.sqrt((bias_results['m1_std']**2 + bias_results['m2_std']**2))/np.sqrt(2.)
+
+        pl.figure(figsize=figsize)
+        pl.errorbar(list_size_centers,bias_results['m1'],yerr=bias_results['m1_std'],fmt='r',label='m1')
+        pl.errorbar(list_size_centers,bias_results['m2'],yerr=bias_results['m2_std'],fmt='b',label='m2')
+        # pl.errorbar(list_size_centers,m_mean,m_mean_std,fmt='k',label='<m>')
+        pl.legend()
+        pl.xlabel('size')
+        pl.ylabel('multiplicative bias')
+        plotstools.adjust_limits()
+        plot_add_requirements()
+        filename_fig = 'figs/bias_vs_size.png' 
+        pl.savefig(filename_fig)
+        log.info('saved %s', filename_fig)
+
+    # --------------------------------------------------------------------------------------------------
+    # plot m vs FWHM size, using true FWHM measured from noise -free images, 
+    
+    if 4 in list_plots:
+        list_size_centers = [1.,1.2,1.4,1.6,1.8,2.0,2.2,2.4,2.6]
+        list_size_edges = plotstools.get_bins_edges(list_size_centers)
+        list_bias_result = []
+        for isize in range(1,len(list_size_edges)):
+
+            tag = 'fwhmratio=%.2f' % list_size_centers[isize-1]
+            size = list_size_edges[isize]
+            selection_string = "select= (cat_tru['hsm_obs_sigma']*2.355*0.27/cat_tru['psf_fwhm'] > %2.4f) * (cat_tru['hsm_obs_sigma']*2.355*0.27/cat_tru['psf_fwhm'] < %2.4f) * (cat_res['snr']>%f) " % (list_size_edges[isize-1],list_size_edges[isize],snr_cut)
+
+            bias_result, all_res, all_tru = get_mc(selection_string,tag)
+            list_bias_result.append(bias_result)
+
+        bias_results = np.concatenate(list_bias_result)
+        m_mean = (bias_results['m1'] + bias_results['m2'])/2.
+        m_mean_std = np.sqrt((bias_results['m1_std']**2 + bias_results['m2_std']**2))/np.sqrt(2.)
+
+        pl.figure(figsize=figsize)
+        pl.errorbar(list_size_centers,bias_results['m1'],yerr=bias_results['m1_std'],fmt='r',label='m1')
+        pl.errorbar(list_size_centers,bias_results['m2'],yerr=bias_results['m2_std'],fmt='b',label='m2')
+        # pl.errorbar(list_size_centers,m_mean,m_mean_std,fmt='k',label='<m>')
+        pl.legend()
+        pl.xlabel('size')
+        pl.ylabel('multiplicative bias')
+        plotstools.adjust_limits()
+        plot_add_requirements()
+        filename_fig = 'figs/bias_vs_fwhmratio.png' 
+        pl.savefig(filename_fig)
+        log.info('saved %s', filename_fig)
+
+    # --------------------------------------------------------------------------------------------------
+    # plot m vs FWHM size, using true FWHM measured from noise -free images, 
+    
+    if 5 in list_plots:
+        list_size_centers = [1.2,1.3,1.4,1.5,1.6,1.7,1.8]
+        list_size_edges = plotstools.get_bins_edges(list_size_centers)
+        list_bias_result = []
+        for isize in range(1,len(list_size_edges)):
+
+            tag = 'fwhmratio=%.2f' % list_size_centers[isize-1]
+            size = list_size_edges[isize]
+            selection_string = "select= (cat_res['rgpp_rp_1']/cat_tru['psf_fwhm'] > %2.4f) * (cat_res['rgpp_rp_1']/cat_tru['psf_fwhm'] < %2.4f) * (cat_tru['snr']>%f) " % (list_size_edges[isize-1],list_size_edges[isize],snr_cut)
+
+            bias_result, all_res, all_tru = get_mc(selection_string,tag)
+            list_bias_result.append(bias_result)
+
+        bias_results = np.concatenate(list_bias_result)
+        m_mean = (bias_results['m1'] + bias_results['m2'])/2.
+        m_mean_std = np.sqrt((bias_results['m1_std']**2 + bias_results['m2_std']**2))/np.sqrt(2.)
+
+        pl.figure(figsize=figsize)
+        pl.errorbar(list_size_centers,bias_results['m1'],yerr=bias_results['m1_std'],fmt='r',label='m1')
+        pl.errorbar(list_size_centers,bias_results['m2'],yerr=bias_results['m2_std'],fmt='b',label='m2')
+        # pl.errorbar(list_size_centers,m_mean,m_mean_std,fmt='k',label='<m>')
+        pl.legend()
+        pl.xlabel('size')
+        pl.ylabel('multiplicative bias')
+        plotstools.adjust_limits()
+        plot_add_requirements()
+        filename_fig = 'figs/bias_vs_fwhmratio.png' 
+        pl.savefig(filename_fig)
+        log.info('saved %s', filename_fig)
+
+
+
+
+
+
+
+
+
     pl.show()
+
+
+def show_example_galaxy_images():
+
+    selection_string = "select= ( (cat_tru['fwhm']*0.27/cat_tru['psf_fwhm']) > %2.4f) * ((cat_tru['fwhm']*0.27/cat_tru['psf_fwhm']) < %2.4f) * (cat_res['snr']>40) " % (1.9 , 2)
+    cols_res=['snr']
+    cols_tru=['id','fwhm','psf_fwhm']  
+    all_res,all_tru = get_selection_split(selection_string,cols_res,cols_tru)
+    filename_meds1 = 'data/nbc2.meds.%03d.g%02d.noisefree.fits' % (0.,0.)
+    filename_meds2 = 'data/nbc2.meds.%03d.g%02d.fits' % (0.,0.)
+    id_gal = all_tru[0]['id'][2]
+    import meds
+    mm1=meds.MEDS(filename_meds1)
+    mm2=meds.MEDS(filename_meds2)
+    img1=mm1.get_cutout(id_gal,0)
+    img2=mm2.get_cutout(id_gal,0)
+    pl.subplot(1,2,1)
+    pl.imshow(img1,interpolation='nearest'); 
+    pl.subplot(1,2,2)
+    pl.imshow(img2,interpolation='nearest'); 
+    pl.suptitle(str(id_gal)+ ' in ' + filename_meds2 + '\n' + selection_string)
+    pl.show()
+    import pdb;pdb.set_trace()
+
+    pass    
 
 def kl_match():
 
@@ -463,37 +642,51 @@ def kl_match():
 
 def get_distributions():
 
-    selection_string_sim = "select =  (cat_res['rgpp_rp_1']>-10) * (cat_tru['hsm_obs_sigma'] > 2.3) * (cat_tru['snr'] > 8)"
+    # selection_string_sim = "select =  (cat_res['rgpp_rp_1']>-10) * ((cat_tru['fwhm']*0.27/cat_tru['psf_fwhm']) > 1.37) * (cat_tru['snr'] > 4)"
+    # selection_string_sim = "select =  (cat_res['rgpp_rp_1']>-10) * (cat_tru['hsm_obs_sigma']*2.355*0.27/cat_tru['psf_fwhm'] > 1.35) * (cat_tru['snr'] > 7.5)"
+    selection_string_sim = "select =  (cat_res['rgpp_rp_1']>-10) * (cat_tru['hsm_obs_sigma'] > 0) * (cat_tru['snr'] > 20)"
     selection_string_des = "select =  cat_res['rgpp_rp']>-10"
 
     print 'getting GREAT-DES selection'
     cat_res,cat_tru=get_selection(selection_string_sim, cols_tru=['fwhm','psf_fwhm', 'hsm_obs_sigma' ,'g1_true' , 'g2_true' ], cols_res=['e1','e2','gal_fwhm_1','snr', 'rgpp_rp_1'] )
     print 'getting DES selection'
+    if args.method!='im3shape': raise Exception('this function works only with method=im3shape')
     cat_des = get_selection_DES(selection_string_des,cols=['e1','e2','rgpp_rp','snr'],n_files=200)
-    great_des_e1 = cat_res['e1'] #- cat_tru['g1_true']
-    great_des_e2 = cat_res['e2'] #- cat_tru['g2_true']
+    great_des_e1 = cat_res['e1'] # - cat_tru['g1_true']
+    great_des_e2 = cat_res['e2'] # - cat_tru['g2_true']
+
+    cat_res_all,cat_tru_all=get_selection("select=(cat_res['rgpp_rp_1']>-10)", cols_tru=['hsm_obs_sigma' ], cols_res=['rgpp_rp_1'] )
+    print 'selected galaxies:' , len(cat_res) , ' all_galaxies: ', len(cat_res_all)
 
     # cat_res = cat_res[~np.isinf(cat_res['rgpp_rp_1'])]
     # cat_res = cat_res[~np.isnan(cat_res['rgpp_rp_1'])]
+    print selection_string_sim
     print cat_res.shape
-    pl.figure()
+    pl.figure(figsize=figsize)
     pl.subplot(2,2,1)
     pl.hist(great_des_e1, bins=np.linspace(-1,1,100),histtype='step',normed=True , label='GREAT-DES e1'      , color='r')
     pl.hist(great_des_e2, bins=np.linspace(-1,1,100),histtype='step',normed=True , label='GREAT-DES e2'      , color='m')
     pl.hist(cat_des['e1'], bins=np.linspace(-1,1,100),histtype='step',normed=True , label='im3shape-011-3 e1' , color='b')
     pl.hist(cat_des['e2'], bins=np.linspace(-1,1,100),histtype='step',normed=True , label='im3shape-011-3 e2' , color='c')
-    pl.legend()
+    pl.legend(mode='expand',ncol=2)
+    ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+
     pl.subplot(2,2,2)
     pl.hist(cat_res['rgpp_rp_1'] ,bins=np.linspace(0,2,100),histtype='step',label='GREAT-DES rgpp_rp'      , normed=True, color='r') 
     pl.hist(cat_des['rgpp_rp'] ,bins=np.linspace(0,2,100),histtype='step',label='im3shape-011-3 rgpp_rp' , normed=True, color='b') 
     pl.legend()
+    ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+    
     pl.subplot(2,2,3)
     pl.hist(cat_res['snr'] ,bins=np.linspace(1,100,100),histtype='step',label='GREAT-DES snr'      , normed=True, color='r') 
     pl.hist(cat_des['snr'] ,bins=np.linspace(1,100,100),histtype='step',label='im3shape-011-3 snr' , normed=True, color='b') 
     pl.legend()
-    pl.subplot(2,2,4)
-    pl.hist(cat_tru['hsm_obs_sigma'] ,bins=np.linspace(-2,10),histtype='step') 
-   
+    # pl.subplot(2,2,4)
+    # pl.hist(cat_tru['hsm_obs_sigma'] ,bins=np.linspace(-2,10),histtype='step') 
+
+    filename_fig = 'figs/histograms.match.png' 
+    pl.savefig(filename_fig)
+    log.info('saved %s', filename_fig)
     pl.show()
 
     import pdb; pdb.set_trace()
@@ -527,9 +720,9 @@ def main():
 
     config = yaml.load(open(args.filename_config))
     # get_distributions()
-    # get_plots()
-    kl_match()
-
+    get_plots()
+    # kl_match()
+    # show_example_galaxy_images()
 
     log.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
 

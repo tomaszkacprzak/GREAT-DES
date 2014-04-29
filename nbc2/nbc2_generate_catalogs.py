@@ -16,8 +16,11 @@ log_formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s   %(messag
 stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setFormatter(log_formatter)
 log.addHandler(stream_handler)
+log.propagate = False
 
 DES_PIXEL_SIZE = 0.27
+BOX_SIZES=[32,48,64,96,128]
+GRID_SNR=np.linspace(1,100,100)
 
 def image_array_to_galsim(array):
 
@@ -205,7 +208,7 @@ def get_std(mosaic):
 
     return np.std(clipped_mosaic,ddof=1)
 
-def get_psf_dist_from_DES():
+def get_params_dist_from_DES():
 
     files_im3 = np.loadtxt('filelist_im3.txt',dtype='a1024')
    
@@ -218,6 +221,9 @@ def get_psf_dist_from_DES():
     hist_fwhm_all = np.ones_like(config['bins_fwhm_centers'])
     hist_e1_all   = np.ones_like(config['bins_ell_centers'])
     hist_e2_all   = np.ones_like(config['bins_ell_centers'])
+    hist_snr_all = np.ones_like(GRID_SNR)
+    hist_box_all = np.ones_like(BOX_SIZES)
+
 
     if 'n_im3shape_results_files' in config:
 
@@ -260,7 +266,11 @@ def get_psf_dist_from_DES():
         hist_fwhm,_=pl.histogram(list_fwhm,bins=config['bins_fwhm'])
         hist_e1,_=pl.histogram(list_e1,bins=config['bins_ell'])
         hist_e2,_=pl.histogram(list_e2,bins=config['bins_ell'])
+        hist_snr,_=pl.histogram(cat['snr'],bins=config['bins_snr'])
+        hist_box,_=pl.histogram(cat['stamp_size'],bins=config['bins_box'])
 
+        hist_snr_all += hist_snr
+        hist_box_all += hist_box
         hist_fwhm_all += hist_fwhm
         hist_e1_all   += hist_e1
         hist_e2_all   += hist_e2
@@ -295,6 +305,25 @@ def get_psf_dist_from_DES():
     pl.savefig(filename_fig)
     print 'saved' , filename_fig
 
+    pl.figure()
+    pl.plot(BOX_SIZES,hist_box_all/float(sum(hist_box_all)),'+-')
+    pl.xlabel('box_size')
+    filename_fig = 'boxsize_dist.png'
+    pl.savefig(filename_fig)
+    print 'saved' , filename_fig
+
+    pl.figure()
+    pl.plot(GRID_SNR,hist_snr_all,'+-')
+    pl.xlabel('snr')
+    filename_fig = 'snr_dist.png'
+    pl.savefig(filename_fig)
+    print 'saved' , filename_fig
+   
+    filename_snr = 'snr_dist.txt'
+    hist_snr_all /= sum(hist_snr_all)
+    data_save = np.array([GRID_SNR,hist_snr_all]).T
+    np.savetxt(filename_snr,data_save,header='# bin_center_snr prob_snr')
+    print 'saved' , filename_snr
    
     filename_psf = 'psf_fwhm_dist.txt'
     hist_fwhm_all /= sum(hist_fwhm_all)
@@ -655,7 +684,7 @@ def update_truth_table():
                 except:
                     log.error('HSM failed for object ig=%d ip=%d id_cosmos=%d psf_fwhm=%2.2f' , ig, ip , cat['id_cosmos'][ig] , cat['psf_fwhm'][ig])
                     cat[ig]['hsm_cor_g1'] = -99
-                    cat[ig]['hsm_cor_g1'] = -99
+                    cat[ig]['hsm_cor_g2'] = -99
                     cat[ig]['hsm_mom_amp'] = -99
 
                 try:
@@ -842,14 +871,18 @@ def main():
 
     config['bins_fwhm_centers'] = np.linspace(config['grid_fwhm']['min'],config['grid_fwhm']['max'],config['grid_fwhm']['n_grid'])
     config['bins_ell_centers']  = np.linspace(config['grid_ell']['min'],config['grid_ell']['max'],config['grid_ell']['n_grid'])
+    config['bins_snr_centers']  = GRID_SNR
     config['bins_fwhm'] = plotstools.get_bins_edges( config['bins_fwhm_centers'] )
     config['bins_ell']  = plotstools.get_bins_edges( config['bins_ell_centers'] )
+    config['bins_box']  = plotstools.get_bins_edges( BOX_SIZES )
+    config['bins_snr']  = plotstools.get_bins_edges( GRID_SNR )
    
     if 'prepare' in args.actions:
         if config['population_source'] == 'flat':
             get_psf_dist();     
         if config['population_source'] == 'des':
-            get_psf_dist_from_DES();     
+            get_params_dist_from_DES();     
+        get_noise_level()
         get_psf_key()
     if 'generate-psf' in args.actions:
         get_psf_images()
