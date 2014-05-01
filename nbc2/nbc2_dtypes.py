@@ -1,15 +1,15 @@
 dtype_truth = { 
         'names' : [ 'id' ,  'id_cosmos' , 'id_shear' , 'id_psf' ,  'g1_true' , 'g2_true' ,  'flux' , 'snr' ,  'fwhm', 'psf_fwhm' , 'psf_e1' , 'psf_e2' , 'rotation_angle'
                         ,'hsm_obs_g1','hsm_obs_g2','hsm_cor_g1','hsm_cor_g2','hsm_obs_sigma','hsm_cor_sigma','hsm_centroid_x','hsm_centroid_y','hsm_mom_amp' ,
-                         'psf_fwhm_measured' , 'cosmos_mag_auto' , 'cosmos_flux_auto' , 'cosmos_flux_radius', 'cosmos_fwhm_image' 
-                           , 'sersicfit_i'         
-                           , 'sersicfit_hlr'       
-                           , 'sersicfit_sersicn'   
-                           , 'sersicfit_q'         
-                           , 'sersicfit_boxiness'  
-                           , 'sersicfit_phi'
+                         'psf_fwhm_measured' , 'cosmos_mag_auto'  , 'cosmos_flux_radius' 
+                           , 'sf_i'         
+                           , 'sf_hlr'       
+                           , 'sf_sersicn'   
+                           , 'sf_q'         
+                           , 'sf_boxiness'  
+                           , 'sf_phi'
                            , 'zphot' ] ,    
-        'formats' : ['i8']*4 + ['f8']*30 }
+        'formats' : ['i8']*4 + ['f8']*28 }
 
 dtype_psfkey = {
         'names' : [ 'id_psf' ,  'id_psf_fwhm' , 'id_psf_e1' , 'id_psf_e2' ,  'psf_fwhm' , 'psf_e1' , 'psf_e2' ]  ,
