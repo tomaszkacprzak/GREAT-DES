@@ -3,7 +3,7 @@ import matplotlib as mpl
 if 'DISPLAY' not in os.environ:
     mpl.use('agg')
     print 'using backend ' , mpl.get_backend()
-import sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, galsim, copy, galsim.des, warnings, subprocess
+import sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, galsim, copy, galsim.des, warnings, subprocess, mathstools
 import pylab as pl
 import numpy as np
 from nbc2_dtypes import *
@@ -30,65 +30,6 @@ def image_array_to_galsim(array):
     return img_gs
 
 
-def get_fwhm(image, fwxm=0.5, upsampling=1):
-    """
-    @ brief Computes the FWHM of an i3 image. Per default, it computes the
-    radial averaged profile for determining the FWHM. Alternatively,
-    it computes the FWHMs of the profiles along the x and y axes in +
-    and - direction (total of 4) and returns their average as an
-    estimator of the FWHM.    
-    @param image np.array with pixels
-    """
-    # compute weighted moments to get centroid
-    x0,y0=np.unravel_index(np.argmax(image), image.shape)
-    # x0 = numpy.floor(moments.x0)
-    # y0 = numpy.floor(moments.y0)
-
-    profile_x = image[int(x0), :]
-    profile_y = image[:, int(y0)]
-
-    max_val = image[int(x0), int(y0)]
-    cut_val = max_val * fwxm
-
-    fwhms = []
-    for i in range(4):
-        if i == 0:
-            profile = profile_x[int(y0)::]
-            dc0 = int(x0) - x0
-        if i == 1:
-            profile = profile_x[0:int(y0)+1][::-1]
-            dc0 = -int(x0) + x0
-        if i == 2:
-            profile = profile_y[int(x0)::]
-            dc0 = int(y0) - y0
-        if i == 3:
-            profile = profile_y[0:int(x0)+1][::-1]
-            dc0 = -int(y0) + y0
-     
-        diff = abs(profile - cut_val)
-     
-        # fhwm code from Tomek
-        f1 = 0.
-        f2 = 0.
-        x1 = 0
-        x2 = 0
-        
-        x1 = np.argmin(diff)
-        f1 = profile[x1]
-     
-        if( f1 < cut_val ):  x2 = x1+1
-        else:       x2 = x1-1
-        f2 = profile[x2];
-     
-        a = (f1-f2)/(x1 - x2)
-        b = f1 - a*x1;
-        x3 = (cut_val - b)/a;
-     
-        fwhms.append(2.* (dc0 + x3))
-
-        fwhm =  np.mean(np.array(fwhms))/upsampling
-
-    return fwhm
 
 def plot_meds():
     
@@ -620,11 +561,15 @@ def get_truth_catalogs():
             catalog['psf_e1'] = psf_e1
             catalog['psf_e2'] = psf_e2
             catalog['rotation_angle'] = rotation_angle
+            catalog['cosmos_mag_auto'] = cosmos_catalog[ids]['MAG_AUTO']
+            catalog['cosmos_flux_auto'] = cosmos_catalog[ids]['FLUX_AUTO']
+            catalog['cosmos_flux_radius'] = cosmos_catalog[ids]['FLUX_RADIUS']
+            catalog['cosmos_fwhm_image'] = cosmos_catalog[ids]['FWHM_IMAGE']
             warnings.warn('test this part of code!')
 
             tabletools.saveTable(filename_cat,catalog)
 
-def update_truth_table():
+def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
 
     log.info('getting snr, flux and fwhm for the truth table')
 
@@ -634,6 +579,11 @@ def update_truth_table():
     id_last = id_first + args.num
 
     psf_images = None
+
+    filename_cosmos_catalog = os.path.join(config['input']['real_catalog']['dir'],config['input']['real_catalog']['file_name'])
+    cosmos_catalog = pyfits.getdata(filename_cosmos_catalog)
+    n_cosmos_gals = len(cosmos_catalog)
+    log.info('opened %s with %d images' , filename_cosmos_catalog, n_cosmos_gals)
 
     for ip in range(id_first,id_last):
 
@@ -654,69 +604,98 @@ def update_truth_table():
             cat = tabletools.loadTable(filename_cat)
 
             # assure backwards compatibility
-            if 'hsm_obs_g1'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_obs_g1',     arr=np.zeros(len(cat)), dtype='f8')
-            if 'hsm_obs_g2'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_obs_g2',     arr=np.zeros(len(cat)), dtype='f8')
-            if 'hsm_cor_g1'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_cor_g1',     arr=np.zeros(len(cat)), dtype='f8')
-            if 'hsm_cor_g2'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_cor_g2',     arr=np.zeros(len(cat)), dtype='f8')
-            if 'hsm_obs_sigma'   not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_obs_sigma',  arr=np.zeros(len(cat)), dtype='f8')
-            if 'hsm_cor_sigma'   not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_cor_sigma',  arr=np.zeros(len(cat)), dtype='f8')
-            if 'hsm_centroid_x'  not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_centroid_x', arr=np.zeros(len(cat)), dtype='f8')
-            if 'hsm_centroid_y'  not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_centroid_y', arr=np.zeros(len(cat)), dtype='f8')
-            if 'hsm_mom_amp'     not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_mom_amp',    arr=np.zeros(len(cat)), dtype='f8')
-            if 'fwhm'            not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='fwhm',           arr=np.zeros(len(cat)), dtype='f8')
+            if 'hsm_obs_g1'             not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_obs_g1',         arr=np.zeros(len(cat)), dtype='f8')
+            if 'hsm_obs_g2'             not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_obs_g2',         arr=np.zeros(len(cat)), dtype='f8')
+            if 'hsm_cor_g1'             not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_cor_g1',         arr=np.zeros(len(cat)), dtype='f8')
+            if 'hsm_cor_g2'             not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_cor_g2',         arr=np.zeros(len(cat)), dtype='f8')
+            if 'hsm_obs_sigma'          not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_obs_sigma',      arr=np.zeros(len(cat)), dtype='f8')
+            if 'hsm_cor_sigma'          not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_cor_sigma',      arr=np.zeros(len(cat)), dtype='f8')
+            if 'hsm_centroid_x'         not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_centroid_x',     arr=np.zeros(len(cat)), dtype='f8')
+            if 'hsm_centroid_y'         not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_centroid_y',     arr=np.zeros(len(cat)), dtype='f8')
+            if 'hsm_mom_amp'            not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_mom_amp',        arr=np.zeros(len(cat)), dtype='f8')
+            if 'fwhm'                   not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='fwhm',               arr=np.zeros(len(cat)), dtype='f8')
+            if 'sf_i'                   not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='sf_i',               arr=np.zeros(len(cat)), dtype='f8')    
+            if 'sf_hlr'                 not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='sf_hlr',             arr=np.zeros(len(cat)), dtype='f8')    
+            if 'sf_sersicn'             not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='sf_sersicn',         arr=np.zeros(len(cat)), dtype='f8')        
+            if 'sf_q'                   not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='sf_q',               arr=np.zeros(len(cat)), dtype='f8')    
+            if 'sf_boxiness'            not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='sf_boxiness',        arr=np.zeros(len(cat)), dtype='f8')        
+            if 'sf_phi'                 not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='sf_phi',             arr=np.zeros(len(cat)), dtype='f8')    
+            if 'zphot'                  not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='zphot',              arr=np.zeros(len(cat)), dtype='f8')   
+            if 'psf_fwhm_measured'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='psf_fwhm_measured',  arr=np.zeros(len(cat)), dtype='f8')   
+            if 'cosmos_mag_auto'        not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='cosmos_mag_auto',    arr=np.zeros(len(cat)), dtype='f8')   
+            if 'cosmos_flux_auto'       not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='cosmos_flux_auto',   arr=np.zeros(len(cat)), dtype='f8')   
+            if 'cosmos_flux_radius'     not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='cosmos_flux_radius', arr=np.zeros(len(cat)), dtype='f8')   
+            if 'cosmos_fwhm_image'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='cosmos_fwhm_image',  arr=np.zeros(len(cat)), dtype='f8')   
 
             for ig in range(n_gals):
 
-                img_gal = noisless_gals.get_cutout(ig,0)
-                normsq= np.sum( img_gal.flatten()**2 )
-                snr = np.sqrt(normsq)/noise_std
-                flux = np.sum(img_gal.flatten())
-                cat[ig]['snr'] = snr
-                cat[ig]['flux'] = flux
-                img_psf = pyfits.getdata('nbc2.psf.lores.fits',cat[ig]['id_psf'])
-                gs_img_gal = image_array_to_galsim(img_gal)
-                gs_img_psf = image_array_to_galsim(img_psf)
+                if update_snr == True:
+                    img_gal = noisless_gals.get_cutout(ig,0)
+                    normsq= np.sum( img_gal.flatten()**2 )
+                    snr = np.sqrt(normsq)/noise_std
+                    flux = np.sum(img_gal.flatten())
+                    cat[ig]['snr'] = snr
+                    cat[ig]['flux'] = flux
+                    img_psf = pyfits.getdata('nbc2.psf.lores.fits',cat[ig]['id_psf'])
 
-                try:
-                    shearobj1=galsim.hsm.EstimateShear(gs_img_gal,gs_img_psf)
-                    cat[ig]['hsm_cor_g1'] = shearobj1.corrected_e1 / 2.
-                    cat[ig]['hsm_cor_g2'] = shearobj1.corrected_e2 / 2.
-                    cat[ig]['hsm_mom_amp'] = shearobj1.moments_amp
-                except:
-                    log.error('HSM failed for object ig=%d ip=%d id_cosmos=%d psf_fwhm=%2.2f' , ig, ip , cat['id_cosmos'][ig] , cat['psf_fwhm'][ig])
-                    cat[ig]['hsm_cor_g1'] = -99
-                    cat[ig]['hsm_cor_g1'] = -99
-                    cat[ig]['hsm_mom_amp'] = -99
+                if update_cosmos == True:
+                    current_id_cosmos = cat[ig]['id_cosmos']
+                    cat[ig]['sf_i']        = cosmos_catalog[current_id_cosmos]['SERSICFIT'][0]
+                    cat[ig]['sf_hlr']      = cosmos_catalog[current_id_cosmos]['SERSICFIT'][1]
+                    cat[ig]['sf_sersicn']  = cosmos_catalog[current_id_cosmos]['SERSICFIT'][2]
+                    cat[ig]['sf_q']        = cosmos_catalog[current_id_cosmos]['SERSICFIT'][3]
+                    cat[ig]['sf_boxiness'] = cosmos_catalog[current_id_cosmos]['SERSICFIT'][4]
+                    cat[ig]['sf_phi']      = cosmos_catalog[current_id_cosmos]['SERSICFIT'][7]
+                    cat[ig]['zphot']      = cosmos_catalog[current_id_cosmos]['ZPHOT']
+                    cat[ig]['cosmos_mag_auto']      = cosmos_catalog[current_id_cosmos]['MAG_AUTO']
+                    cat[ig]['cosmos_flux_auto']      = cosmos_catalog[current_id_cosmos]['FLUX_AUTO']
+                    cat[ig]['cosmos_flux_radius']      = cosmos_catalog[current_id_cosmos]['FLUX_RADIUS']
+                    cat[ig]['cosmos_fwhm_image']      = cosmos_catalog[current_id_cosmos]['FWHM_IMAGE']
 
-                try:
-                    shearobj2=galsim.hsm.FindAdaptiveMom(gs_img_gal)
-                    cat[ig]['hsm_obs_g1'] = shearobj2.observed_shape.g1
-                    cat[ig]['hsm_obs_g2'] = shearobj2.observed_shape.g2
-                    cat[ig]['hsm_obs_sigma'] = shearobj2.moments_sigma
-                    cat[ig]['hsm_cor_sigma'] = shearobj2.moments_sigma
-                    cat[ig]['hsm_centroid_x'] = shearobj2.moments_centroid.x
-                    cat[ig]['hsm_centroid_y'] = shearobj2.moments_centroid.y
-                except:
-                    cat[ig]['hsm_obs_g1'] = -99
-                    cat[ig]['hsm_obs_g2'] = -99
-                    cat[ig]['hsm_obs_sigma'] = -99
-                    cat[ig]['hsm_cor_sigma'] = -99
-                    cat[ig]['hsm_centroid_x'] = -99
-                    cat[ig]['hsm_centroid_y'] = -99
+                if update_hsm==True:
+                    gs_img_gal = image_array_to_galsim(img_gal)
+                    gs_img_psf = image_array_to_galsim(img_psf)
 
-                try:
-                    cat[ig]['fwhm'] = get_fwhm(img_gal)
-                except:
-                    log.error('getting FWHM failed for galaxy %d in %s' , ig , filename_meds )
-                    cat[ig]['fwhm'] = 666
+                    try:
+                        shearobj1=galsim.hsm.EstimateShear(gs_img_gal,gs_img_psf)
+                        cat[ig]['hsm_cor_g1'] = shearobj1.corrected_e1 / 2.
+                        cat[ig]['hsm_cor_g2'] = shearobj1.corrected_e2 / 2.
+                        cat[ig]['hsm_mom_amp'] = shearobj1.moments_amp
+                    except:
+                        log.error('HSM failed for object ig=%d ip=%d id_cosmos=%d psf_fwhm=%2.2f' , ig, ip , cat['id_cosmos'][ig] , cat['psf_fwhm'][ig])
+                        cat[ig]['hsm_cor_g1'] = -99
+                        cat[ig]['hsm_cor_g1'] = -99
+                        cat[ig]['hsm_mom_amp'] = -99
 
-                try:
-                    if psf_images == None: psf_images = pyfits.open('nbc2.psf.hires.fits')
-                    img_hires_psf = psf_images[cat[ig]['id_psf']].data
-                    cat[ig]['psf_fwhm_measured'] = get_fwhm(img_hires_psf,upsampling=config['upsampling'])
-                except:
-                    log.error('getting FWHM failed for galaxy %d in %s' , ig , filename_meds )
-                    cat[ig]['psf_fwhm_measured'] = 666
+                    try:
+                        shearobj2=galsim.hsm.FindAdaptiveMom(gs_img_gal)
+                        cat[ig]['hsm_obs_g1'] = shearobj2.observed_shape.g1
+                        cat[ig]['hsm_obs_g2'] = shearobj2.observed_shape.g2
+                        cat[ig]['hsm_obs_sigma'] = shearobj2.moments_sigma
+                        cat[ig]['hsm_cor_sigma'] = shearobj2.moments_sigma
+                        cat[ig]['hsm_centroid_x'] = shearobj2.moments_centroid.x
+                        cat[ig]['hsm_centroid_y'] = shearobj2.moments_centroid.y
+                    except:
+                        cat[ig]['hsm_obs_g1'] = -99
+                        cat[ig]['hsm_obs_g2'] = -99
+                        cat[ig]['hsm_obs_sigma'] = -99
+                        cat[ig]['hsm_cor_sigma'] = -99
+                        cat[ig]['hsm_centroid_x'] = -99
+                        cat[ig]['hsm_centroid_y'] = -99
+
+                    try:
+                        cat[ig]['fwhm'] = mathstools.get_2D_fwhm(img_gal)
+                    except:
+                        log.error('getting FWHM failed for galaxy %d in %s' , ig , filename_meds )
+                        cat[ig]['fwhm'] = 666
+
+                    try:
+                        if psf_images == None: psf_images = pyfits.open('nbc2.psf.hires.fits')
+                        img_hires_psf = psf_images[cat[ig]['id_psf']].data
+                        cat[ig]['psf_fwhm_measured'] = mathstools.get_2D_fwhm(img_hires_psf,upsampling=config['upsampling'])
+                    except:
+                        log.error('getting FWHM failed for galaxy %d in %s' , ig , filename_meds )
+                        cat[ig]['psf_fwhm_measured'] = 666
 
                                 
                 if ig % 100 == 0: log.debug('getting snr, flux, hsm and fwhm of galaxy %d' , ig)
@@ -889,7 +868,7 @@ def main():
     if 'generate-noiseless' in args.actions:
         get_meds(noise=False)
     if 'update-truth' in args.actions:
-        update_truth_table()
+        update_truth_table(update_snr=False , update_cosmos=True , update_hsm=False)
     if 'generate-noisy' in args.actions:
         get_meds(noise=True)
 
