@@ -16,8 +16,12 @@ log_formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s   %(messag
 stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setFormatter(log_formatter)
 log.addHandler(stream_handler)
+log.propagate = False
 
 DES_PIXEL_SIZE = 0.27
+ACS_PIXEL_SCALE = 0.03
+BOX_SIZES=[32,48,64,96,128]
+GRID_SNR=np.linspace(1,100,100)
 
 def image_array_to_galsim(array):
 
@@ -146,7 +150,7 @@ def get_std(mosaic):
 
     return np.std(clipped_mosaic,ddof=1)
 
-def get_psf_snr_dist_from_DES():
+def get_params_dist_from_DES():
 
     files_im3 = np.loadtxt('filelist_im3.txt',dtype='a1024')
    
@@ -159,7 +163,9 @@ def get_psf_snr_dist_from_DES():
     hist_fwhm_all = np.ones_like(config['bins_fwhm_centers'])
     hist_e1_all   = np.ones_like(config['bins_ell_centers'])
     hist_e2_all   = np.ones_like(config['bins_ell_centers'])
-    hist_snr_all  = np.ones_like(config['bins_snr_centers'])
+    hist_snr_all = np.ones_like(GRID_SNR)
+    hist_box_all = np.ones_like(BOX_SIZES)
+
 
     if 'n_im3shape_results_files' in config:
 
@@ -171,7 +177,6 @@ def get_psf_snr_dist_from_DES():
         n_files_use = config['n_im3shape_results_files']
     
     for fi , fv in enumerate(files_im3[:n_files_use]):
-    # for fi , fv in enumerate(files_im3):
         try:
             cat=pyfits.getdata(fv)
         except:
@@ -191,8 +196,6 @@ def get_psf_snr_dist_from_DES():
             field_name = 'psf_e2_%d' % i
             list_e2.extend(cat[field_name])
 
-        list_snr = cat['snr']
-
         list_fwhm = np.array(list_fwhm)*DES_PIXEL_SIZE
         list_e1 = np.array(list_e1)
         list_e2 = np.array(list_e2)
@@ -202,18 +205,17 @@ def get_psf_snr_dist_from_DES():
         list_e1 = list_e1[select]
         list_e2 = list_e2[select]
         
-        select= (np.array(list_snr)>0)
-        list_snr = list_snr[select]
-
         hist_fwhm,_=pl.histogram(list_fwhm,bins=config['bins_fwhm'])
         hist_e1,_=pl.histogram(list_e1,bins=config['bins_ell'])
         hist_e2,_=pl.histogram(list_e2,bins=config['bins_ell'])
-        hist_snr,_=pl.histogram(list_snr,bins=config['bins_snr'])
+        hist_snr,_=pl.histogram(cat['snr'],bins=config['bins_snr'])
+        hist_box,_=pl.histogram(cat['stamp_size'],bins=config['bins_box'])
 
+        hist_snr_all += hist_snr
+        hist_box_all += hist_box
         hist_fwhm_all += hist_fwhm
         hist_e1_all   += hist_e1
         hist_e2_all   += hist_e2
-        hist_snr_all  += hist_snr
 
         log.info('%3d %50s %8d %8d' , fi, fv, n_gals_total, len(list_fwhm))
 
@@ -246,13 +248,24 @@ def get_psf_snr_dist_from_DES():
     print 'saved' , filename_fig
 
     pl.figure()
-    pl.plot(config['bins_snr_centers'],hist_snr_all,'+-')
-    pl.xlabel('snr')
-    pl.xscale('log')
-    filename_fig = 'snr_dist.png'
+    pl.plot(BOX_SIZES,hist_box_all/float(sum(hist_box_all)),'+-')
+    pl.xlabel('box_size')
+    filename_fig = 'boxsize_dist.png'
     pl.savefig(filename_fig)
     print 'saved' , filename_fig
 
+    pl.figure()
+    pl.plot(GRID_SNR,hist_snr_all,'+-')
+    pl.xlabel('snr')
+    filename_fig = 'snr_dist.png'
+    pl.savefig(filename_fig)
+    print 'saved' , filename_fig
+   
+    filename_snr = 'snr_dist.txt'
+    hist_snr_all /= sum(hist_snr_all)
+    data_save = np.array([GRID_SNR,hist_snr_all]).T
+    np.savetxt(filename_snr,data_save,header='# bin_center_snr prob_snr')
+    print 'saved' , filename_snr
    
     filename_psf = 'psf_fwhm_dist.txt'
     hist_fwhm_all /= sum(hist_fwhm_all)
@@ -267,18 +280,13 @@ def get_psf_snr_dist_from_DES():
     np.savetxt(filename_psf,data_save,header='# bin_center_e e1 e2')
     print 'saved' , filename_psf
 
-    filename_snr = 'snr_dist.txt'
-    hist_snr_all /= sum(hist_snr_all)
-    data_save = np.array([config['bins_snr_centers'],hist_snr_all]).T
-    np.savetxt(filename_snr,data_save,header='# bin_center_snr snr')
-    print 'saved' , filename_snr
 
 
-def get_psf_snr_dist():
+
+def get_psf_dist():
     
     p_fwhm = np.ones_like(config['bins_fwhm_centers'])  / float(len(config['bins_fwhm_centers']))
     p_ell  = np.ones_like(config['bins_ell_centers'])  / float(len(config['bins_ell_centers']))
-    p_snr  = np.ones_like(config['bins_snr_centers'])  / float(len(config['bins_snr_centers']))
 
     filename_psf = 'psf_fwhm_dist.txt'
 
@@ -291,10 +299,6 @@ def get_psf_snr_dist():
     np.savetxt(filename_psf,data_save,header='# bin_center_e e1 e2')
     print 'saved' , filename_psf
 
-    filename_snr = 'snr_dist.txt'
-    data_save = np.array([config['bins_snr_centers'],p_snr]).T
-    np.savetxt(filename_snr,data_save,header='# bin_center_snr snr')
-    print 'saved' , filename_snr
 
 def median_absolute_deviation(data):
 
@@ -490,16 +494,36 @@ def get_psf_key():
     tabletools.saveTable(filename_key,psf_key,dtype=dtype_psfkey)
     log.info('saved %s' , filename_key )
 
+def get_useful_cosmos_galaxies_ids():
+
+    filename_cosmos_catalog = os.path.join(config['input']['real_catalog']['dir'],config['input']['real_catalog']['file_name'])
+    filename_cosmos_catalog_fits = os.path.join(config['input']['real_catalog']['dir'],config['input']['real_catalog']['file_name']).replace('.fits','_fits.fits')
+    cosmos_catalog = pyfits.getdata(filename_cosmos_catalog)
+    cosmos_catalog_fits = pyfits.getdata(filename_cosmos_catalog_fits)
+    n_cosmos_gals = len(cosmos_catalog)
+    log.info('opened %s with %d images' , filename_cosmos_catalog, n_cosmos_gals)
+
+    size_cut = 0.5
+    select = cosmos_catalog_fits['sersicfit'][:,1]*ACS_PIXEL_SCALE > size_cut
+    ids=cosmos_catalog_fits[select]['IDENT']
+    print 'full catalog n=' , len(cosmos_catalog_fits)
+    print 'catalog with size_cut<%f, n=' , size_cut, len(ids)
+
+    filename_ids = 'cosmos_good_ids.txt'
+    tabletools.saveTable(filename_ids,ids)
+
+
+
+
 def get_truth_catalogs():
 
     filename_psf_fwhm = 'psf_fwhm_dist.txt'
     filename_psf_ell = 'psf_ell_dist.txt'
-    filename_snr = 'snr_dist.txt'
+    filename_good_ids = 'cosmos_good_ids.txt'
 
     bins_psf_fwhm,prob_psf_fwhm=np.loadtxt(filename_psf_fwhm).T
     bins_psf_e,prob_psf_e1,prob_psf_e2=np.loadtxt(filename_psf_ell).T
-    # prob_psf_e1 = np.ones_like(bins_psf_e)/float(len(bins_psf_e)) , np.ones_like(bins_psf_e)/float(len(bins_psf_e))
-    config['bins_snr'],prob_snr=np.loadtxt(filename_snr).T
+    good_ids=np.loadtxt(filename_good_ids,dtype='i4')
 
     n_shears = len(config['shear'])
     n_gals = int(float(config['n_gals_per_file'])) 
@@ -508,7 +532,7 @@ def get_truth_catalogs():
     filename_cosmos_catalog = os.path.join(config['input']['real_catalog']['dir'],config['input']['real_catalog']['file_name'])
     cosmos_catalog = pyfits.getdata(filename_cosmos_catalog)
     n_cosmos_gals = len(cosmos_catalog)
-    log.info('opened %s with %d images' , filename_cosmos_catalog, n_cosmos_gals)
+    log.info('opened %s with %d images' , filename_cosmos_catalog, n_cosmos_gals)  
 
     id_first = args.first
     id_last = id_first + args.num
@@ -524,7 +548,7 @@ def get_truth_catalogs():
             catalog = np.zeros(n_gals,dtype=dtype_truth)
             
             ids = np.arange(n_gals)
-            cosmos_ids = np.random.choice(n_cosmos_gals,size=n_pairs)
+            cosmos_ids = np.random.choice(good_ids,size=n_pairs)
             rotation_angle = np.random.uniform(low=0,high=2*np.pi,size=n_pairs)          
             # obj_snr = np.random.choice(a=config['bins_snr'],size=n_pairs,p=prob_snr)
             # shear_ids = np.random.choice(n_shears,size=n_pairs)
@@ -561,10 +585,9 @@ def get_truth_catalogs():
             catalog['psf_e1'] = psf_e1
             catalog['psf_e2'] = psf_e2
             catalog['rotation_angle'] = rotation_angle
-            catalog['cosmos_mag_auto'] = cosmos_catalog[ids]['MAG_AUTO']
-            catalog['cosmos_flux_auto'] = cosmos_catalog[ids]['FLUX_AUTO']
-            catalog['cosmos_flux_radius'] = cosmos_catalog[ids]['FLUX_RADIUS']
-            catalog['cosmos_fwhm_image'] = cosmos_catalog[ids]['FWHM_IMAGE']
+            catalog['cosmos_mag_auto'] = cosmos_catalog[ids]['mag_auto']
+            catalog['cosmos_flux_radius'] = cosmos_catalog[ids]['flux_radius']
+
             warnings.warn('test this part of code!')
 
             tabletools.saveTable(filename_cat,catalog)
@@ -581,7 +604,9 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
     psf_images = None
 
     filename_cosmos_catalog = os.path.join(config['input']['real_catalog']['dir'],config['input']['real_catalog']['file_name'])
+    filename_cosmos_catalog_fits = os.path.join(config['input']['real_catalog']['dir'],config['input']['real_catalog']['file_name']).replace('.fits','_fits.fits')
     cosmos_catalog = pyfits.getdata(filename_cosmos_catalog)
+    cosmos_catalog_fits = pyfits.getdata(filename_cosmos_catalog_fits)
     n_cosmos_gals = len(cosmos_catalog)
     log.info('opened %s with %d images' , filename_cosmos_catalog, n_cosmos_gals)
 
@@ -593,8 +618,8 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
 
             list_normsq = []
 
-            filename_cat = 'nbc2.truth.%03d.g%02d.fits' % (ip,il)
-            filename_meds = 'nbc2.meds.%03d.g%02d.noisefree.fits' % (ip,il)
+            filename_cat = 'data/nbc2.truth.%03d.g%02d.fits' % (ip,il)
+            filename_meds = 'data/nbc2.meds.%03d.g%02d.noisefree.fits' % (ip,il)
 
 
             log.info('part %d shear %d : getting snr, flux, hsm, and fwhm, using %s and %s' , ip, il, filename_meds, filename_cat)
@@ -623,9 +648,7 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
             if 'zphot'                  not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='zphot',              arr=np.zeros(len(cat)), dtype='f8')   
             if 'psf_fwhm_measured'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='psf_fwhm_measured',  arr=np.zeros(len(cat)), dtype='f8')   
             if 'cosmos_mag_auto'        not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='cosmos_mag_auto',    arr=np.zeros(len(cat)), dtype='f8')   
-            if 'cosmos_flux_auto'       not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='cosmos_flux_auto',   arr=np.zeros(len(cat)), dtype='f8')   
             if 'cosmos_flux_radius'     not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='cosmos_flux_radius', arr=np.zeros(len(cat)), dtype='f8')   
-            if 'cosmos_fwhm_image'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='cosmos_fwhm_image',  arr=np.zeros(len(cat)), dtype='f8')   
 
             for ig in range(n_gals):
 
@@ -640,17 +663,16 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
 
                 if update_cosmos == True:
                     current_id_cosmos = cat[ig]['id_cosmos']
-                    cat[ig]['sf_i']        = cosmos_catalog[current_id_cosmos]['SERSICFIT'][0]
-                    cat[ig]['sf_hlr']      = cosmos_catalog[current_id_cosmos]['SERSICFIT'][1]
-                    cat[ig]['sf_sersicn']  = cosmos_catalog[current_id_cosmos]['SERSICFIT'][2]
-                    cat[ig]['sf_q']        = cosmos_catalog[current_id_cosmos]['SERSICFIT'][3]
-                    cat[ig]['sf_boxiness'] = cosmos_catalog[current_id_cosmos]['SERSICFIT'][4]
-                    cat[ig]['sf_phi']      = cosmos_catalog[current_id_cosmos]['SERSICFIT'][7]
-                    cat[ig]['zphot']      = cosmos_catalog[current_id_cosmos]['ZPHOT']
-                    cat[ig]['cosmos_mag_auto']      = cosmos_catalog[current_id_cosmos]['MAG_AUTO']
-                    cat[ig]['cosmos_flux_auto']      = cosmos_catalog[current_id_cosmos]['FLUX_AUTO']
-                    cat[ig]['cosmos_flux_radius']      = cosmos_catalog[current_id_cosmos]['FLUX_RADIUS']
-                    cat[ig]['cosmos_fwhm_image']      = cosmos_catalog[current_id_cosmos]['FWHM_IMAGE']
+                    cat[ig]['sf_i']               = cosmos_catalog_fits[current_id_cosmos]['sersicfit'][0]
+                    cat[ig]['sf_hlr']             = cosmos_catalog_fits[current_id_cosmos]['sersicfit'][1]*ACS_PIXEL_SCALE
+                    cat[ig]['sf_sersicn']         = cosmos_catalog_fits[current_id_cosmos]['sersicfit'][2]
+                    cat[ig]['sf_q']               = cosmos_catalog_fits[current_id_cosmos]['sersicfit'][3]
+                    cat[ig]['sf_boxiness']        = cosmos_catalog_fits[current_id_cosmos]['sersicfit'][4]
+                    cat[ig]['sf_phi']             = cosmos_catalog_fits[current_id_cosmos]['sersicfit'][7]
+                    cat[ig]['zphot']              = cosmos_catalog_fits[current_id_cosmos]['zphot']
+                    cat[ig]['cosmos_mag_auto']    = cosmos_catalog_fits[current_id_cosmos]['mag_auto']
+                    cat[ig]['cosmos_flux_radius'] = cosmos_catalog_fits[current_id_cosmos]['flux_radius']
+
 
                 if update_hsm==True:
                     gs_img_gal = image_array_to_galsim(img_gal)
@@ -709,6 +731,10 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
         # pl.savefig(filename_fig)
         # log.info('saved %s' , filename_fig)
         # pl.show()
+
+
+
+
 
 
 
@@ -841,26 +867,29 @@ def main():
     # get_noise_level() # 16.7552914481
     # get_snr_from_cosmos()
 
+    if args.actions==None:
+        raise Exception('supply at least one of the actions -a %s' % str(valid_actions))
+
     for act in args.actions:
         if act not in valid_actions:
             raise Exception('%s not a valid action. Choose from %s' % (act,valid_actions))
 
-
     config['bins_fwhm_centers'] = np.linspace(config['grid_fwhm']['min'],config['grid_fwhm']['max'],config['grid_fwhm']['n_grid'])
     config['bins_ell_centers']  = np.linspace(config['grid_ell']['min'],config['grid_ell']['max'],config['grid_ell']['n_grid'])
-    config['bins_snr_centers']  = np.linspace(config['grid_snr']['min'],config['grid_snr']['max'],config['grid_snr']['n_grid'])
-
-
+    config['bins_snr_centers']  = GRID_SNR
     config['bins_fwhm'] = plotstools.get_bins_edges( config['bins_fwhm_centers'] )
     config['bins_ell']  = plotstools.get_bins_edges( config['bins_ell_centers'] )
-    config['bins_snr']  = plotstools.get_bins_edges( config['bins_snr_centers'] )
+    config['bins_box']  = plotstools.get_bins_edges( BOX_SIZES )
+    config['bins_snr']  = plotstools.get_bins_edges( GRID_SNR )
    
     if 'prepare' in args.actions:
-        if config['population_source'] == 'flat':
-            get_psf_snr_dist();     
-        if config['population_source'] == 'des':
-            get_psf_snr_dist_from_DES();     
-        get_psf_key()
+        get_useful_cosmos_galaxies_ids()
+        # if config['population_source'] == 'flat':
+        #     get_psf_dist();     
+        # if config['population_source'] == 'des':
+        #     get_params_dist_from_DES();     
+        # get_noise_level()
+        # get_psf_key()
     if 'generate-psf' in args.actions:
         get_psf_images()
     if 'generate-truth' in args.actions:
