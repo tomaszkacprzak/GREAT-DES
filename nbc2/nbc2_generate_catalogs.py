@@ -3,7 +3,7 @@ import matplotlib as mpl
 if 'DISPLAY' not in os.environ:
     mpl.use('agg')
     print 'using backend ' , mpl.get_backend()
-import sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, galsim, copy, galsim.des, warnings, subprocess, mathstools
+import sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, galsim, copy, galsim.des, warnings, subprocess
 import pylab as pl
 import numpy as np
 from nbc2_dtypes import *
@@ -34,6 +34,65 @@ def image_array_to_galsim(array):
     return img_gs
 
 
+def get_fwhm(image, fwxm=0.5, upsampling=1):
+    """
+    @ brief Computes the FWHM of an i3 image. Per default, it computes the
+    radial averaged profile for determining the FWHM. Alternatively,
+    it computes the FWHMs of the profiles along the x and y axes in +
+    and - direction (total of 4) and returns their average as an
+    estimator of the FWHM.    
+    @param image np.array with pixels
+    """
+    # compute weighted moments to get centroid
+    x0,y0=np.unravel_index(np.argmax(image), image.shape)
+    # x0 = numpy.floor(moments.x0)
+    # y0 = numpy.floor(moments.y0)
+
+    profile_x = image[int(x0), :]
+    profile_y = image[:, int(y0)]
+
+    max_val = image[int(x0), int(y0)]
+    cut_val = max_val * fwxm
+
+    fwhms = []
+    for i in range(4):
+        if i == 0:
+            profile = profile_x[int(y0)::]
+            dc0 = int(x0) - x0
+        if i == 1:
+            profile = profile_x[0:int(y0)+1][::-1]
+            dc0 = -int(x0) + x0
+        if i == 2:
+            profile = profile_y[int(x0)::]
+            dc0 = int(y0) - y0
+        if i == 3:
+            profile = profile_y[0:int(x0)+1][::-1]
+            dc0 = -int(y0) + y0
+     
+        diff = abs(profile - cut_val)
+     
+        # fhwm code from Tomek
+        f1 = 0.
+        f2 = 0.
+        x1 = 0
+        x2 = 0
+        
+        x1 = np.argmin(diff)
+        f1 = profile[x1]
+     
+        if( f1 < cut_val ):  x2 = x1+1
+        else:       x2 = x1-1
+        f2 = profile[x2];
+     
+        a = (f1-f2)/(x1 - x2)
+        b = f1 - a*x1;
+        x3 = (cut_val - b)/a;
+     
+        fwhms.append(2.* (dc0 + x3))
+
+        fwhm =  np.mean(np.array(fwhms))/upsampling
+
+    return fwhm
 
 def plot_meds():
     
@@ -404,8 +463,8 @@ def get_psf_images():
                 # filename_field = 'nbc2.psf.field.%03d.fits' % iall
                 # img_psf.write(filename_field)
 
+                log.info('generated id=%3d %3d/%d psfs fwhm=%2.5f e1=% 2.5f e2=% 2.5f ifwhm=%d ie1=%d ie2=%d ' , iall , iall+1, n_psfs , fwhm, e1, e2, ifwhm, ie1,ie2)
                 iall += 1
-                log.info('generated %3d / %3d psfs fwhm=%2.2f e1=% 2.2f e2=% 2.2f  ' , iall, n_psfs , fwhm, e1, e2)
 
 
 
@@ -470,11 +529,20 @@ def get_psf_index(ifwhm,ie1,ie2):
     psf_table = tabletools.loadTable(filename_key)
     key_all , key_fwhm , key_e1 , key_e2  = psf_table['id_psf'] , psf_table['id_psf_fwhm'] , psf_table['id_psf_e1'] , psf_table['id_psf_e2']
 
+    # for ii,vv in enumerate(psf_table):
+    #     print 'psf_table index=%3d ifwhm=%d ie1=%d ie2=%d' % (key_all[ii] , key_fwhm[ii], key_e1[ii], key_e2[ii])
+
+
     indices = np.ones_like(ifwhm)
     for ii,vv in enumerate(ifwhm):
         select = (ifwhm[ii]==key_fwhm) * (ie1[ii]==key_e1) * (ie2[ii]==key_e2)
         nz = np.nonzero(select)[0][0]
         indices[ii] = key_all[nz] 
+        # print 'index=%3d ifwhm=%d ie1=%d ie2=%d' % (indices[ii] , ifwhm[ii], ie1[ii], ie2[ii])
+
+
+
+    # import pdb; pdb.set_trace()
 
     return indices
 
@@ -504,8 +572,10 @@ def get_useful_cosmos_galaxies_ids():
     log.info('opened %s with %d images' , filename_cosmos_catalog, n_cosmos_gals)
 
     size_cut = 0.5
-    select = cosmos_catalog_fits['sersicfit'][:,1]*ACS_PIXEL_SCALE > size_cut
-    ids=cosmos_catalog_fits[select]['IDENT']
+    select = np.array(cosmos_catalog_fits['sersicfit'][:,1]*ACS_PIXEL_SCALE > size_cut)
+    cosmos_index = np.arange(len(cosmos_catalog_fits))
+    import pdb; pdb.set_trace()
+    ids=cosmos_index[select]
     print 'full catalog n=' , len(cosmos_catalog_fits)
     print 'catalog with size_cut<%f, n=' , size_cut, len(ids)
 
@@ -537,9 +607,8 @@ def get_truth_catalogs():
     id_first = args.first
     id_last = id_first + args.num
 
-
     for ip in range(id_first,id_last):
-    
+  
         for ig,vg in enumerate(config['shear']):
             
 
@@ -575,6 +644,8 @@ def get_truth_catalogs():
             psf_e2 = bins_psf_e[psf_e2_ids]
             psf_ids = get_psf_index(psf_fwhm_ids, psf_e1_ids, psf_e2_ids)
 
+            # import pdb; pdb.set_trace()
+
             catalog['id'] = ids
             catalog['id_cosmos'] = cosmos_ids
             catalog['id_shear'] = shear_ids
@@ -585,10 +656,6 @@ def get_truth_catalogs():
             catalog['psf_e1'] = psf_e1
             catalog['psf_e2'] = psf_e2
             catalog['rotation_angle'] = rotation_angle
-            catalog['cosmos_mag_auto'] = cosmos_catalog[ids]['mag_auto']
-            catalog['cosmos_flux_radius'] = cosmos_catalog[ids]['flux_radius']
-
-            warnings.warn('test this part of code!')
 
             tabletools.saveTable(filename_cat,catalog)
 
@@ -618,8 +685,8 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
 
             list_normsq = []
 
-            filename_cat = 'data/nbc2.truth.%03d.g%02d.fits' % (ip,il)
-            filename_meds = 'data/nbc2.meds.%03d.g%02d.noisefree.fits' % (ip,il)
+            filename_cat = 'nbc2.truth.%03d.g%02d.fits' % (ip,il)
+            filename_meds = 'nbc2.meds.%03d.g%02d.noisefree.fits' % (ip,il)
 
 
             log.info('part %d shear %d : getting snr, flux, hsm, and fwhm, using %s and %s' , ip, il, filename_meds, filename_cat)
@@ -659,7 +726,6 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
                     flux = np.sum(img_gal.flatten())
                     cat[ig]['snr'] = snr
                     cat[ig]['flux'] = flux
-                    img_psf = pyfits.getdata('nbc2.psf.lores.fits',cat[ig]['id_psf'])
 
                 if update_cosmos == True:
                     current_id_cosmos = cat[ig]['id_cosmos']
@@ -673,8 +739,9 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
                     cat[ig]['cosmos_mag_auto']    = cosmos_catalog_fits[current_id_cosmos]['mag_auto']
                     cat[ig]['cosmos_flux_radius'] = cosmos_catalog_fits[current_id_cosmos]['flux_radius']
 
-
                 if update_hsm==True:
+                    img_gal = noisless_gals.get_cutout(ig,0)
+                    img_psf = pyfits.getdata('nbc2.psf.lores.fits',cat[ig]['id_psf'])
                     gs_img_gal = image_array_to_galsim(img_gal)
                     gs_img_psf = image_array_to_galsim(img_psf)
 
@@ -883,13 +950,13 @@ def main():
     config['bins_snr']  = plotstools.get_bins_edges( GRID_SNR )
    
     if 'prepare' in args.actions:
-        get_useful_cosmos_galaxies_ids()
-        # if config['population_source'] == 'flat':
-        #     get_psf_dist();     
+        # get_useful_cosmos_galaxies_ids()
+        if config['population_source'] == 'flat':
+            get_psf_dist();     
         # if config['population_source'] == 'des':
         #     get_params_dist_from_DES();     
         # get_noise_level()
-        # get_psf_key()
+        get_psf_key()
     if 'generate-psf' in args.actions:
         get_psf_images()
     if 'generate-truth' in args.actions:
@@ -897,19 +964,9 @@ def main():
     if 'generate-noiseless' in args.actions:
         get_meds(noise=False)
     if 'update-truth' in args.actions:
-        update_truth_table(update_snr=False , update_cosmos=True , update_hsm=False)
+        update_truth_table(update_snr=True , update_cosmos=True , update_hsm=False)
     if 'generate-noisy' in args.actions:
         get_meds(noise=True)
-
-
-    # else:
-    #         get_psf_snr_dist()
-    #         get_psf_key()
-    #         get_psf_images()
-    #         get_truth_catalogs()
-    #         get_meds(noise=False)
-    #         update_truth_table()
-    #         get_meds(noise=True)
     
     log.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
 
