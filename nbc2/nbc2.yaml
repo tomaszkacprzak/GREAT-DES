@@ -9,7 +9,7 @@ des_scale_pixels :  86.52302493
 des_pixel_noise_sigma : 16.7552909851
 n_im3shape_results_files: 2
 actions: ['prepare' ,'generate-truth' , 'generate-noiseless' , 'update-truth' , 'generate-noisy']
-
+skip2: False
 
 
 # --------- galsim config starts here ---------

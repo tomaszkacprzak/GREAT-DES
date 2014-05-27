@@ -1,3 +1,26 @@
+                # now the hires PSF, centers in the middle
+                # log.debug('getting single PSF at high resolution')                 
+                # config_copy2=copy.deepcopy(config_psf)
+                # n_sub = config['upsampling']
+                # n_pad = config['padding']
+                # n_pix_hires = (orig_image_size + n_pad) * n_sub
+                # pixel_scale_hires = float(config_copy2['image']['pixel_scale']) / float(n_sub)
+                # config_copy2['image']['pixel_scale'] = pixel_scale_hires
+                # config_copy2['image']['size'] = n_pix_hires
+                # config_copy2['psf']['fwhm'] = fwhm
+                # config_copy2['psf']['ellip']['g1'] = e1
+                # config_copy2['psf']['ellip']['g2'] = e2            
+
+                # # no pixel convolut
+                # config_copy2['pix'] = {}
+                # config_copy2['pix']['type'] = 'Pixel'
+                # config_copy2['pix']['xw'] = orig_pixel_scale
+
+                # img_gal,img_psf,_,_ = galsim.config.BuildImages(config=config_copy2,image_num=0,obj_num=0,make_psf_image=True,nimages=1)      
+                # img_psf = img_psf[0]
+                # img_psf = img_psf[galsim.BoundsI(1, int(n_pix_hires), 1, int(n_pix_hires))]             
+                # pyfits.append(filename_hires,img_psf.array)
+
 import os 
 import matplotlib as mpl
 if 'DISPLAY' not in os.environ:
@@ -411,27 +434,46 @@ def get_psf_images():
                 # img_psf.write(filename_lores)
                                                               
                 # now the hires PSF, centers in the middle
+                # log.debug('getting single PSF at high resolution')                 
+                # config_copy2=copy.deepcopy(config_psf)
+                # n_sub = config['upsampling']
+                # n_pad = config['padding']
+                # n_pix_hires = (orig_image_size + n_pad) * n_sub
+                # pixel_scale_hires = float(config_copy2['image']['pixel_scale']) / float(n_sub)
+                # config_copy2['image']['pixel_scale'] = pixel_scale_hires
+                # config_copy2['image']['size'] = n_pix_hires
+                # config_copy2['psf']['fwhm'] = fwhm
+                # config_copy2['psf']['ellip']['g1'] = e1
+                # config_copy2['psf']['ellip']['g2'] = e2            
+
+                # # no pixel convolut
+                # config_copy2['pix'] = {}
+                # config_copy2['pix']['type'] = 'Pixel'
+                # config_copy2['pix']['xw'] = orig_pixel_scale
+
+                # img_gal,img_psf,_,_ = galsim.config.BuildImages(config=config_copy2,image_num=0,obj_num=0,make_psf_image=True,nimages=1)      
+                # img_psf = img_psf[0]
+                # img_psf = img_psf[galsim.BoundsI(1, int(n_pix_hires), 1, int(n_pix_hires))]             
+                # pyfits.append(filename_hires,img_psf.array)
+                
                 log.debug('getting single PSF at high resolution')                 
                 config_copy2=copy.deepcopy(config_psf)
                 n_sub = config['upsampling']
                 n_pad = config['padding']
                 n_pix_hires = (orig_image_size + n_pad) * n_sub
                 pixel_scale_hires = float(config_copy2['image']['pixel_scale']) / float(n_sub)
-                config_copy2['image']['pixel_scale'] = pixel_scale_hires
-                config_copy2['image']['size'] = n_pix_hires
-                config_copy2['psf']['fwhm'] = fwhm
-                config_copy2['psf']['ellip']['g1'] = e1
-                config_copy2['psf']['ellip']['g2'] = e2            
 
-                # no pixel convolut
-                config_copy2['pix'] = {}
-                config_copy2['pix']['type'] = 'Pixel'
-                config_copy2['pix']['xw'] = orig_pixel_scale
+                img_psf=galsim.ImageD(n_pix_hires,n_pix_hires)
+                psf = galsim.Kolmogorov(fwhm=fwhm)
+                psf.applyShear(g1=e1,g2=e2)
+                pix = galsim.Pixel(scale=orig_pixel_scale)
+                psfpix = galsim.Convolve([psf,pix])
+                psfpix.draw(img_psf,scale=pixel_scale_hires)
 
-                img_gal,img_psf,_,_ = galsim.config.BuildImages(config=config_copy2,image_num=0,obj_num=0,make_psf_image=True,nimages=1)      
-                img_psf = img_psf[0]
-                img_psf = img_psf[galsim.BoundsI(1, int(n_pix_hires), 1, int(n_pix_hires))]             
                 pyfits.append(filename_hires,img_psf.array)
+
+
+
                 # img_loaded=pyfits.getdata(filename_hires,iall)
                 # pl.subplot(1,3,1)
                 # pl.imshow(img_psf.array,interpolation='nearest');
