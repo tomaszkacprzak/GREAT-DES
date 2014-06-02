@@ -369,34 +369,50 @@ def get_selection_split(selection_string, cols_res, cols_tru,n_split=30):
             filename_tru = truth_filename_fmt % (ip,ig)
             filename_res = results_filename_fmt % (ip,ig)
             try:
-                if log.level==logging.DEBUG:
+                if filename_tru not in loaded_tables:
                     cat_tru_all = tabletools.loadTable(filename_tru,log=1,remember=False)
-                else:
-                    if filename_tru not in loaded_tables:
-                        cat_tru_all = tabletools.loadTable(filename_tru,log=1,remember=False)
-                        loaded_tables[filename_tru] = cat_tru_all
-                        # print 'loaded from file: ' , filename_tru
+                    if 'skip2' in config: 
+                        if config['skip2']: 
+                            cat_tru = cat_tru_all[::2]
+                            warnings.warn('skip2')
+                        else:
+                            cat_tru = cat_tru_all
                     else:
-                        cat_tru_all = loaded_tables[filename_tru][cols_tru]
-                        # print 'loaded from memory: ' , filename_tru
+                        cat_tru = cat_tru_all
+
+                    loaded_tables[filename_tru] = cat_tru
+                    log.debug('loaded from file: %s' , filename_tru)
+                else:
+                    cat_tru = loaded_tables[filename_tru][cols_tru]
+                    log.debug('loaded from memory: %s' , filename_tru)
 
             except:
                 log.error('file %s not found' % filename_tru )
                 continue
 
             for col in cols_tru:
-                if col not in cat_tru_all.dtype.names:
+                if col not in cat_tru.dtype.names:
                     raise Exception('column %s not found in truth catalog %s' % (col,filename_tru))
 
             try:
-                cat_res_all = tabletools.loadTable(filename_res,log=1,remember=False)
                 if filename_res not in loaded_tables:
                     cat_res_all = tabletools.loadTable(filename_res,log=1,remember=False)
-                    loaded_tables[filename_res] = cat_res_all
-                    # print 'loaded from file: ' , filename_res
+                    if len(cat_res_all)!=config['n_gals_per_file']:
+                        log.error('n gals is wrong in %s %d',filename_res,len(cat_res))
+                        import pdb; pdb.set_trace()
+                    if 'skip2' in config: 
+                        if config['skip2']: 
+                            cat_res = cat_res_all[::2]
+                            warnings.warn('skip2')
+                        else:
+                            cat_res = cat_res_all
+                    else:
+                        cat_res = cat_res_all
+                    loaded_tables[filename_res] = cat_res
+                    log.debug('loaded from file: %s' , filename_res)
                 else:
-                    cat_res_all = loaded_tables[filename_res][cols_res]
-                    # print 'loaded from memory: ' , filename_res
+                    cat_res = loaded_tables[filename_res][cols_res]
+                    log.debug('loaded from memory: %s' , filename_res)
 
             except:
                 log.error('file %s not found' % filename_res )
@@ -406,30 +422,24 @@ def get_selection_split(selection_string, cols_res, cols_tru,n_split=30):
             if 'patch_g2' in config['methods'][args.method]:
                 if config['methods'][args.method]['patch_g2']:
                     log.info('patching g2--')
-                    cat_res_all = tabletools.appendColumn(rec=cat_res_all, arr=cat_res_all['hsm_cor_g1'].copy(), name='hsm_cor_g2', dtype='f4')          
+                    cat_res = tabletools.appendColumn(rec=cat_res, arr=cat_res['hsm_cor_g1'].copy(), name='hsm_cor_g2', dtype='f4')          
  
 
             for col in cols_res:
-                if col not in cat_res_all.dtype.names:
+                if col not in cat_res.dtype.names:
                     raise Exception('column %s not found in results catalog %s' % (col,filename_res))
 
-            if len(cat_tru_all) != len(cat_res_all):
-                cat_tru_all=cat_tru_all[cat_res_all['identifier']]
-
-            if 'skip2' in config: 
-                if config['skip2']: 
-                    cat_tru = cat_tru_all[::2]
-                    cat_res = cat_res_all[::2]
-                    warnings.warn('skip2')
-                else:
-                    cat_tru = cat_tru_all
-                    cat_res = cat_res_all
-            else:
-                cat_tru = cat_tru_all
-                cat_res = cat_res_all
+            if len(cat_tru) != len(cat_res):
+                cat_tru=cat_tru[cat_res['identifier']]
 
 
-            exec selection_string
+
+            try:
+                exec selection_string
+            except Exception,errmsg:
+                print errmsg
+                import pdb; pdb.set_trace()
+
             if len(np.nonzero(select)[0]) < 1:
                 log.debug('select didnt give any results %s' % selection_string)
                 # import pdb;pdb.set_trace()
@@ -580,7 +590,7 @@ def get_plots():
     size_cut = 0.65
     snr_cut = -1
 
-    list_plots = [2,22]
+    list_plots = [121]
 
     # get total bias:
     tag='all'
@@ -674,12 +684,16 @@ def get_plots():
         list_psf_edges = [0.79,0.91,1.11,1.31]
         list_psf_centers = plotstools.get_bins_centers(list_psf_edges)
         list_psf_colors = ['r' , 'g' , 'b']
+
+        array_m=np.zeros([len(list_snr_centers),len(list_psf_centers)])
+        array_m_std=np.zeros([len(list_psf_centers),len(list_snr_centers)])
+
         for ipsf in range(1,len(list_psf_edges)):
             list_bias_result = []
             for isnr in range(1,len(list_snr_edges)):
                 tag = 'psf_fwhm%d.snr%d' % (ipsf,isnr)
                 # selection_string = "select=  ( np.isclose(cat_tru['psf_fwhm'],%1.1f)) * ( (cat_tru['fwhm']*0.27/cat_tru['psf_fwhm']) > %f)" % (vpsf,size_cut)
-                selection_string = "select=  (cat_tru['psf_fwhm']>%1.2f) * (cat_tru['psf_fwhm']<%1.2f) * (cat_tru['sf_hlr'] > %f) * (cat_tru['snr_mean_all'] > %f) * (cat_tru['snr_mean_all'] < %f)" % (list_psf_edges[ipsf-1],list_psf_edges[ipsf],size_cut,list_snr_edges[isnr-1],list_snr_edges[isnr])
+                selection_string = "select=  (cat_tru['psf_fwhm_1']>%1.2f) * (cat_tru['psf_fwhm']<%1.2f) * (cat_tru['sf_hlr'] > %f) * (cat_tru['snr_mean_all'] > %f) * (cat_tru['snr_mean_all'] < %f)" % (list_psf_edges[ipsf-1],list_psf_edges[ipsf],size_cut,list_snr_edges[isnr-1],list_snr_edges[isnr])
                 # selection_string = "select=  (cat_tru['psf_fwhm']>%1.2f) * (cat_tru['psf_fwhm']<%1.2f) * (cat_tru['sf_hlr'] > %f) * (cat_res['snr'] > %f) * (cat_res['snr'] < %f)" % (list_psf_edges[ipsf-1],list_psf_edges[ipsf],size_cut,list_snr_edges[isnr-1],list_snr_edges[isnr])
                 log.info(selection_string)
                 bias_result, all_res, all_tru = get_mc(selection_string,tag)
@@ -691,6 +705,9 @@ def get_plots():
 
             m_mean = (bias_results['m1'] + bias_results['m2'])/2.
             m_mean_std = np.sqrt((bias_results['m1_std']**2 + bias_results['m2_std']**2))/np.sqrt(2.)
+
+            array_m[ipsf,:] = m_mean
+            array_m_std[ipsf,:] = m_mean_std
 
             # pl.plot(list_snr_centers,bias_results['m1'],list_psf_colors[ipsf-1]+':',label='m1')
             # pl.plot(list_snr_centers,bias_results['m2'],list_psf_colors[ipsf-1]+'--',label='m2')
@@ -706,13 +723,18 @@ def get_plots():
         pl.savefig(filename_fig)
         log.info('saved %s', filename_fig)
 
+        bias_result = { 'm_mean' : array_m, 'm_mean_std' : array_m_std}
+        filename_pickle = 'bias_m.pp2'
+        tabletools.savePickle(filename_pickle,bias_results)
+
     # bias vs snr and psf size - one plot per psf
     if 121 in list_plots:
-        list_snr_centers = [5,10,15,20,25,30,40,50]
+        list_snr_centers = [10,15,20,25,30,40,50]
         list_snr_edges = plotstools.get_bins_edges(list_snr_centers)
-        list_psf_edges = [0.79,0.91,1.11,1.31]
-        list_psf_centers = plotstools.get_bins_centers(list_psf_edges)
-        list_psf_colors = ['r' , 'g' , 'b']
+        list_psf_centers = [0.8,0.9,1.0,1.1,1.2,1.3]
+        list_psf_edges = plotstools.get_bins_edges(list_psf_centers)
+        array_m=np.zeros([len(list_psf_centers),len(list_snr_centers)])
+        array_m_std=np.zeros([len(list_psf_centers),len(list_snr_centers)])
         for ipsf in range(1,len(list_psf_edges)):
             pl.figure(figsize=figsize)
             list_bias_result = []
@@ -731,10 +753,13 @@ def get_plots():
 
             m_mean = (bias_results['m1'] + bias_results['m2'])/2.
             m_mean_std = np.sqrt((bias_results['m1_std']**2 + bias_results['m2_std']**2))/np.sqrt(2.)
+    
+            array_m[ipsf-1,:] = m_mean    
+            array_m_std[ipsf-1,:] = m_mean_std
 
-            pl.errorbar(list_snr_centers,bias_results['m1'],yerr=bias_results['m1_std'],fmt=list_psf_colors[ipsf-1]+':',label='m1')
-            pl.errorbar(list_snr_centers,bias_results['m2'],yerr=bias_results['m2_std'],fmt=list_psf_colors[ipsf-1]+'--',label='m2')
-            pl.errorbar(list_snr_centers,m_mean,m_mean_std,label='PSF_FWHM in (%2.1f,%2.1f)'%(list_psf_edges[ipsf-1],list_psf_edges[ipsf]),fmt=list_psf_colors[ipsf-1]+'-' )
+            pl.errorbar(list_snr_centers,bias_results['m1'],yerr=bias_results['m1_std'],fmt='r:',label='m1')
+            pl.errorbar(list_snr_centers,bias_results['m2'],yerr=bias_results['m2_std'],fmt='b--',label='m2')
+            pl.errorbar(list_snr_centers,m_mean,m_mean_std,label='PSF_FWHM in (%2.1f,%2.1f)'%(list_psf_edges[ipsf-1],list_psf_edges[ipsf]),fmt='k-' )
 
             pl.legend()
             pl.xlabel('SNR')
@@ -745,6 +770,10 @@ def get_plots():
             filename_fig = 'figs/bias_vs_snr_vs_psf%d.png' % ipsf
             pl.savefig(filename_fig)
             log.info('saved %s', filename_fig)
+
+        bias_result = { 'm_mean' : array_m, 'm_mean_std' : array_m_std , 'list_psf_centers' : list_psf_centers , 'list_snr_centers' : list_snr_centers}
+        filename_pickle = 'bias_m.pp2'
+        tabletools.savePickle(filename_pickle,bias_results)
 
     # --------------------------------------------------------------------------------------------------
     # plot m vs SNR in bins of true SNR. use only galaxies with hsm_obs_sigma>x
@@ -1198,34 +1227,19 @@ def scatter_position():
 
 def apply_calibration():
 
-    size_cut = 0.65
-    snr_cut = 10
 
-    bins_snr = [10,15,20,25,30,40,50,60]
-    bins_snr_edges = plotstools.get_bins_edges(bins_snr)
-    list_bias_result = []
-    for isnr in range(1,len(bins_snr_edges)):
+    filename_bias_struct='bias_m.all.pp2'
 
-        tag = 'snr=%.2f' % bins_snr[isnr-1]
-        snr = bins_snr_edges[isnr]
-        selection_string = "select=  (cat_res['snr'] > %2.4f) * (cat_res['snr'] < %f) * (cat_tru['sf_hlr'] > %f) * (cat_tru['snr'] > %f) " % (
-                                            bins_snr_edges[isnr-1],
-                                            bins_snr_edges[isnr],
-                                            size_cut,snr_cut)
+    bias_result = { 'm_mean' : array_m, 'm_mean_std' : array_m_std , 'list_psf_centers' : list_psf_centers , 'list_snr_centers' : list_snr_centers}
 
-        log.info(selection_string)
-        bias_result, all_res, all_tru = get_mc(selection_string,tag)
-        list_bias_result.append(bias_result)
+    bias_struct=tabletools.loadPickle(filename_bias_struct)
 
-    bias_results = np.concatenate(list_bias_result)
-    m_mean = (bias_results['m1'] + bias_results['m2'])/2.
-    m_mean_std = np.sqrt((bias_results['m1_std']**2 + bias_results['m2_std']**2))/np.sqrt(2.)
-    m_mean= np.append(m_mean,0)
-    m_mean_std= np.append(m_mean_std,0)
-    m_mean= np.insert(m_mean,0,0)
-    m_mean_std= np.insert(m_mean_std,0,0)
-    # print 'bins_snr' , bins_snr
-    # print 'm_mean' , m_mean
+
+
+
+
+
+
 
     filelist = np.loadtxt('filelist_r.txt',dtype='a1024')
     n_files = len(filelist)
