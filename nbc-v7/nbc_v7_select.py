@@ -11,17 +11,19 @@ if logger.handlers == [] : logger.addHandler(stream_handler); logger.propagate =
 
 def get_selection_des(selection_string,cols,n_files=30):
 
-    filelist_i = np.loadtxt('filelist-v7-r.txt',dtype='a1024')
+    n_all = 0
+    filelist_i = np.loadtxt(config['filelist_des'],dtype='a1024')
     list_results = []
     for filename_des in filelist_i[:n_files]:
         cat_res=tabletools.loadTable(filename_des,log=logger,remember=False)
+        n_all+=len(cat_res)
         name_tile=filename_des.replace('/Users/tomek/data/DES/im3shape-v7/','').replace('-r.fits.gz','')       
         exec selection_string
         res_select = cat_res[select][cols]
         list_results.append(res_select)
 
     results = np.concatenate(list_results)
-    logger.info('selected DES galaxies %d' , len(results))
+    logger.info('selected DES galaxies %d/%d %2.2f' , len(results),n_all,len(results)/float(n_all))
 
     return results
 
@@ -42,6 +44,8 @@ def get_selection_split(selection_string, cols_res, cols_tru):
     list_all_res = []
     list_all_tru = []
 
+    n_all_loaded=0
+
     ia=0
 
     for ig,vg in enumerate(config['shear']):
@@ -61,10 +65,10 @@ def get_selection_split(selection_string, cols_res, cols_tru):
             try:
                     cat_tru_all = tabletools.loadTable(filename_tru,log=1,remember=False)
                     cat_tru = cat_tru_all
-                    logger.debug('loaded %05d galaxies from file: %s' % (len(res_tru_all),filename_tru))
+                    logger.debug('loaded %05d galaxies from file: %s' % (len(cat_tru_all),filename_tru))
 
-            except:
-                logger.error('file %s not found' % filename_tru )
+            except Exception,errmsg:
+                logger.error('file %s : %s' % (filename_tru,errmsg) )
                 continue
 
             for col in cols_tru:
@@ -85,12 +89,15 @@ def get_selection_split(selection_string, cols_res, cols_tru):
                     raise Exception('column %s not found in results catalog %s' % (col,filename_res))
 
             if 'e1' in cols_res:
-                cat_res['e1'] = cat_res['e1']*config['methods'][args.method]['flip_g1']
-                warnings.warn('flipping g1 for method %s'%args.method)
+                # cat_res['e1'] = cat_res['e1']*config['methods'][args.method]['flip_g1']
+                cat_tru['g1_true'] = -1*cat_tru['g1_true']
+                warnings.warn('flipping g1 in truth cat for method %s'%args.method)
+
 
             if len(cat_tru) != len(cat_res):
                 cat_tru=cat_tru[cat_res['coadd_objects_id']]
 
+            n_all_loaded+=len(cat_res)
             try:
                 exec selection_string
             except Exception,errmsg:
@@ -126,5 +133,5 @@ def get_selection_split(selection_string, cols_res, cols_tru):
         n_total += len(res)
 
         
-    logger.info('selected %d parts with average %d, total %d' % (len(list_all_res) , float(n_total)/float(len(list_all_res)), n_total) )
+    logger.info('selected %d parts with average %d, total %d/%d loaded' % (len(list_all_res) , float(n_total)/float(len(list_all_res)), n_total , n_all_loaded) )
     return list_all_res, list_all_tru
