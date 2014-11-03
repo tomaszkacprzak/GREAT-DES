@@ -9,15 +9,17 @@ log_formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s   %(messag
 stream_handler = logging.StreamHandler(sys.stdout); stream_handler.setFormatter(log_formatter)
 if logger.handlers == [] : logger.addHandler(stream_handler); logger.propagate = False
 
-def get_selection_des(selection_string,cols,n_files=30):
+def get_selection_des(selection_string,cols,n_files=30,get_calibrated=False):
 
     n_all = 0
-    filelist_i = np.loadtxt(config['filelist_des'],dtype='a1024')
+    if get_calibrated:
+        filelist_i = np.loadtxt(config['filelist_des_calibrated'],dtype='a1024')
+    else:
+        filelist_i = np.loadtxt(config['filelist_des'],dtype='a1024')
     list_results = []
     for filename_des in filelist_i[:n_files]:
         cat_res=tabletools.loadTable(filename_des,log=logger,remember=False)
         n_all+=len(cat_res)
-        name_tile=filename_des.replace('/Users/tomek/data/DES/im3shape-v7/','').replace('-r.fits.gz','')       
         exec selection_string
         res_select = cat_res[select][cols]
         list_results.append(res_select)
@@ -27,18 +29,22 @@ def get_selection_des(selection_string,cols,n_files=30):
 
     return results
 
-def get_selection_sim(selection_string, cols_res, cols_tru):
+def get_selection_sim(selection_string, cols_res, cols_tru, get_calibrated=False):
 
-    list_all_res, list_all_tru = get_selection_split(selection_string, cols_res, cols_tru)
+    list_all_res, list_all_tru = get_selection_split(selection_string, cols_res, cols_tru, get_calibrated)
     all_tru = np.concatenate(list_all_tru)
     all_res = np.concatenate(list_all_res)
 
     return all_res, all_tru
 
 
-def get_selection_split(selection_string, cols_res, cols_tru):
+def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=False):
 
-    results_filename_fmt = config['methods'][args.method]['filename_results']  
+    if get_calibrated:
+        results_filename_fmt = config['methods'][args.method]['filename_calibrated']  
+    else:   
+        results_filename_fmt = config['methods'][args.method]['filename_results']  
+
     truth_filename_fmt = config['filename_truth']  
     list_shears = []
     list_all_res = []
@@ -47,6 +53,7 @@ def get_selection_split(selection_string, cols_res, cols_tru):
     n_all_loaded=0
 
     ia=0
+    n_missing=0
 
     for ig,vg in enumerate(config['shear']):
         
@@ -81,7 +88,8 @@ def get_selection_split(selection_string, cols_res, cols_tru):
                     logger.debug('loaded %05d galaxies from file: %s' % (len(cat_res_all),filename_res))
 
             except Exception,errmsg:
-                logger.error('sth wrong with file %s errmsg %s' % (filename_res,errmsg) )
+                logger.debug('sth wrong with file %s errmsg %s' % (filename_res,errmsg) )
+                n_missing+=1
                 continue
  
             for col in cols_res:
@@ -127,11 +135,14 @@ def get_selection_split(selection_string, cols_res, cols_tru):
             ia+=1
             list_all_res.append(selected_res)
             list_all_tru.append(selected_tru)
+
+            if ia % 100 == 0:
+                logger.info('loaded %5d files, last %s' % (ia,filename_res))
   
     n_total = 0
     for res in list_all_res:
         n_total += len(res)
 
         
-    logger.info('selected %d parts with average %d, total %d/%d loaded' % (len(list_all_res) , float(n_total)/float(len(list_all_res)), n_total , n_all_loaded) )
+    logger.info('selected %d parts with average %d, total %d/%d loaded, n_missing_files %d' % (len(list_all_res) , float(n_total)/float(len(list_all_res)), n_total , n_all_loaded, n_missing) )
     return list_all_res, list_all_tru
