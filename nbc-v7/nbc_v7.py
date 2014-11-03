@@ -86,7 +86,7 @@ def apply_calibration_des():
         cat_res[~select]['nbc_c1']=-1
         cat_res[~select]['nbc_c2']=-1
 
-        filename_tile = os.path.basename(filename_des).replace('.fits.gz','-nbc.fits.gz')
+        filename_tile = os.path.basename(filename_des)
         filename_calibrated = os.path.join(dirpath_calib,filename_tile)
         fitsio.write(filename_calibrated,cat_res,clobber=True)
 
@@ -130,7 +130,7 @@ def apply_calibration_sim():
         n_calibrated_this = len(np.nonzero(select)[0])
         n_calibrated += n_calibrated_this
 
-        filename_tile = os.path.basename(filename_des).replace('.fits','-nbc.fits')
+        filename_tile = os.path.basename(filename_des)
         filename_calibrated = os.path.join(dirpath_calib,filename_tile)
         fitsio.write(filename_calibrated,cat_res,clobber=True)
 
@@ -390,26 +390,26 @@ def plot_bias_vs_redshift():
 
 
 
-def get_mc(res_sim,res_tru,res_des=None,vpsf=0,vsnr=0):
+def get_mc(res_sim,res_tru,res_des=None,vpsf=0,vsnr=0,use_calibration=False):
 
     n_jack = 1
     mean_e1 = []; stdv_e1 = []; stdm_e1 = []; mean_e2 = []; stdv_e2 = []; stdm_e2 = []; true_e1 = []; true_e2 = [];
 
-    if 'nbc_m' in res_sim:
+    if use_calibration:
+        if 'nbc_m' not in res_sim.dtype.names:
+            raise Exception("column 'nbc_m' not found in res_sim")
+        if 'nbc_m' not in res_des.dtype.names:
+            raise Exception("column 'nbc_m' not found in res_sim")
         nbc_m_sim = res_sim['nbc_m']
         nbc_c1_sim = res_sim['nbc_c1']
         nbc_c2_sim = res_sim['nbc_c2']
-    else:
-        nbc_m_sim = np.zeros(len(res_sim))
-        nbc_c1_sim = np.zeros(len(res_sim))
-        nbc_c2_sim = np.zeros(len(res_sim))
-
-
-    if 'nbc_m' in res_des:
         nbc_m_des = res_des['nbc_m']
         nbc_c1_des = res_des['nbc_c1']
         nbc_c2_des = res_des['nbc_c2']
     else:
+        nbc_m_sim = np.zeros(len(res_sim))
+        nbc_c1_sim = np.zeros(len(res_sim))
+        nbc_c2_sim = np.zeros(len(res_sim))
         nbc_m_des = np.zeros(len(res_des))
         nbc_c1_des = np.zeros(len(res_des))
         nbc_c2_des = np.zeros(len(res_des))
@@ -543,11 +543,12 @@ def get_mc(res_sim,res_tru,res_des=None,vpsf=0,vsnr=0):
 
     
 
-
-
-
 def get_calibration():
 
+    if args.use_calibration:
+        logger.info('testing calibration columns')
+    else:
+        logger.info('measuring bias')
 
     res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=['coadd_objects_id','e1','e2','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky'],cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true'])
     res_des         = nbc_v7_select.get_selection_des(selection_string_des,cols=['coadd_objects_id','e1','e2','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky'],n_files=10)
@@ -558,7 +559,8 @@ def get_calibration():
     list_bias = []
 
     # entire sample
-    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc=get_mc(res_sim,res_tru,res_des,vpsf=99,vsnr=99)
+    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc=get_mc(res_sim,res_tru,res_des,use_calibration=args.use_calibration,vpsf=99,vsnr=99)
+
 
 
 
@@ -582,7 +584,7 @@ def get_calibration():
 
 
             logger.info(selection_string_sim)
-            mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc=get_mc(res_sim_select,res_tru_select,res_des_select,vpsf=vpsf_min,vsnr=vsnr_min)
+            mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc=get_mc(res_sim_select,res_tru_select,res_des_select,use_calibration=args.use_calibration,vpsf=vpsf_min,vsnr=vsnr_min)
 
             std_e = np.std(res_sim_select['e1'],ddof=1)
             list_bias.append( [ipsf,isnr,vpsf_min,vpsf_max,vsnr_min,vsnr_max,std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc] )
@@ -591,7 +593,10 @@ def get_calibration():
 
     arr_bias = tabletools.arr2rec(np.array(list_bias),dtype={'names': ["ipsf","isnr","vpsf_min","vpsf_max","vsnr_min","vsnr_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc"], 'formats': ['i4']*2 + ['f8']*21 })
 
-    filename_table_bias = 'bias_table.fits'
+    if args.use_calibration:
+        filename_table_bias = 'bias_table.calibrated.fits'
+    else:
+        filename_table_bias = 'bias_table.fits'
     import pyfits
     pyfits.writeto(filename_table_bias,arr_bias,clobber=True)
     logger.info('saved %s',filename_table_bias)
@@ -1021,6 +1026,7 @@ def main():
     parser.add_argument('-f', '--first', type=int, action='store', default=0, help='index of the first file to analyse')
     parser.add_argument('-n', '--num', type=int, action='store', default=2, help='number of files to analyse, if -1 then =config[n_files]')
     parser.add_argument('-a', '--actions', nargs='+' ,default=None, type=str, action='store',  help='which actions to run, available: %s' % str(valid_actions) )
+    parser.add_argument('--use_calibration', default=False, action='store_true', help='if to apply calibration columns')
     
     args = parser.parse_args()
     logging_levels = { 0: logging.CRITICAL,1: logging.WARNING,2: logging.INFO,3: logging.DEBUG }
