@@ -8,15 +8,14 @@ upsampling : 5
 des_scale_pixels :  86.52302493
 des_pixel_noise_sigma : 16.7552909851
 n_im3shape_results_files: -1
-filename_truth: /Users/tomek/projects/141016_nbc_v7/data/nbc2.truth.%03d.g%02d.fits
+filename_truth: /Users/tomek/projects/140618_ngmix_greatdes/data/nbc2.truth.%03d.g%02d.fits
 real_catalog_image_dir: /home/ucabtok/data/COSMOS_23.5_training_sample/
 real_catalog_file_name: real_galaxy_catalog_23.5.fits 
-filelist_des : filelist-v7-r.txt
-filelist_des_calibrated : filelist-v7-r-nbc.txt
+filelist_des : filelist-ngmix009.txt
+filelist_des_calibrated : filelist-ngmix009.txt
 
-selection_string_sim : "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & (cat_res['radius'] < 3.2)  & (cat_tru['cosmos_mag_auto']<23.25) & (cat_tru['sf_hlr']>0.2)" 
-selection_string_des : "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & (cat_res['radius'] < 3.2)" 
-
+selection_string_sim : "select =  (cat_res['flags']==0) & (cat_res['arate']>0.3) & (cat_res['arate']<0.6)  & (cat_tru['cosmos_mag_auto']<23.25) & (cat_tru['sf_hlr']>0.2)" 
+selection_string_des : "select =  (cat_res['flags']==0) & (cat_res['arate']>0.3) & (cat_res['arate']<0.6)"
 
 grid_fwhm:
     min: 0.8
@@ -46,7 +45,8 @@ methods:
 
     ngmix: 
         name: ngmix
-        filename_results: results-nfit-02/nfit-02-%03d-g%02d.fits
+        filename_results: /Users/tomek/projects/140618_ngmix_greatdes/results/nfit-02-%03d-g%02d.fits
+        filename_calibrated: /Users/tomek/projects/140618_ngmix_greatdes/results/nfit-02-%03d-g%02d.fits
         cols: ['g', 'g_sens', 'flags', 's2n_w', 'arate' , 'g_cov']
         flip_g1: 1.
         flip_g2: 1.
