@@ -422,7 +422,7 @@ def get_psf_images():
                                                           
                 log.debug('getting single PSF at the pixel scale of a galaxy')
 
-               
+
                 config_copy1=copy.deepcopy(config_psf)
                 config_copy1['psf']['fwhm'] = fwhm
                 config_copy1['psf']['ellip']['g1'] = e1
@@ -988,7 +988,7 @@ def main():
     if 'generate-noiseless' in args.actions:
         get_meds(noise=False)
     if 'update-truth' in args.actions:
-        update_truth_table(update_snr=True , update_cosmos=True , update_hsm=False)
+        update_truth_table(update_snr=False , update_cosmos=True , update_hsm=True)
     if 'generate-noisy' in args.actions:
         get_meds(noise=True)
     
