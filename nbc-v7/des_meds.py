@@ -1,4 +1,3 @@
-zuserver1$ cat nbc2/des_meds.py
 # Copyright 2012-2014 The GalSim developers:
 # https://github.com/GalSim-developers
 #
