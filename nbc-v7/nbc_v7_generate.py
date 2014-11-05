@@ -715,8 +715,6 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
 
             log.info('part %d shear %d : getting snr, flux, hsm, and fwhm, using %s and %s' , ip, il, filename_meds, filename_cat)
 
-            noisless_gals = meds.MEDS(filename_meds)
-            n_gals = len(noisless_gals._cat)
             cat = tabletools.loadTable(filename_cat)
 
             # assure backwards compatibility
@@ -744,6 +742,8 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
             for ig in range(n_gals):
 
                 if update_snr == True:
+                    noisless_gals = meds.MEDS(filename_meds)
+                    n_gals = len(noisless_gals._cat)
                     img_gal = noisless_gals.get_cutout(ig,0)
                     normsq= np.sum( img_gal.flatten()**2 )
                     snr = np.sqrt(normsq)/noise_std
