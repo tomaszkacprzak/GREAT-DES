@@ -391,9 +391,9 @@ def get_psf_images():
 
 
 
-    filename_lores = 'nbc2.psf.lores.fits' 
-    filename_hires = 'nbc2.psf.hires.fits' 
-    filename_field = 'nbc2.psf.field.fits' 
+    filename_lores = 'nbc.psf.lores.fits' 
+    filename_hires = 'nbc.psf.hires.fits' 
+    filename_field = 'nbc.psf.field.fits' 
     
     if os.path.isfile(filename_lores): os.remove(filename_lores); log.info('removed existing %s',filename_lores)
     if os.path.isfile(filename_hires): os.remove(filename_hires); log.info('removed existing %s',filename_hires)
@@ -431,7 +431,7 @@ def get_psf_images():
                 img_psf = img_psf[0]
                 img_psf = img_psf[galsim.BoundsI(1, orig_image_size, 1, orig_image_size)]
                 pyfits.append(filename_lores,img_psf.array)
-                # filename_lores = 'nbc2.psf.lores.%03d.fits' % iall
+                # filename_lores = 'nbc.psf.lores.%03d.fits' % iall
                 # img_psf.write(filename_lores)
                                                               
                 # now the hires PSF, centers in the middle
@@ -484,7 +484,7 @@ def get_psf_images():
                 # pl.imshow(img_loaded-img_psf.array,interpolation='nearest'); 
                 # pl.show()
 
-                # filename_hires = 'nbc2.psf.hires.%03d.fits' % iall
+                # filename_hires = 'nbc.psf.hires.%03d.fits' % iall
                 # img_psf.write(filename_hires)
 
                 # now field
@@ -503,7 +503,7 @@ def get_psf_images():
                 if 'size' in config_copy3['image']:    del(config_copy3['image']['size'])
                 img_gal,img_psf,_,_ = galsim.config.BuildImage(config=config_copy3,image_num=0,obj_num=0,make_psf_image=True)    
                 pyfits.append(filename_field,img_psf.array)
-                # filename_field = 'nbc2.psf.field.%03d.fits' % iall
+                # filename_field = 'nbc.psf.field.%03d.fits' % iall
                 # img_psf.write(filename_field)
 
                 log.info('generated id=%3d %3d/%d psfs fwhm=%2.5f e1=% 2.5f e2=% 2.5f ifwhm=%d ie1=%d ie2=%d ' , iall , iall+1, n_psfs , fwhm, e1, e2, ifwhm, ie1,ie2)
@@ -532,9 +532,9 @@ def get_meds(noise=True):
     for ip in range(id_first,id_last):  
         for ig,vg in enumerate(config['shear']):
 
-            filename_cat = 'nbc2.truth.%03d.g%02d.fits' % (ip,ig)
-            if noise: filename_meds = 'nbc2.meds.%03d.g%02d.fits' % (ip,ig)
-            else: filename_meds = 'nbc2.meds.%03d.g%02d.noisefree.fits' % (ip,ig)
+            filename_cat = 'nbc.truth.%03d.g%02d.fits' % (ip,ig)
+            if noise: filename_meds = 'nbc.meds.%03d.g%02d.fits' % (ip,ig)
+            else: filename_meds = 'nbc.meds.%03d.g%02d.noisefree.fits' % (ip,ig)
 
             config_copy = copy.deepcopy(config)
             if noise==False: del(config_copy['image']['noise'])
@@ -652,7 +652,7 @@ def get_truth_catalogs():
         for ig,vg in enumerate(config['shear']):
             
 
-            filename_cat = 'nbc2.truth.%03d.g%02d.fits' % (ip,ig)
+            filename_cat = 'nbc.truth.%03d.g%02d.fits' % (ip,ig)
             
             catalog = np.zeros(n_gals,dtype=dtype_truth)
             
@@ -709,8 +709,8 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
 
             list_normsq = []
 
-            filename_cat = 'nbc2.truth.%03d.g%02d.fits' % (ip,il)
-            filename_meds = 'nbc2.meds.%03d.g%02d.noisefree.fits' % (ip,il)
+            filename_cat = 'nbc.truth.%03d.g%02d.fits' % (ip,il)
+            filename_meds = 'nbc.meds.%03d.g%02d.noisefree.fits' % (ip,il)
 
 
             log.info('part %d shear %d : getting snr, flux, hsm, and fwhm, using %s and %s' , ip, il, filename_meds, filename_cat)
@@ -766,7 +766,7 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
 
                 if update_hsm==True:
                     img_gal = noisless_gals.get_cutout(ig,0)
-                    img_psf = pyfits.getdata('nbc2.psf.lores.fits',cat[ig]['id_psf'])
+                    img_psf = pyfits.getdata('nbc.psf.lores.fits',cat[ig]['id_psf'])
                     gs_img_gal = image_array_to_galsim(img_gal)
                     gs_img_psf = image_array_to_galsim(img_psf)
 
@@ -804,7 +804,7 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
                         cat[ig]['fwhm'] = 666
 
                     try:
-                        if psf_images == None: psf_images = pyfits.open('nbc2.psf.hires.fits')
+                        if psf_images == None: psf_images = pyfits.open('nbc.psf.hires.fits')
                         img_hires_psf = psf_images[cat[ig]['id_psf']].data
                         cat[ig]['psf_fwhm_measured'] = mathstools.get_2D_fwhm(img_hires_psf,upsampling=config['upsampling'])
                     except:
@@ -833,7 +833,7 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
 
 def get_snr_from_cosmos():
 
-    # filename_noiseless = 'nbc2.meds.%03d.g%02d.fits' % (0,0)
+    # filename_noiseless = 'nbc.meds.%03d.g%02d.fits' % (0,0)
     filename_noiseless = 'noisless_galaxies.meds.fits'
     noisless_gals = meds.MEDS(filename_noiseless)
 
@@ -926,7 +926,7 @@ def get_snr_from_cosmos():
 def preview_result():
 
     import meds
-    m=meds.MEDS('nbc2.meds.000.g05.fits.fz')
+    m=meds.MEDS('nbc.meds.000.g05.fits.fz')
     for i in range(100): print tru['snr'][i];pl.imshow(m.get_cutout(i,0),interpolation='nearest');pl.show()
 
 
@@ -939,7 +939,7 @@ def main():
     description = 'Get input catalogs for GREAT-DES NBC2 simulation'
     parser = argparse.ArgumentParser(description=description, add_help=True)
     parser.add_argument('-v', '--verbosity', type=int, action='store', default=2, choices=(0, 1, 2, 3 ), help='integer verbosity level: min=0, max=3 [default=2]')
-    parser.add_argument('-c', '--filename_config', type=str, action='store', default='nbc2.yaml', help='name of the config file')
+    parser.add_argument('-c', '--filename_config', type=str, action='store', default='nbc.yaml', help='name of the config file')
     parser.add_argument('-f', '--first', type=int, action='store', default=0, help='index of the first file to create')
     parser.add_argument('-n', '--num', type=int, action='store', default=-1, help='number of files to create, if -1 then =config[n_files]')
     parser.add_argument('-a', '--actions', nargs='+' , type=str, action='store',  help='valid actions %s' % str(valid_actions))
