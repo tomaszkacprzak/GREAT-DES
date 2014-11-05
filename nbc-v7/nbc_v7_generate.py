@@ -29,7 +29,7 @@ if 'DISPLAY' not in os.environ:
 import sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, galsim, copy, galsim.des, warnings, subprocess
 import pylab as pl
 import numpy as np
-from nbc2_dtypes import *
+from nbc_dtypes import *
 warnings.simplefilter('once')
 
 logging_level = logging.INFO

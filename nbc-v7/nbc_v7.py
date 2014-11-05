@@ -24,11 +24,11 @@ select_info = (' '.join(select_info))[:-1]
 # selection_string_des = "select =  (cat_res['error_flag']==0) & ( ( (cat_res['radius']<3.5) & (cat_res['stamp_size']==48) ) | (cat_res['stamp_size']!=48)  ) & " + select_info 
 
 
-selection_string_sim = "default"
-selection_string_des = "default"
+# selection_string_sim = "default"
+# selection_string_des = "default"
 
-# selection_string_sim = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0)  & (cat_tru['cosmos_mag_auto']<23.25) & (cat_tru['sf_hlr']>0.2) &" + select_info
-# selection_string_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0)  &"+ select_info 
+selection_string_sim = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0)  & (cat_tru['cosmos_mag_auto']<23.25) & (cat_tru['sf_hlr']>0.2) &" + select_info
+selection_string_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0)  &"+ select_info 
 
 # for fitting
 # list_snr_edges = [10,12,14,16,18,20,25,30,50,80,200,1000]
@@ -474,13 +474,13 @@ def plot_bias_vs_redshift():
         res_des_select = res_des
 
         logger.info(selection_string_sim)
-        filename_str = 'z%2.2f' % ((vbin[0]+vbin[1])/2.)
+        filename_str = 'z%2.2f.%s' % ((vbin[0]+vbin[1])/2.,args.method)
         mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim_select,res_tru_select,res_des_select,use_calibration=False,use_weights=args.use_weights,filename_str=filename_str)
 
         std_e = np.std(res_sim_select['e1'],ddof=1)
         list_bias.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2] )
 
-        filename_str = 'z%2.2f-nbc' % ((vbin[0]+vbin[1])/2.)
+        filename_str = 'z%2.2f.%s.corr' % ((vbin[0]+vbin[1])/2.,args.method)
         mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(cal_sim_select,cal_tru_select,cal_des_select,use_calibration=True,use_weights=args.use_weights,filename_str=filename_str)
 
         std_e = np.std(cal_sim_select['e1'],ddof=1)
@@ -491,11 +491,11 @@ def plot_bias_vs_redshift():
 
     pl.figure()
     
-    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['m1'], yerr=arr_bias['std_m1'], fmt='r.', label='m1 no nbc')
-    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['m2'], yerr=arr_bias['std_m2'], fmt='m.', label='m2 no nbc')
+    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['m1'], yerr=arr_bias['std_m1'], fmt='r.', label='m1 no correction')
+    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['m2'], yerr=arr_bias['std_m2'], fmt='m.', label='m2 no correction')
     
-    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['m1'], yerr=arr_bias_calibr['std_m1'], fmt='b.', label='m1 with nbc')
-    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['m2'], yerr=arr_bias_calibr['std_m2'], fmt='c.', label='m2 with nbc')
+    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['m1'], yerr=arr_bias_calibr['std_m1'], fmt='b.', label='m1 with correction')
+    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['m2'], yerr=arr_bias_calibr['std_m2'], fmt='c.', label='m2 with correction')
 
     
     pl.xlabel('z')
@@ -508,15 +508,15 @@ def plot_bias_vs_redshift():
 
     pl.figure()
     
-    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pmm'], yerr=arr_bias['std_pm1'], fmt='r.', label=r'$\alpha 1$ no nbc')
-    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pmm'], yerr=arr_bias['std_pm2'], fmt='m.', label=r'$\alpha 2$ no nbc')
+    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pmm'], yerr=arr_bias['std_pm1'], fmt='r.', label=r'$\alpha 1$ no correction')
+    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pmm'], yerr=arr_bias['std_pm2'], fmt='m.', label=r'$\alpha 2$ no correction')
     
-    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['pm1'], yerr=arr_bias_calibr['std_pm1'], fmt='b.', label=r'$\alpha 1$ with nbc')
-    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['pm2'], yerr=arr_bias_calibr['std_pm2'], fmt='c.', label=r'$\alpha 2$ with nbc')
+    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['pm1'], yerr=arr_bias_calibr['std_pm1'], fmt='b.', label=r'$\alpha 1$ with correction')
+    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['pm2'], yerr=arr_bias_calibr['std_pm2'], fmt='c.', label=r'$\alpha 2$ with correction')
 
     
     pl.xlabel('z')
-    pl.ylabel('m')
+    pl.ylabel(r'$\alpha$')
     pl.xticks(z_bins)
     pl.grid()
     pl.axhline(0,c='k')
@@ -525,9 +525,8 @@ def plot_bias_vs_redshift():
     
     # plot_add_requirements()
 
+    ylim=list(pl.ylim()); ylim[1]*=2; ylim[0]/=2; pl.ylim(ylim)
     pl.show()
-
-
 
 
 def get_shear_estimator(res,use_calibration=False,use_weights=False):
@@ -626,10 +625,16 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
     import fitting
     cc1,mm1,Ccm1=fitting.get_line_fit(true_e1,mean_e1,stdm_e1)
     cc2,mm2,Ccm2=fitting.get_line_fit(true_e2,mean_e2,stdm_e2)
+    cc12,mm12,Ccm12=fitting.get_line_fit(true_e2,mean_e1-true_e1,stdm_e1)
+    cc21,mm21,Ccm21=fitting.get_line_fit(true_e1,mean_e2-true_e2,stdm_e2)
     std_cc1 = np.sqrt(Ccm1[0,0])
     std_mm1 = np.sqrt(Ccm1[1,1])
     std_cc2 = np.sqrt(Ccm2[0,0])
     std_mm2 = np.sqrt(Ccm2[1,1])
+    std_mm12 = np.sqrt(Ccm12[1,1])
+    std_cc12 = np.sqrt(Ccm12[0,0])
+    std_mm21 = np.sqrt(Ccm21[1,1])
+    std_cc21 = np.sqrt(Ccm21[0,0])
 
     mm = (mm1+mm2)/2.
     std_mm = np.sqrt( (std_mm1**2 + std_mm2**2)/2. )
@@ -647,6 +652,8 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
     print "--- c2 = % 2.5f +/- % 2.5f" % (cc2,std_cc2)
     print "--- m  = % 2.5f +/- % 2.5f" % (mm,std_mm)
     print "--- c  = % 2.5f +/- % 2.5f" % (cc,std_cc)
+    print "--- m12 = % 2.5f +/- % 2.5f" % (mm12,std_mm12)
+    print "--- m21 = % 2.5f +/- % 2.5f" % (mm21,std_mm21)
     print "--- pm1  = % 2.5f +/- % 2.5f" % (pmm1,std_pmm1)
     print "--- pc1  = % 2.5f +/- % 2.5f" % (pcc1,std_pcc1)
     print "--- pm2  = % 2.5f +/- % 2.5f" % (pmm2,std_pmm2)
@@ -666,10 +673,14 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
 
     pl.subplot(2,2,1)
     pl.errorbar(true_e1,mean_e1-true_e1,yerr=stdm_e1,fmt='r.')
-    pl.errorbar(true_e2,mean_e2-true_e2,yerr=stdm_e1,fmt='m.')
+    pl.errorbar(true_e2,mean_e2-true_e2,yerr=stdm_e2,fmt='m.')
+    pl.errorbar(true_e2,mean_e1-true_e1,yerr=stdm_e1,fmt='b.')
+    pl.errorbar(true_e1,mean_e2-true_e2,yerr=stdm_e2,fmt='c.')
     pl.plot(true_e1,true_e1*0,'-k')
-    pl.plot(true_e1,(mm1-1)*true_e1+cc1,'r-',label=r'sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm1,std_mm1,cc1,std_cc1))
-    pl.plot(true_e2,(mm2-1)*true_e2+cc2,'m-',label=r'sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm2,std_mm2,cc2,std_cc2))
+    pl.plot(true_e1,(mm1-1)*true_e1+cc1,  'r-',label=r'<e1> vs e1t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm1,std_mm1,cc1,std_cc1))
+    pl.plot(true_e2,(mm2-1)*true_e2+cc2,  'm-',label=r'<e2> vs e2t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm2,std_mm2,cc2,std_cc2))
+    pl.plot(true_e2,(mm12)*true_e2+cc12,'b-',label=r'<e1> vs e2t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm12,std_mm12,cc12,std_cc12))
+    pl.plot(true_e1,(mm21)*true_e1+cc21,'c-',label=r'<e2> vs e1t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm21,std_mm21,cc21,std_cc21))
     pl.xlabel('g_true')
     pl.ylabel('<e> - g_true')
     ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
@@ -740,8 +751,8 @@ def get_calibration():
     else:
         logger.info('measuring bias')
 
-    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=cols_res,cols_tru=cols_tru)
-    res_des         = nbc_v7_select.get_selection_des(selection_string_des,cols=cols_des,n_files=10)
+    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
+    res_des         = nbc_v7_select.get_selection_des(selection_string_des,cols=cols_des,n_files=10,get_calibrated=args.use_calibration)
     
     list_snr_centers = plotstools.get_bins_centers(list_snr_edges)
     list_psf_centers = plotstools.get_bins_centers(list_psf_edges)
@@ -749,7 +760,8 @@ def get_calibration():
     list_bias = []
 
     # entire sample
-    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim,res_tru,res_des,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str='all')
+    filename_str = 'all.%s' % args.method
+    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim,res_tru,res_des,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
 
 
 
@@ -1148,7 +1160,7 @@ def plot_meane_vs_snr():
 
 def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
 
-    bins_psf_edges = np.linspace(-0.02,0.02,5)
+    bins_psf_edges = np.linspace(-0.021,0.021,5)
     bins_psf_centers = plotstools.get_bins_centers(bins_psf_edges)
 
 
@@ -1232,8 +1244,8 @@ def main():
 
     global selection_string_sim; 
     global selection_string_des;
-    selection_string_sim = config['selection_string_sim']
-    selection_string_des = config['selection_string_des']
+    # selection_string_sim = config['selection_string_sim']
+    # selection_string_des = config['selection_string_des']
 
     if args.actions==None:
         logger.error('no action specified, choose from %s' % valid_actions)

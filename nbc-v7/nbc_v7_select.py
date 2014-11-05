@@ -9,7 +9,7 @@ log_formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s   %(messag
 stream_handler = logging.StreamHandler(sys.stdout); stream_handler.setFormatter(log_formatter)
 if logger.handlers == [] : logger.addHandler(stream_handler); logger.propagate = False
 
-def rename_ngmix_cols(cat_res):
+def rename_ngmix_cols(cat_res,cat_tru=None):
 
     if 'g' in cat_res.dtype.names:
 
@@ -23,6 +23,11 @@ def rename_ngmix_cols(cat_res):
         cat_res = tabletools.appendColumn(cat_res,'nbc_c1', np.zeros(len(cat_res)))
         cat_res = tabletools.appendColumn(cat_res,'nbc_c2', np.zeros(len(cat_res)))
 
+    if 'ngmix009_PSFREC_E_1' not in cat_res.dtype.names:
+
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_tru['psf_e1'])
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_tru['psf_e2'])
+
     if 'ngmix009_EXP_E_1' in cat_res.dtype.names:
 
         cat_res = tabletools.appendColumn(cat_res,'e1', cat_res['ngmix009_EXP_E_1'])
@@ -33,6 +38,11 @@ def rename_ngmix_cols(cat_res):
         cat_res = tabletools.appendColumn(cat_res,'nbc_c2', np.zeros(len(cat_res)))
         cat_res = tabletools.appendColumn(cat_res,'flags', cat_res['ngmix009_FLAGS'])
         cat_res = tabletools.appendColumn(cat_res,'arate', cat_res['ngmix009_EXP_ARATE'])
+        
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_res['ngmix009_PSFREC_E_1'])
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_res['ngmix009_PSFREC_E_2'])
+
+        
 
     if 'w' not in cat_res.dtype.names:
 
@@ -54,12 +64,10 @@ def rename_ngmix_cols(cat_res):
             w = 1.0/(2*SN**2 + e_cov_1_1 + e_cov_2_2 + 2*e_cov_1_2)
             cat_res = tabletools.appendColumn(cat_res,'w', w)
 
-              
+             
 
-    cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', np.random.uniform(1,3))
-    cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', np.random.uniform(-0.05,0.05))
-    cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', np.random.uniform(-0.05,0.05))
     cat_res = tabletools.appendColumn(cat_res,'snr', np.random.uniform(0.,100))
+    cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', np.random.uniform(1,3))
     cat_res = tabletools.appendColumn(cat_res,'coadd_objects_id', np.arange(len(cat_res)))
 
     return cat_res
@@ -162,7 +170,7 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
                     cat_res = cat_res_all
                     logger.debug('loaded %05d galaxies from file: %s' % (len(cat_res_all),filename_res))
                     if args.method == 'ngmix':
-                        cat_res = rename_ngmix_cols(cat_res)
+                        cat_res = rename_ngmix_cols(cat_res,cat_tru)
                     elif args.method == 'im3shape':
                         cat_res = rename_im3shape_cols(cat_res)
 
