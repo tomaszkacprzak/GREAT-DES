@@ -532,9 +532,9 @@ def get_meds(noise=True):
     for ip in range(id_first,id_last):  
         for ig,vg in enumerate(config['shear']):
 
-            filename_cat = 'nbc.truth.%03d.g%02d.fits' % (ip,ig)
-            if noise: filename_meds = 'nbc.meds.%03d.g%02d.fits' % (ip,ig)
-            else: filename_meds = 'nbc.meds.%03d.g%02d.noisefree.fits' % (ip,ig)
+            filename_cat = os.path.join(args.out_dir,'nbc.truth.%03d.g%02d.fits' % (ip,ig))
+            if noise: filename_meds = os.path.join(args.out_dir,'nbc.meds.%03d.g%02d.fits' % (ip,ig))
+            else: filename_meds = os.path.join(args.out_dir,'nbc.meds.%03d.g%02d.noisefree.fits' % (ip,ig))
 
             config_copy = copy.deepcopy(config)
             if noise==False: del(config_copy['image']['noise'])
@@ -652,7 +652,7 @@ def get_truth_catalogs():
         for ig,vg in enumerate(config['shear']):
             
 
-            filename_cat = 'nbc.truth.%03d.g%02d.fits' % (ip,ig)
+            filename_cat = os.path.join(args.out_dir,'nbc.truth.%03d.g%02d.fits' % (ip,ig))
             
             catalog = np.zeros(n_gals,dtype=dtype_truth)
             
@@ -709,8 +709,8 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
 
             list_normsq = []
 
-            filename_cat = 'nbc.truth.%03d.g%02d.fits' % (ip,il)
-            filename_meds = 'nbc.meds.%03d.g%02d.noisefree.fits' % (ip,il)
+            filename_cat = os.path.join(args.out_dir,'nbc.truth.%03d.g%02d.fits' % (ip,il))
+            filename_meds = os.path.join(args.out_dir,'nbc.meds.%03d.g%02d.noisefree.fits' % (ip,il))
 
 
             log.info('part %d shear %d : getting snr, flux, hsm, and fwhm, using %s and %s' , ip, il, filename_meds, filename_cat)
@@ -943,6 +943,7 @@ def main():
     parser.add_argument('-f', '--first', type=int, action='store', default=0, help='index of the first file to create')
     parser.add_argument('-n', '--num', type=int, action='store', default=-1, help='number of files to create, if -1 then =config[n_files]')
     parser.add_argument('-a', '--actions', nargs='+' , type=str, action='store',  help='valid actions %s' % str(valid_actions))
+    parser.add_argument('-o', '--out_dir', type=str, default='./',  action='store',  help='directory which stores output truth and meds files')
 
     args = parser.parse_args()
     logging_levels = { 0: logging.CRITICAL, 
