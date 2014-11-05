@@ -989,7 +989,7 @@ def main():
     if 'generate-noiseless' in args.actions:
         get_meds(noise=False)
     if 'update-truth' in args.actions:
-        update_truth_table(update_snr=False , update_cosmos=True , update_hsm=True)
+        update_truth_table(update_snr=False , update_cosmos=True , update_hsm=False)
     if 'generate-noisy' in args.actions:
         get_meds(noise=True)
     
