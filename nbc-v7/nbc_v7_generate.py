@@ -391,9 +391,9 @@ def get_psf_images():
 
 
 
-    filename_lores = 'nbc.psf.lores.fits' 
-    filename_hires = 'nbc.psf.hires.fits' 
-    filename_field = 'nbc.psf.field.fits' 
+    filename_lores = os.path.join(args.out_dir,'nbc.psf.lores.fits')
+    filename_hires = os.path.join(args.out_dir,'nbc.psf.hires.fits')
+    filename_field = os.path.join(args.out_dir,'nbc.psf.field.fits')
     
     if os.path.isfile(filename_lores): os.remove(filename_lores); log.info('removed existing %s',filename_lores)
     if os.path.isfile(filename_hires): os.remove(filename_hires); log.info('removed existing %s',filename_hires)
@@ -766,7 +766,7 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
 
                 if update_hsm==True:
                     img_gal = noisless_gals.get_cutout(ig,0)
-                    img_psf = pyfits.getdata('nbc.psf.lores.fits',cat[ig]['id_psf'])
+                    img_psf = pyfits.getdata(os.path.join(args.out_dir,'nbc.psf.lores.fits'),cat[ig]['id_psf'])
                     gs_img_gal = image_array_to_galsim(img_gal)
                     gs_img_psf = image_array_to_galsim(img_psf)
 
@@ -804,7 +804,7 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
                         cat[ig]['fwhm'] = 666
 
                     try:
-                        if psf_images == None: psf_images = pyfits.open('nbc.psf.hires.fits')
+                        if psf_images == None: psf_images = pyfits.open(os.path.join(args.out_dir,'nbc.psf.hires.fits'))
                         img_hires_psf = psf_images[cat[ig]['id_psf']].data
                         cat[ig]['psf_fwhm_measured'] = mathstools.get_2D_fwhm(img_hires_psf,upsampling=config['upsampling'])
                     except:
