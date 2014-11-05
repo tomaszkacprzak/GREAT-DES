@@ -716,6 +716,7 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
             log.info('part %d shear %d : getting snr, flux, hsm, and fwhm, using %s and %s' , ip, il, filename_meds, filename_cat)
 
             cat = tabletools.loadTable(filename_cat)
+            n_gals = len(cat)
 
             # assure backwards compatibility
             if 'hsm_obs_g1'             not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='hsm_obs_g1',         arr=np.zeros(len(cat)), dtype='f8')
