@@ -421,7 +421,8 @@ def get_psf_images():
             for ie2,e2 in enumerate(config['bins_ell_centers']):
                                                           
                 log.debug('getting single PSF at the pixel scale of a galaxy')
-                
+
+               
                 config_copy1=copy.deepcopy(config_psf)
                 config_copy1['psf']['fwhm'] = fwhm
                 config_copy1['psf']['ellip']['g1'] = e1
@@ -979,8 +980,8 @@ def main():
         # if config['population_source'] == 'des':
         #     get_params_dist_from_DES();     
         # get_noise_level()
-        get_psf_key()
     if 'generate-psf' in args.actions:
+        get_psf_key()
         get_psf_images()
     if 'generate-truth' in args.actions:
         get_truth_catalogs()
