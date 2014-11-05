@@ -450,4 +450,3 @@ def GetNObjForMEDS(config, file_num, image_num):
     # The MEDS file is considered to only have a single image, so the list has only 1 element.
     nobj = [ ntot ]
     return nobj
-monch04$
