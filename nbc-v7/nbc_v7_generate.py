@@ -713,7 +713,8 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
             filename_meds = os.path.join(args.out_dir,'nbc.meds.%03d.g%02d.noisefree.fits' % (ip,il))
 
 
-            log.info('part %d shear %d : getting snr, flux, hsm, and fwhm, using %s and %s' , ip, il, filename_meds, filename_cat)
+            log.info('part %d shear %d : getting snr, flux, hsm, and fwhm, using %s and %s' , ip, il)
+            log.debug('using %s %s', filename_meds, filename_cat)
 
             cat = tabletools.loadTable(filename_cat)
             n_gals = len(cat)
