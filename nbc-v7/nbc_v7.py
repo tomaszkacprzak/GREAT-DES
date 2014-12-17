@@ -1,8 +1,8 @@
 import numpy as np; import pylab as pl; 
-import  sys, logging, yaml, argparse, time, copy, itertools, fitting, warnings, os, fitsio, pyfits;
+import  sys, logging, yaml, argparse, time, copy, itertools, warnings, os, fitsio, pyfits;
 warnings.simplefilter("once")
 sys.path.append('/home/tomek/code/tktools')
-import arraytools, plotstools
+# import arraytools, plotstools
 sys.path.append('/Users/tomek/code/ucl_des_shear/des_post/')
 import add_weights
 # from nbc2_dtypes import *
@@ -86,6 +86,8 @@ def apply_calibration_des():
     import glob
     filelist_r = glob.glob(config['filelist_des'])
 
+    logger.info('found %d files in %s',len(filelist_r),config['filelist_des'])
+
     n_files = 10000
     n_all = 0
     n_calibrated = 0
@@ -98,6 +100,7 @@ def apply_calibration_des():
         logger.info('using directory: %s',dirpath_calib)
 
     logger.info('calibrating %s',os.path.dirname(filelist_r[0]))
+
     for filename_des in filelist_r[:n_files]:
 
         filename_tile = os.path.basename(filename_des)
@@ -106,36 +109,40 @@ def apply_calibration_des():
             logger.info('file exists, skipping %s', filename_calibrated)
             continue
             
-        cat_res=tabletools.loadTable(filename_des,log=1)
+        # cat_res=tabletools.loadTable(filename_des,log=1)
+        cat_res=pyfits.getdata(filename_des)
         n_all+=len(cat_res)
         
         cat_res, calib_m, calib_a=get_calibration_columns(cat_res)
+        cat_res=get_weight_column(cat_res)
 
-        exec selection_string_des
-        cat_res['nbc_m'][~select]=0
-        cat_res['nbc_c1'][~select]=0
-        cat_res['nbc_c2'][~select]=0
+        # optionally remove calibration from galaxies which do not make the cut
+        # exec selection_string_des
+        # cat_res['nbc_m'][~select]=0
+        # cat_res['nbc_c1'][~select]=0
+        # cat_res['nbc_c2'][~select]=0
 
         fitsio.write(filename_calibrated,cat_res,clobber=False)
+        logger.info('saved %s',filename_calibrated)
 
-        if np.any(select):
-            mean_m  = np.mean(cat_res['nbc_m'][select])
-            mean_c1 = np.mean(cat_res['nbc_c1'][select])
-            mean_c2 = np.mean(cat_res['nbc_c2'][select])
-            mean_a = np.mean(calib_a)
-            logger.info('wrote %s with mean(m)=%2.4f mean(a)=%2.4f mean(c1)=%2.4f mean(c2)=%2.4f' % (filename_calibrated,mean_m,mean_a,mean_c1,mean_c2))
-        else:
-            logger.info('wrote %s but there are no selected galaxies with select: %s' % (filename_calibrated,selection_string_des))
-            mean_m = 0
-            mean_c1 = 0
-            mean_c2 = 0
-            mean_a = 0
-        if any(~np.isfinite([mean_m,mean_c1,mean_c2,mean_a])):
-            logger.error('not finite value in calibration')
-            import pdb; pdb.set_trace()
+        # if np.any(select):
+        #     mean_m  = np.mean(cat_res['nbc_m'][select])
+        #     mean_c1 = np.mean(cat_res['nbc_c1'][select])
+        #     mean_c2 = np.mean(cat_res['nbc_c2'][select])
+        #     mean_a = np.mean(calib_a)
+        #     logger.info('wrote %s with mean(m)=%2.4f mean(a)=%2.4f mean(c1)=%2.4f mean(c2)=%2.4f' % (filename_calibrated,mean_m,mean_a,mean_c1,mean_c2))
+        # else:
+        #     logger.info('wrote %s but there are no selected galaxies with select: %s' % (filename_calibrated,selection_string_des))
+        #     mean_m = 0
+        #     mean_c1 = 0
+        #     mean_c2 = 0
+        #     mean_a = 0
+        # if any(~np.isfinite([mean_m,mean_c1,mean_c2,mean_a])):
+        #     logger.error('not finite value in calibration')
+        #     import pdb; pdb.set_trace()
 
 
-        n_calibrated += len(np.nonzero(select)[0])
+        n_calibrated += len(cat_res)
 
     logger.info('calibrated %d galaxies out of %d' % (n_calibrated,n_all))
 
@@ -194,6 +201,82 @@ def apply_calibration_sim():
     logger.info('calibrated %d galaxies out of %d' % (n_calibrated,n_all))
 
 
+def get_bins_centers(bins_edges,constant_spacing=True):
+
+    # ensure np array
+    bins_edges=np.array(bins_edges)
+    bins_centers=np.zeros(len(bins_edges)-1)
+
+    for be in range(len(bins_edges)-1): bins_centers[be] = np.mean([bins_edges[be],bins_edges[be+1]])      
+
+    return bins_centers
+
+def add_col(rec, name, arr, dtype=None):
+    import numpy
+    arr = numpy.asarray(arr)
+    if dtype is None:
+        dtype = arr.dtype
+    newdtype = numpy.dtype(rec.dtype.descr + [(name, dtype)])
+    newrec = numpy.empty(rec.shape, dtype=newdtype)
+    for field in rec.dtype.fields:
+        newrec[field] = rec[field]
+    newrec[name] = arr
+    return newrec
+
+
+def get_weight_column(cat):
+
+    logger.info('applying weights ')
+    filename_table = 'weights_interpolation_table.cpickle'
+    file_pickle = open(filename_table)
+    import cPickle as pickle
+    sigma_e, sigma_e_max, list_snr_edges, list_rgp_edges , vec_snr_hires, vec_rgp_hires, sigma_e_hires, n_gal, stdd0_e = pickle.load(file_pickle)
+
+    # set the noisy values to one high snr value
+    # sigma_e[sigma_e<sigma_e_max] = sigma_e_max
+    sigma_greater = sigma_e.copy()
+    sigma_greater[stdd0_e>sigma_e]=stdd0_e[stdd0_e>sigma_e]
+    sigma_e_max = min(sigma_greater.flatten())
+
+    vec_snr = get_bins_centers(list_snr_edges)
+    vec_rgp = get_bins_centers(list_rgp_edges)
+    vec_snr_hires = np.linspace(vec_snr.min(),vec_snr.max(),500)
+    vec_rgp_hires = np.linspace(vec_rgp.min(),vec_rgp.max(),500)
+
+    import scipy.interpolate
+    X1,X2 = np.meshgrid(vec_snr_hires,vec_rgp_hires)
+
+    logger.debug('hires')
+    import scipy.interpolate
+    func_interp = scipy.interpolate.interp2d(vec_snr,vec_rgp,sigma_greater.T, kind='cubic')
+    sigma_e_hires = func_interp(vec_snr_hires,vec_rgp_hires)
+
+    cat['snr'][~np.isfinite(cat['snr'])]=0
+    cat['mean_rgpp_rp'][~np.isfinite(cat['mean_rgpp_rp'])]=0
+
+    col_sig = scipy.interpolate.griddata((X1.flatten(),X2.flatten()),sigma_e_hires.flatten(),(cat['snr'],cat['mean_rgpp_rp']),method='nearest',rescale=True)
+
+    col_sig[cat['snr']>list_snr_edges.max()] = sigma_e_max
+    col_sig[cat['mean_rgpp_rp']>list_rgp_edges.max()] = sigma_e_max
+    col_sig[col_sig<sigma_e_max] = sigma_e_max
+
+    col_w = 1./col_sig**2
+    col_w[np.isnan(col_w)] = 0
+    col_w[np.isinf(col_w)] = 0
+    if np.any(np.isnan(col_w)): logger.warning('nans')
+    if np.any(np.isinf(col_w)): logger.warning('infs')
+
+    if 'w' in cat.dtype.names:
+        warnings.warn('overwriting existing column with weights')
+        cat['w'] = col_w
+        cat_added = cat
+    else:
+        warnings.warn('appending new column with weights')
+        cat_added=add_col(cat,'w',col_w,'f4')
+
+    return cat_added
+
+
 
 def get_calibration_columns(res_des):
 
@@ -216,13 +299,13 @@ def get_calibration_columns(res_des):
     c1 = res_des['mean_psf_e1_sky']*a
     c2 = res_des['mean_psf_e2_sky']*a
     warnings.warn('adding snr-based weights')
-    w = add_weights.get_weights(res_des['snr'])
+    # w = add_weights.get_weights(res_des['snr'])
 
     import tabletools
     res_des=tabletools.ensureColumn(res_des,'nbc_m' ,arr=m, dtype='f4')
     res_des=tabletools.ensureColumn(res_des,'nbc_c1',arr=c1,dtype='f4')
     res_des=tabletools.ensureColumn(res_des,'nbc_c2',arr=c2,dtype='f4')
-    res_des=tabletools.ensureColumn(res_des,'w',arr=w,dtype='f4')
+    # res_des=tabletools.ensureColumn(res_des,'w',arr=,dtype='f4')
 
 
     plots = False
