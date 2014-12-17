@@ -1,8 +1,8 @@
 import numpy as np; import pylab as pl
-import  sys, logging, yaml, argparse, time, copy, itertools, fitting, warnings
+import  sys
+sys.path.append('/Users/tomek/code/tktools')
+import logging, yaml, argparse, time, copy, itertools, tabletools, warnings
 warnings.simplefilter("once")
-sys.path.append('/home/tomek/code/tktools')
-import tabletools, plotstools
 # from nbc2_dtypes import *
 logging_level = logging.INFO; logger = logging.getLogger("nbc-v7"); logger.setLevel(logging_level)  
 log_formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s   %(message)s", "%Y-%m-%d %H:%M:%S")
@@ -15,6 +15,10 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
 
         cat_res = tabletools.appendColumn(cat_res,'e1', cat_res['g'][:,0])
         cat_res = tabletools.appendColumn(cat_res,'e2', cat_res['g'][:,1])
+        cat_res = tabletools.appendColumn(cat_res,'error_flag', cat_res['flags'])
+        cat_res = tabletools.appendColumn(cat_res,'info_flag', cat_res['arate'])
+        cat_res = tabletools.appendColumn(cat_res,'snr', cat_res['s2n_w'])
+        cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', cat_res['T'])
 
     if 'g_sens' in cat_res.dtype.names:
 
@@ -30,17 +34,20 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
 
     if 'ngmix009_EXP_E_1' in cat_res.dtype.names:
 
-        cat_res = tabletools.appendColumn(cat_res,'e1', cat_res['ngmix009_EXP_E_1'])
-        cat_res = tabletools.appendColumn(cat_res,'e2', cat_res['ngmix009_EXP_E_2'])
-        cat_res = tabletools.appendColumn(cat_res,'nbc_m1', (cat_res['ngmix009_EXP_E_SENS_1']-1) )
-        cat_res = tabletools.appendColumn(cat_res,'nbc_m2', (cat_res['ngmix009_EXP_E_SENS_2']-1) )
+        cat_res = tabletools.appendColumn(cat_res,'e1', cat_res['ngmix010_EXP_E_1'])
+        cat_res = tabletools.appendColumn(cat_res,'e2', cat_res['ngmix010_EXP_E_2'])
+        cat_res = tabletools.appendColumn(cat_res,'nbc_m1', (cat_res['ngmix010_EXP_E_SENS_1']-1) )
+        cat_res = tabletools.appendColumn(cat_res,'nbc_m2', (cat_res['ngmix010_EXP_E_SENS_2']-1) )
         cat_res = tabletools.appendColumn(cat_res,'nbc_c1', np.zeros(len(cat_res)))
         cat_res = tabletools.appendColumn(cat_res,'nbc_c2', np.zeros(len(cat_res)))
-        cat_res = tabletools.appendColumn(cat_res,'flags', cat_res['ngmix009_FLAGS'])
-        cat_res = tabletools.appendColumn(cat_res,'arate', cat_res['ngmix009_EXP_ARATE'])
+        cat_res = tabletools.appendColumn(cat_res,'error_flag', cat_res['ngmix010_FLAGS'])
+        cat_res = tabletools.appendColumn(cat_res,'info_flag', cat_res['ngmix010_FLAGS'])
+        cat_res = tabletools.appendColumn(cat_res,'arate', cat_res['ngmix010_EXP_ARATE'])
+        cat_res = tabletools.appendColumn(cat_res,'T_s2n', cat_res['ngmix010_EXP_T_S2N'])
         
-        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_res['ngmix009_PSFREC_E_1'])
-        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_res['ngmix009_PSFREC_E_2'])
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_res['ngmix010_PSFREC_E_1'])
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_res['ngmix010_PSFREC_E_2'])
+
 
         
 
@@ -66,9 +73,9 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
 
              
 
-    cat_res = tabletools.appendColumn(cat_res,'snr', np.random.uniform(0.,100))
-    cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', np.random.uniform(1,3))
     cat_res = tabletools.appendColumn(cat_res,'coadd_objects_id', np.arange(len(cat_res)))
+    # cat_res = tabletools.appendColumn(cat_res,'error_flag', np.zeros(len(cat_res)))
+    # cat_res = tabletools.appendColumn(cat_res,'info_flag', np.zeros(len(cat_res)))
 
     return cat_res
 
@@ -82,6 +89,7 @@ def rename_im3shape_cols(cat_res):
     if 'w' not in cat_res.dtype.names:
 
         cat_res = tabletools.appendColumn(cat_res,'w', np.ones(len(cat_res)))
+        warnings.warn('added weight column - all ones')
 
     return cat_res
 
@@ -89,11 +97,13 @@ def rename_im3shape_cols(cat_res):
 def get_selection_des(selection_string,cols,n_files=30,get_calibrated=False):
 
     n_all = 0
+    import glob
     if get_calibrated:
-        filelist_i = np.loadtxt(config['filelist_des_calibrated'],dtype='a1024')
+        filelist_i =glob.glob(config['filelist_des_calibrated'])
     else:
-        filelist_i = np.loadtxt(config['filelist_des'],dtype='a1024')
+        filelist_i = glob.glob(config['filelist_des'])
     list_results = []
+    logger.info('got %d DES files',len(filelist_i))
     for filename_des in filelist_i[:n_files]:
         cat_res=tabletools.loadTable(filename_des,log=logger,remember=False)
         if args.method == 'ngmix':
@@ -144,12 +154,12 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
 
         id_first = args.first
         id_last = id_first + args.num
-        if id_last > 200: 
-            id_last=200;
-            warnings.warn('hard coded max number of files 200')
+        # if id_last > 200: 
+        #     id_last=200;
+        #     warnings.warn('hard coded max number of files 200')
 
         for ip in range(id_first,id_last):
-           
+         
             filename_tru = truth_filename_fmt % (ip,ig)
             filename_res = results_filename_fmt % (ip,ig)
             try:
@@ -173,6 +183,7 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
                         cat_res = rename_ngmix_cols(cat_res,cat_tru)
                     elif args.method == 'im3shape':
                         cat_res = rename_im3shape_cols(cat_res)
+
 
 
             except Exception,errmsg:

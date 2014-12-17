@@ -930,7 +930,6 @@ def preview_result():
     m=meds.MEDS('nbc.meds.000.g05.fits.fz')
     for i in range(100): print tru['snr'][i];pl.imshow(m.get_cutout(i,0),interpolation='nearest');pl.show()
 
-
 def main():
 
 
