@@ -1,7 +1,8 @@
 import numpy as np; import pylab as pl; 
-import  sys, logging, yaml, argparse, time, copy, itertools, tktools, warnings, os, fitsio, pyfits;
+import  sys, logging, yaml, argparse, time, copy, itertools, fitting, warnings, os, fitsio, pyfits;
 warnings.simplefilter("once")
 sys.path.append('/home/tomek/code/tktools')
+import arraytools, plotstools
 sys.path.append('/Users/tomek/code/ucl_des_shear/des_post/')
 import add_weights
 # from nbc2_dtypes import *
@@ -10,7 +11,6 @@ log_formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s   %(messag
 stream_handler = logging.StreamHandler(sys.stdout); stream_handler.setFormatter(log_formatter)
 if logger.handlers == [] : logger.addHandler(stream_handler); logger.propagate = False
 import nbc_v7_select
-import plotstools, fitting
 
 # info_vals = [1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768,65536,131072,262144,524288,1048576]
 info_vals = [1,2,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,65536,131072,262144,524288,1048576]
@@ -36,10 +36,6 @@ selection_string_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']
 # get_calibration
 # selection_string_sim = "select =  (cat_res['snr']>8) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & (cat_tru['cosmos_mag_auto']<23.25) & (cat_tru['sf_hlr']>0.2) &" + select_info
 # selection_string_des = "select =  (cat_res['snr']>8) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & "+ select_info 
-
-# ngmix
-# selection_string_sim = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & (cat_tru['cosmos_mag_auto']<23.25) & (cat_tru['sf_hlr']>0.2) &" + select_info
-# selection_string_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & "+ select_info 
 
 # for fitting
 list_snr_edges = [8,9,10,11,12,14,16,18,20,25,30,50,80,200,1000]
@@ -110,8 +106,7 @@ def apply_calibration_des():
             logger.info('file exists, skipping %s', filename_calibrated)
             continue
             
-        # cat_res=tabletools.loadTable(filename_des,log=1)
-        cat_res=pyfits.getdata(filename_des)
+        cat_res=tabletools.loadTable(filename_des,log=1)
         n_all+=len(cat_res)
         
         cat_res, calib_m, calib_a=get_calibration_columns(cat_res)
@@ -121,8 +116,7 @@ def apply_calibration_des():
         cat_res['nbc_c1'][~select]=0
         cat_res['nbc_c2'][~select]=0
 
-        # fitsio.write(filename_calibrated,cat_res,clobber=False)
-        pyfits.writeto(filename_calibrated,cat_res,clobber=False)
+        fitsio.write(filename_calibrated,cat_res,clobber=False)
 
         if np.any(select):
             mean_m  = np.mean(cat_res['nbc_m'][select])
@@ -313,7 +307,7 @@ def get_bias_model():
 
     import fitsio
     filename_table_bias = 'bias_table.fits'
-    bias_table = tktools.load(filename_table_bias)
+    bias_table = fitsio.read(filename_table_bias)
     dx=0.05
 
     colorscale=plotstools.get_colorscale(len(np.unique(bias_table['ipsf'])),cmap_name='gist_rainbow')
@@ -357,10 +351,9 @@ def get_bias_model():
     pl.axhline(0,c='k')
     pl.xticks(list_snr_edges)
     pl.grid()
-    pl.legend(framealpha=0.0,frameon=False)
-    pl.xlim([5,200])
+    pl.legend(mode='expand',ncol=2,framealpha=0.0,frameon=False)
+    pl.xlim([0,200])
     pl.ylim([-0.5,0.4])
-    pl.xscale('log')
 
     model_arr_m = np.array(list_model_m)
     model_arr_x = np.array(list_arr_x)
@@ -372,7 +365,7 @@ def get_bias_model():
     import scipy.interpolate    
     func_interp=scipy.interpolate.interp2d(vec_x,vec_y,model_arr_m,kind='linear')
     model_arr_m_hires=func_interp(vec_x_hires,vec_y_hires)
-
+    
     pl.figure()
     pl.pcolormesh(model_arr_x,model_arr_y,model_arr_m)
     pl.xticks(vec_x)
@@ -381,8 +374,6 @@ def get_bias_model():
     pl.xlabel('SNR')
     pl.ylabel('Rgp/Rp')
     pl.title('multiplicative shear bias')
-    
-    # lin scale    
     pl.figure()
     pl.pcolormesh(vec_x_hires,vec_y_hires,model_arr_m_hires)
     pl.colorbar()
@@ -413,7 +404,7 @@ def get_bias_model():
         snr_mid[-1] = 2000
 
         warnings.warn('setting highest SNR bin to no bias')
-        pl.errorbar(snr_mid+dx*ipsf,bt1['pmm'],yerr=bt1['std_pmm'],label=label,fmt='.',c=colorscale[ipsf-1])
+        pl.errorbar(snr_mid+dx*ipsf,bt1['pmm'],yerr=bt1['std_pmm'],label=label,fmt='.:',c=colorscale[ipsf-1])
 
         w, w_cov =fitting.fit(snr_mid, bt1['pmm'], s=bt1['std_pmm'],expand=inv_snr_basis2)
         
@@ -429,13 +420,12 @@ def get_bias_model():
     pl.title('noise bias: PSF leakage - im3shape')
     ylim=list(pl.ylim()); ylim[1]*=1.; pl.ylim(ylim)
     pl.axhline(0,c='k')
-    pl.xlim([5,200])
-    pl.legend(framealpha=0.0,frameon=False)
+    pl.xlim([0,200])
+    pl.legend(mode='expand',ncol=2,framealpha=0.0,frameon=False)
     pl.xlabel('SNR')
     pl.ylabel(r'leakage $\alpha$')
     pl.xticks(list_snr_edges)
     pl.grid()
-    pl.xscale('log')
     
     # pl.imshow(model_arr_a,aspect='auto',interpolation='nearest'); pl.show()
 
@@ -459,7 +449,6 @@ def get_bias_model():
     pl.axis('tight')
     pl.title('PSF leakage')
 
-    # lin scale
     pl.figure()
     pl.pcolormesh(vec_x_hires,vec_y_hires,model_arr_a_hires)
     pl.colorbar()
@@ -470,7 +459,6 @@ def get_bias_model():
     pl.ylabel('Rgp/Rp')
     pl.axis('tight')
     pl.title('PSF leakage')
-
 
     filename_bias_models = 'bias_models.cpickle'
     import cPickle as pickle
@@ -1461,11 +1449,6 @@ def main():
     global selection_string_des;
     # selection_string_sim = config['selection_string_sim']
     # selection_string_des = config['selection_string_des']
-
-    if args.method=='ngmix':
-        selection_string_sim = "select = (cat_res['info_flag'] < 0.6) & (cat_res['info_flag'] > 0.4) & (cat_res['T_s2n'] > 2)"
-        selection_string_des = "select = (cat_res['info_flag'] < 0.6) & (cat_res['info_flag'] > 0.4) & (cat_res['T_s2n'] > 2)"
-
 
     if args.actions==None:
         logger.error('no action specified, choose from %s' % valid_actions)
