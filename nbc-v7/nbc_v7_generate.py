@@ -657,7 +657,7 @@ def get_truth_catalogs():
             catalog = np.zeros(n_gals,dtype=dtype_truth)
             
             ids = np.arange(n_gals)
-            cosmos_ids = np.random.choice(n_gals)
+            cosmos_ids = np.random.choice(a=n_cosmos_gals,size=n_gals)
             rotation_angle = np.random.uniform(low=0,high=2*np.pi,size=n_gals)                  
             shear_ids = np.ones_like(ids) * ig
             shear_g1  = np.ones_like(ids) * vg[0]
