@@ -4,7 +4,7 @@ warnings.simplefilter("once")
 sys.path.append('/home/tomek/code/tktools')
 # import arraytools, plotstools
 sys.path.append('/Users/tomek/code/ucl_des_shear/des_post/')
-import add_weights
+# import add_weights
 # from nbc2_dtypes import *
 logging_level = logging.INFO; logger = logging.getLogger("nbc-v7"); logger.setLevel(logging_level)  
 log_formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s   %(message)s", "%Y-%m-%d %H:%M:%S")
