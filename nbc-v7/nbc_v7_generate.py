@@ -683,7 +683,7 @@ def get_truth_catalogs():
 
             tabletools.saveTable(filename_cat,catalog)
 
-def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
+def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True, update_fwhm=True):
 
     log.info('getting snr, flux and fwhm for the truth table')
 
@@ -700,6 +700,10 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
     cosmos_catalog_fits = pyfits.getdata(filename_cosmos_catalog_fits)
     n_cosmos_gals = len(cosmos_catalog)
     log.info('opened %s with %d images' , filename_cosmos_catalog, n_cosmos_gals)
+
+    filename_great3_info = os.path.join(config['input']['real_catalog']['dir'],'real_galaxy_selection_info.fits')
+    great3_info = np.array(pyfits.getdata(great3_info))
+
 
     for ip in range(id_first,id_last):
 
@@ -740,6 +744,8 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
             if 'psf_fwhm_measured'      not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='psf_fwhm_measured',  arr=np.zeros(len(cat)), dtype='f8')   
             if 'cosmos_mag_auto'        not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='cosmos_mag_auto',    arr=np.zeros(len(cat)), dtype='f8')   
             if 'cosmos_flux_radius'     not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='cosmos_flux_radius', arr=np.zeros(len(cat)), dtype='f8')   
+            if 'mean_rgpp_rp'           not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='mean_rgpp_rp',       arr=np.zeros(len(cat)), dtype='f8')   
+            if 'to_use'                 not in cat.dtype.names: cat=tabletools.appendColumn(rec=cat, name='to_use',             arr=np.zeros(len(cat)), dtype='i4')   
 
             for ig in range(n_gals):
 
@@ -764,6 +770,7 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
                     cat[ig]['zphot']              = cosmos_catalog_fits[current_id_cosmos]['zphot']
                     cat[ig]['cosmos_mag_auto']    = cosmos_catalog_fits[current_id_cosmos]['mag_auto']
                     cat[ig]['cosmos_flux_radius'] = cosmos_catalog_fits[current_id_cosmos]['flux_radius']
+                    cat[ig]['to_use']             = great3_info[current_id_cosmos]['to_use']
 
                 if update_hsm==True:
                     img_gal = noisless_gals.get_cutout(ig,0)
@@ -798,6 +805,9 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
                         cat[ig]['hsm_centroid_x'] = -99
                         cat[ig]['hsm_centroid_y'] = -99
 
+
+                if update_fwhm==True:
+
                     try:
                         cat[ig]['fwhm'] = mathstools.get_2D_fwhm(img_gal)
                     except:
@@ -812,23 +822,16 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True):
                         log.error('getting FWHM failed for galaxy %d in %s' , ig , filename_meds )
                         cat[ig]['psf_fwhm_measured'] = 666
 
+                    if (cat[ig]['fwhm'] != 666) & (cat[ig]['psf_fwhm_measured'] != 666):
+                        cat[ig]['mean_rgpp_rp'] = cat[ig]['fwhm']/cat[ig]['psf_fwhm_measured']
+                    else:
+                        cat[ig]['mean_rgpp_rp'] = 666
+
                                 
                 if ig % 100 == 0: log.debug('getting snr, flux, hsm and fwhm of galaxy %d' , ig)
 
 
             tabletools.saveTable(filename_cat, cat)
-            # all_snr+=cat['snr'].tolist()
-
-        # pl.hist(all_snr,bins=np.linspace(0,100,200),histtype='step')
-        # filename_fig = 'truth_table_snr.png'
-        # pl.savefig(filename_fig)
-        # log.info('saved %s' , filename_fig)
-        # pl.show()
-
-
-
-
-
 
 
 
@@ -990,7 +993,7 @@ def main():
     if 'generate-noiseless' in args.actions:
         get_meds(noise=False)
     if 'update-truth' in args.actions:
-        update_truth_table(update_snr=False , update_cosmos=True , update_hsm=False)
+        update_truth_table(update_snr=False , update_cosmos=True , update_hsm=False, update_fwhm=True)
     if 'generate-noisy' in args.actions:
         get_meds(noise=True)
     
