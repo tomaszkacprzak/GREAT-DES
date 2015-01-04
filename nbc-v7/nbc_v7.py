@@ -1,5 +1,4 @@
 import numpy as np; import pylab as pl; 
-<<<<<<< HEAD
 import  sys, logging, yaml, argparse, time, copy, itertools, tktools, warnings, os, fitsio, pyfits;
 warnings.simplefilter("once")
 sys.path.append('/home/tomek/code/tktools')
@@ -581,6 +580,7 @@ def get_bias_vs_redshift():
     res_sim,res_tru = cal_sim,cal_tru
     res_des         = cal_des        
 
+
     # entire sample
     filename_str = 'all.nonbc.%s' % args.method
     mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim,res_tru,res_des,use_calibration=False,use_weights=args.use_weights,filename_str=filename_str)
@@ -1109,38 +1109,38 @@ def get_distributions():
     pl.subplot(2,3,1)
     pl.hist(great_des_e1, bins=np.linspace(-1,1,100),histtype='step',normed=True , label='GREAT-DES e1'      , color='r')
     pl.hist(great_des_e2, bins=np.linspace(-1,1,100),histtype='step',normed=True , label='GREAT-DES e2'      , color='m')
-    pl.hist(res_des['e1'], bins=np.linspace(-1,1,100),histtype='step',normed=True , label='im3shape-v7-r e1' , color='b')
-    pl.hist(res_des['e2'], bins=np.linspace(-1,1,100),histtype='step',normed=True , label='im3shape-v7-r e2' , color='c')
+    pl.hist(res_des['e1'], bins=np.linspace(-1,1,100),histtype='step',normed=True , label='%s e1' % config['methods'][args.method]['label'] , color='b')
+    pl.hist(res_des['e2'], bins=np.linspace(-1,1,100),histtype='step',normed=True , label='%s e2' % config['methods'][args.method]['label'] , color='c')
     pl.legend(framealpha=0.0,frameon=False, mode='expand',ncol=2)
     ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
 
     pl.subplot(2,3,2)
     hsnr_res, _ , _= pl.hist(res_sim['snr'] ,bins=np.linspace(1,100,100),histtype='step',label='GREAT-DES snr'      , normed=True, color='r') 
-    hsnr_des, _ , _= pl.hist(res_des['snr'] ,bins=np.linspace(1,100,100),histtype='step',label='im3shape-v7-r snr' , normed=True, color='b') 
+    hsnr_des, _ , _= pl.hist(res_des['snr'] ,bins=np.linspace(1,100,100),histtype='step',label='%s snr' % config['methods'][args.method]['label'] , normed=True, color='b') 
     ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
     pl.legend(framealpha=0.0,frameon=False)
 
     pl.subplot(2,3,3)
     pl.hist(res_sim['mean_rgpp_rp'] ,bins=np.linspace(0,2,100),histtype='step',label='GREAT-DES rgpp_rp'      , normed=True, color='r') 
-    pl.hist(res_des['mean_rgpp_rp']   ,bins=np.linspace(0,2,100),histtype='step',label='im3shape-v7-r rgpp_rp' , normed=True, color='b') 
+    pl.hist(res_des['mean_rgpp_rp']   ,bins=np.linspace(0,2,100),histtype='step',label='%s rgpp_rp' % config['methods'][args.method]['label'] , normed=True, color='b') 
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
 
     pl.subplot(2,3,4)
     pl.hist(res_sim['radius'] ,bins=np.linspace(0,4,100),histtype='step',label='GREAT-DES radius'     , normed=True, color='r') 
-    pl.hist(res_des['radius'] ,bins=np.linspace(0,4,100),histtype='step',label='im3shape-v7-r radius' , normed=True, color='b') 
+    pl.hist(res_des['radius'] ,bins=np.linspace(0,4,100),histtype='step',label='%s radius' % config['methods'][args.method]['label'] , normed=True, color='b') 
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
 
     pl.subplot(2,3,5)
     pl.hist(res_sim['bulge_A'], bins=np.linspace(-200,400,100),histtype='step',normed=True , label='GREAT-DES bulge_A'      , color='r')
-    pl.hist(res_des['bulge_A'], bins=np.linspace(-200,400,100),histtype='step',normed=True , label='im3shape-v7-r bulge_A'  , color='b')
+    pl.hist(res_des['bulge_A'], bins=np.linspace(-200,400,100),histtype='step',normed=True , label='%s bulge_A' % config['methods'][args.method]['label']  , color='b')
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
 
     pl.subplot(2,3,6)
     pl.hist(res_sim['disc_A'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='GREAT-DES disc_A'      , color='r')
-    pl.hist(res_des['disc_A'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='im3shape-v7-r disc_A'  , color='b')
+    pl.hist(res_des['disc_A'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='%s disc_A' % config['methods'][args.method]['label']  , color='b')
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
 
@@ -1173,14 +1173,14 @@ def get_distributions():
         pl.figure()
         pl.subplot(1,2,1)
         pl.hist(res_sim['e1'][select1],bins=np.linspace(-1,1,100),histtype='step',normed=True , label='GREAT-DES' )
-        pl.hist(res_des['e1'][select2],bins=np.linspace(-1,1,100),histtype='step',normed=True , label='im3shape-v7-r' )
+        pl.hist(res_des['e1'][select2],bins=np.linspace(-1,1,100),histtype='step',normed=True , label=config['methods'][args.method]['label'] )
         pl.xlabel('e1 SNR=%2.0f'%vb)   
         ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
         pl.legend()
 
         pl.subplot(1,2,2)
         pl.hist(res_sim['e2'][select1],bins=np.linspace(-1,1,100),histtype='step',normed=True , label='GREAT-DES' )
-        pl.hist(res_des['e2'][select2],bins=np.linspace(-1,1,100),histtype='step',normed=True , label='im3shape-v7-r' )
+        pl.hist(res_des['e2'][select2],bins=np.linspace(-1,1,100),histtype='step',normed=True , label=config['methods'][args.method]['label'] )
         pl.xlabel('e2 SNR=%2.0f'%vb)   
         ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
         pl.legend()
@@ -1211,13 +1211,13 @@ def get_distributions():
     pl.figure(figsize=(15,5))
     pl.subplot(1,2,1)
     pl.hist(res_sim['dec_as'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='GREAT-DES bulge_A'      , color='r')
-    pl.hist(res_des['dec_as'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='im3shape-v7-r bulge_A'  , color='b')
+    pl.hist(res_des['dec_as'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='%s bulge_A' % config['methods'][args.method]['label']  , color='b')
     pl.legend()
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
 
     pl.subplot(1,2,2)
     pl.hist(res_sim['disc_A'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='GREAT-DES disc_A'      , color='r')
-    pl.hist(res_des['disc_A'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='im3shape-v7-r disc_A'  , color='b')
+    pl.hist(res_des['disc_A'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='%s disc_A' % config['methods'][args.method]['label']  , color='b')
     pl.legend()
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
 
@@ -1539,13 +1539,9 @@ def main():
 
     global selection_string_sim; 
     global selection_string_des;
-    # selection_string_sim = config['selection_string_sim']
-    # selection_string_des = config['selection_string_des']
 
-    if args.method=='ngmix':
-        selection_string_sim = "select = (cat_res['info_flag'] < 0.6) & (cat_res['info_flag'] > 0.4) & (cat_res['T_s2n'] > 2)"
-        selection_string_des = "select = (cat_res['info_flag'] < 0.6) & (cat_res['info_flag'] > 0.4) & (cat_res['T_s2n'] > 2)"
-
+    selection_string_sim = config['selection_string_sim']
+    selection_string_des = config['selection_string_des']
 
     if args.actions==None:
         logger.error('no action specified, choose from %s' % valid_actions)
