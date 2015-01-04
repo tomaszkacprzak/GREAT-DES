@@ -1210,14 +1210,14 @@ def get_distributions():
     pl.figure()
     pl.figure(figsize=(15,5))
     pl.subplot(1,2,1)
-    pl.hist(res_sim['dec_as'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='GREAT-DES bulge_A'      , color='r')
-    pl.hist(res_des['dec_as'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='%s bulge_A' % config['methods'][args.method]['label']  , color='b')
+    pl.hist(res_sim['dec_as'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='GREAT-DES dec_as'      , color='r')
+    pl.hist(res_des['dec_as'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='%s dec_as' % config['methods'][args.method]['label']  , color='b')
     pl.legend()
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
 
     pl.subplot(1,2,2)
-    pl.hist(res_sim['disc_A'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='GREAT-DES disc_A'      , color='r')
-    pl.hist(res_des['disc_A'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='%s disc_A' % config['methods'][args.method]['label']  , color='b')
+    pl.hist(res_sim['ra_as'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='GREAT-DES ra_as'      , color='r')
+    pl.hist(res_des['ra_as'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='%s ra_as' % config['methods'][args.method]['label']  , color='b')
     pl.legend()
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
 
