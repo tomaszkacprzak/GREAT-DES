@@ -702,7 +702,7 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True, u
     log.info('opened %s with %d images' , filename_cosmos_catalog, n_cosmos_gals)
 
     filename_great3_info = os.path.join(config['input']['real_catalog']['dir'],'real_galaxy_selection_info.fits')
-    great3_info = np.array(pyfits.getdata(great3_info))
+    great3_info = np.array(pyfits.getdata(filename_great3_info))
 
 
     for ip in range(id_first,id_last):
