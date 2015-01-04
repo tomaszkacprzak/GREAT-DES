@@ -40,8 +40,7 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
         cat_res = tabletools.appendColumn(cat_res,'nbc_m2', (cat_res['ngmix010_EXP_E_SENS_2']-1) )
         cat_res = tabletools.appendColumn(cat_res,'nbc_c1', np.zeros(len(cat_res)))
         cat_res = tabletools.appendColumn(cat_res,'nbc_c2', np.zeros(len(cat_res)))
-        cat_res = tabletools.appendColumn(cat_res,'error_flag', cat_res['ngmix010_FLAGS'])
-        cat_res = tabletools.appendColumn(cat_res,'info_flag', cat_res['ngmix010_FLAGS'])
+        cat_res = tabletools.appendColumn(cat_res,'flags', cat_res['ngmix010_FLAGS'])
         cat_res = tabletools.appendColumn(cat_res,'arate', cat_res['ngmix010_EXP_ARATE'])
         cat_res = tabletools.appendColumn(cat_res,'T_s2n', cat_res['ngmix010_EXP_T_S2N'])
         
@@ -104,18 +103,25 @@ def get_selection_des(selection_string,cols,n_files=30,get_calibrated=False):
         filelist_i = glob.glob(config['filelist_des'])
     list_results = []
     logger.info('got %d DES files',len(filelist_i))
+    n_files_loaded = 0
+    n_gals_selected = 0
     for filename_des in filelist_i[:n_files]:
-        cat_res=tabletools.loadTable(filename_des,log=logger,remember=False)
+        cat_res=tabletools.loadTable(filename_des,log=0,remember=False)
         if args.method == 'ngmix':
             cat_res = rename_ngmix_cols(cat_res)
         elif args.method == 'im3shape':
             cat_res = rename_im3shape_cols(cat_res)
 
         n_all+=len(cat_res)
+        n_files_loaded+=1
 
         exec selection_string
         res_select = cat_res[select][cols]
         list_results.append(res_select)
+        n_gals_selected += len(res_select)
+
+        if n_files_loaded % 100 == 0:
+            logger.info('loaded %d files, last %s, n_gals %d/%d %2.2f',n_files_loaded,filename_des,n_gals_selected,n_all,n_gals_selected/float(n_all))
 
     results = np.concatenate(list_results)
     logger.info('selected DES galaxies %d/%d %2.2f' , len(results),n_all,len(results)/float(n_all))
@@ -144,6 +150,7 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
     list_all_tru = []
 
     n_all_loaded=0
+    n_all_selected=0
 
     ia=0
     n_missing=0
@@ -211,10 +218,14 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
                 print errmsg
                 import pdb; pdb.set_trace()
 
-            if len(np.nonzero(select)[0]) < 1:
-                logger.debug('select didnt give any results %s' % selection_string)
-                # import pdb;pdb.set_trace()
+            n_gal_after_cuts = len(np.nonzero(select)[0])
+            n_all_selected += n_gal_after_cuts
+            if  n_gal_after_cuts < 1:
+                logger.debug('select didnt give any results %s, n_gal=%d' % (selection_string, len(cat_res)) )
+                # import pdb; pdb.set_trace()
                 # raise Exception('select didnt give any results %s' % selection_string)
+            # else:
+                # logger.debug('cuts %d/%d' , n_gal_after_cuts, len(cat_res))
 
 
             if len(cat_res) != len(cat_tru):
@@ -236,7 +247,7 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
             list_all_tru.append(selected_tru)
 
             if ia % 100 == 0:
-                logger.info('loaded %5d files, last %s' % (ia,filename_res))
+                logger.info('loaded %5d files, last %s, n_gals_selected %d/%d %f' % (ia,filename_res,n_all_selected,n_all_loaded,float(n_all_selected)/float(n_all_loaded)))
   
     n_total = 0
     for res in list_all_res:
