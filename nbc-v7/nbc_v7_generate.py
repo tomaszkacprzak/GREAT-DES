@@ -809,17 +809,23 @@ def update_truth_table(update_snr=True , update_cosmos=True , update_hsm=True, u
                 if update_fwhm==True:
 
                     try:
+                        noisless_gals = meds.MEDS(filename_meds)
+                        img_gal = noisless_gals.get_cutout(ig,0)
+                        import mathstools
                         cat[ig]['fwhm'] = mathstools.get_2D_fwhm(img_gal)
                     except:
                         log.error('getting FWHM failed for galaxy %d in %s' , ig , filename_meds )
                         cat[ig]['fwhm'] = 666
 
                     try:
-                        if psf_images == None: psf_images = pyfits.open(os.path.join(args.out_dir,'nbc.psf.hires.fits'))
-                        img_hires_psf = psf_images[cat[ig]['id_psf']].data
-                        cat[ig]['psf_fwhm_measured'] = mathstools.get_2D_fwhm(img_hires_psf,upsampling=config['upsampling'])
+                        # if psf_images == None: psf_images = pyfits.open(os.path.join(args.out_dir,'nbc.psf.hires.fits'))
+                        # img_hires_psf = psf_images[cat[ig]['id_psf']].data
+                        # cat[ig]['psf_fwhm_measured'] = mathstools.get_2D_fwhm(img_hires_psf)
+                        cat[ig]['psf_fwhm_measured'] = cat[ig]['psf_fwhm'] 
+
+
                     except:
-                        log.error('getting FWHM failed for galaxy %d in %s' , ig , filename_meds )
+                        log.error('getting PSF FWHM failed for galaxy %d in %s' , ig , filename_meds )
                         cat[ig]['psf_fwhm_measured'] = 666
 
                     if (cat[ig]['fwhm'] != 666) & (cat[ig]['psf_fwhm_measured'] != 666):
@@ -993,7 +999,7 @@ def main():
     if 'generate-noiseless' in args.actions:
         get_meds(noise=False)
     if 'update-truth' in args.actions:
-        update_truth_table(update_snr=False , update_cosmos=True , update_hsm=False, update_fwhm=True)
+        update_truth_table(update_snr=True , update_cosmos=True , update_hsm=False, update_fwhm=True)
     if 'generate-noisy' in args.actions:
         get_meds(noise=True)
     
