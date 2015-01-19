@@ -17,6 +17,10 @@ filelist_des_calibrated : filelist-v7-r-nbc.txt
 selection_string_sim : "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & (cat_res['radius'] < 3.2)  & (cat_tru['cosmos_mag_auto']<23.25) & (cat_tru['sf_hlr']>0.2)" 
 selection_string_des : "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & (cat_res['radius'] < 3.2)" 
 
+update_snr : False
+update_cosmos : True
+update_hsm : False
+update_fwhm : False
 
 grid_fwhm:
     min: 0.8

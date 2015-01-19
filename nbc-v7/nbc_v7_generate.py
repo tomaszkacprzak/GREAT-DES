@@ -999,7 +999,7 @@ def main():
     if 'generate-noiseless' in args.actions:
         get_meds(noise=False)
     if 'update-truth' in args.actions:
-        update_truth_table(update_snr=True , update_cosmos=True , update_hsm=False, update_fwhm=True)
+        update_truth_table(update_snr=config['update_snr'] , update_cosmos=config['update_cosmos'] , update_hsm=config['update_hsm'], update_fwhm=config['update_fwhm'])
     if 'generate-noisy' in args.actions:
         get_meds(noise=True)
     
