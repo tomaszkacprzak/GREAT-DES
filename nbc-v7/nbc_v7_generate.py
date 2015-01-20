@@ -529,6 +529,7 @@ def get_meds(noise=True):
     id_first = args.first
     id_last = id_first + args.num
 
+    import time
     for ip in range(id_first,id_last):  
         for ig,vg in enumerate(config['shear']):
 
@@ -546,7 +547,13 @@ def get_meds(noise=True):
                 galsim.config.Process(config_copy,logger=log)
             else:
                 galsim.config.Process(config_copy)
-            fpack(filename_meds)
+            if os.path.isfile(filename_meds):
+                log.info('saved OK, compressing: %s '  % filename_meds)
+                time.sleep(10)
+                fpack(filename_meds)
+            else:
+                log.error('file somehow not saved')
+
     
     log.info('done all meds')
 
