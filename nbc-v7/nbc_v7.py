@@ -50,7 +50,7 @@ def plot_add_requirements(level=0.01,target=1.0,mult=1.):
 
     corner = pl.xlim()[0]
     length = abs(pl.xlim()[1]) + abs(pl.xlim()[0])
-    pl.gca().add_patch(pl.Rectangle(  (corner, 1-mult*level), length , 2*mult*level , facecolor = '0.9' , edgecolor='w' ))
+    pl.gca().add_patch(pl.Rectangle(  (corner, target-mult*level), length , 2*mult*level , facecolor = '0.9' , edgecolor='w' ))
 
 
 def inv_snr_basis(x):
@@ -155,7 +155,7 @@ def apply_calibration_sim():
     n_calibrated = 0
     n_calibrated_nonzero_tot = 0
 
-    dirpath_calib = os.path.dirname('./main_cats/') + '_nbc/'
+    dirpath_calib = os.path.dirname(config['methods'][args.method]['filename_calibrated'])
     if not os.path.exists(dirpath_calib): 
         os.makedirs(dirpath_calib)
         logger.info('created directory: %s',dirpath_calib)
@@ -164,7 +164,7 @@ def apply_calibration_sim():
 
     logger.info('calibrating GREAT-DES')
     import glob
-    filelist_des= glob.glob('./main_cats/nbc.meds*fits')
+    filelist_des = glob.glob( os.path.dirname(config['methods'][args.method]['filename_results']) + '/nbc.meds*fits')
     logger.info('found %d results files' , len(filelist_des))
     for filename_des in filelist_des:
 
@@ -175,10 +175,11 @@ def apply_calibration_sim():
             logger.info('file exists, skipping %s', filename_calibrated)
             continue
         
-        cat_res=tabletools.loadTable(filename_des,log=1)
+        cat_res=tktools.load(filename_des,logger=1)
         n_all+=len(cat_res)
         
         cat_res, m, a=get_calibration_columns(cat_res)
+        cat_res=get_weight_column(cat_res)
 
         exec selection_string_des
         cat_res[~select]['nbc_m']=0
@@ -187,7 +188,7 @@ def apply_calibration_sim():
         n_calibrated_this = len(np.nonzero(select)[0])
         n_calibrated += n_calibrated_this
 
-        fitsio.write(filename_calibrated,cat_res,clobber=True)
+        tktools.save(filename_calibrated,cat_res,clobber=True)
 
         mean_m  = np.mean(cat_res['nbc_m'][select])
         mean_c1 = np.mean(cat_res['nbc_c1'][select])
@@ -299,7 +300,7 @@ def get_calibration_columns(res_des):
     
     c1 = res_des['mean_psf_e1_sky']*a
     c2 = res_des['mean_psf_e2_sky']*a
-    warnings.warn('adding snr-based weights')
+    # warnings.warn('adding snr-based weights')
     # w = add_weights.get_weights(res_des['snr'])
 
     import tabletools
@@ -625,8 +626,8 @@ def get_bias_vs_redshift():
         std_e = np.std(cal_sim_select['e1'],ddof=1)
         list_bias_calibr.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2] )
 
-    arr_bias = arraytools.arr2rec(np.array(list_bias),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2"], 'formats': ['i4']*1 + ['f8']*23 })
-    arr_bias_calibr = arraytools.arr2rec(np.array(list_bias_calibr),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2"], 'formats': ['i4']*1 + ['f8']*23 })
+    arr_bias = tktools.arr2rec(np.array(list_bias),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2"], 'formats': ['i4']*1 + ['f8']*23 })
+    arr_bias_calibr = tktools.arr2rec(np.array(list_bias_calibr),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2"], 'formats': ['i4']*1 + ['f8']*23 })
 
     import cPickle as pickle
     
@@ -639,54 +640,54 @@ def get_bias_vs_redshift():
     logger.info('wrote %s' % (filename_pickle))
 
     # now do jacknifes
-    n_jack = config['n_jack']
-    filename_cosmos = os.path.join(config['input']['real_catalog']['image_dir'],config['input']['real_catalog']['file_name'])
-    cat_cosmos = arraytools.load(filename_cosmos)
-    col_jack = cat_cosmos[cal_tru['id_cosmos'].astype(np.int32)]['jack_id']
-    res_tru = arraytools.add_col(rec=res_tru,arr=col_jack,name='jack_id',dtype='i4')
+    # n_jack = config['n_jack']
+    # filename_cosmos = os.path.join(config['input']['real_catalog']['image_dir'],config['input']['real_catalog']['file_name'])
+    # cat_cosmos = tktools.load(filename_cosmos)
+    # col_jack = cat_cosmos[cal_tru['id_cosmos'].astype(np.int32)]['jack_id']
+    # res_tru = tktools.add_col(rec=res_tru,arr=col_jack,name='jack_id',dtype='i4')
 
-    list_bias = []
-    list_bias_calibr = []
+    # list_bias = []
+    # list_bias_calibr = []
 
-    for ibin in range(1,len(z_bins)):
+    # for ibin in range(1,len(z_bins)):
 
-        list_jack = []
-        list_jack_calibr = []
+    #     list_jack = []
+    #     list_jack_calibr = []
             
-        for ijack in range(n_jack):
+    #     for ijack in range(n_jack):
 
-            vbin = [z_bins[ibin-1],z_bins[ibin]]
+    #         vbin = [z_bins[ibin-1],z_bins[ibin]]
 
-            select = (res_tru['zphot'] > vbin[0]) & (res_tru['zphot'] < vbin[1]) & (res_tru['jack_id'] != ijack) 
-            res_sim_select = res_sim[select]
-            res_tru_select = res_tru[select]
+    #         select = (res_tru['zphot'] > vbin[0]) & (res_tru['zphot'] < vbin[1]) & (res_tru['jack_id'] != ijack) 
+    #         res_sim_select = res_sim[select]
+    #         res_tru_select = res_tru[select]
 
-            select = (cal_tru['zphot'] > vbin[0]) & (cal_tru['zphot'] < vbin[1]) & (res_tru['jack_id'] != ijack) 
-            cal_sim_select = cal_sim[select]
-            cal_tru_select = cal_tru[select]
+    #         select = (cal_tru['zphot'] > vbin[0]) & (cal_tru['zphot'] < vbin[1]) & (res_tru['jack_id'] != ijack) 
+    #         cal_sim_select = cal_sim[select]
+    #         cal_tru_select = cal_tru[select]
 
-            # dummy - ignore this
-            cal_des_select = cal_des
-            res_des_select = res_des
+    #         # dummy - ignore this
+    #         cal_des_select = cal_des
+    #         res_des_select = res_des
 
-            logger.info(selection_string_sim)
-            filename_str = 'z%2.2f.%s.jack%02d' % ((vbin[0]+vbin[1])/2.,args.method,ijack)
-            mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim_select,res_tru_select,None,use_calibration=False,use_weights=args.use_weights,filename_str=filename_str)
+    #         logger.info(selection_string_sim)
+    #         filename_str = 'z%2.2f.%s.jack%02d' % ((vbin[0]+vbin[1])/2.,args.method,ijack)
+    #         mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim_select,res_tru_select,None,use_calibration=False,use_weights=args.use_weights,filename_str=filename_str)
 
-            std_e = np.std(res_sim_select['e1'],ddof=1)
-            list_jack.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2] )
+    #         std_e = np.std(res_sim_select['e1'],ddof=1)
+    #         list_jack.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2] )
     
-            filename_str = 'z%2.2f.%s.jack%02d.corr' % ((vbin[0]+vbin[1])/2.,args.method,ijack)
-            mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(cal_sim_select,cal_tru_select,None,use_calibration=True,use_weights=args.use_weights,filename_str=filename_str)
+    #         filename_str = 'z%2.2f.%s.jack%02d.corr' % ((vbin[0]+vbin[1])/2.,args.method,ijack)
+    #         mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(cal_sim_select,cal_tru_select,None,use_calibration=True,use_weights=args.use_weights,filename_str=filename_str)
 
-            std_e = np.std(cal_sim_select['e1'],ddof=1)
-            list_jack_calibr.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2] )
+    #         std_e = np.std(cal_sim_select['e1'],ddof=1)
+    #         list_jack_calibr.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2] )
 
 
-        arr_jack = arraytools.arr2rec(np.array(list_jack),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2"], 'formats': ['i4']*1 + ['f8']*23 })
-        arr_jack_calibr = arraytools.arr2rec(np.array(list_jack_calibr),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2"], 'formats': ['i4']*1 + ['f8']*23 })
+    #     arr_jack = tktools.arr2rec(np.array(list_jack),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2"], 'formats': ['i4']*1 + ['f8']*23 })
+    #     arr_jack_calibr = tktools.arr2rec(np.array(list_jack_calibr),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2"], 'formats': ['i4']*1 + ['f8']*23 })
 
-        import pdb; pdb.set_trace()
+    #     import pdb; pdb.set_trace()
 
 
 
@@ -719,7 +720,7 @@ def plot_bias_vs_redshift():
     pl.ylabel('m')
     pl.xticks(z_bins)
     pl.grid()
-    pl.ylim([0.8,1.1])
+    # pl.ylim([0.8,1.1])
     pl.axhline(1,c='k')
     pl.legend(ncol=2, mode='expand', loc='upper center',framealpha=0.0,frameon=False)
     plot_add_requirements(level=0.01,target=1)
@@ -727,8 +728,8 @@ def plot_bias_vs_redshift():
 
     pl.figure()
     
-    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pmm'], yerr=arr_bias['std_pm1'], fmt='r.', label=r'$\alpha 1$ no correction')
-    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pmm'], yerr=arr_bias['std_pm2'], fmt='m.', label=r'$\alpha 2$ no correction')
+    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pm1'], yerr=arr_bias['std_pm1'], fmt='r.', label=r'$\alpha 1$ no correction')
+    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pm2'], yerr=arr_bias['std_pm2'], fmt='m.', label=r'$\alpha 2$ no correction')
     
     pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['pm1'], yerr=arr_bias_calibr['std_pm1'], fmt='b.', label=r'$\alpha 1$ with correction')
     pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['pm2'], yerr=arr_bias_calibr['std_pm2'], fmt='c.', label=r'$\alpha 2$ with correction')
@@ -739,7 +740,7 @@ def plot_bias_vs_redshift():
     pl.grid()
     pl.axhline(0,c='k')
     pl.legend(ncol=2, mode='expand', loc='upper center',framealpha=0.0,frameon=False)
-    pl.ylim([-0.1,0.3])
+    # pl.ylim([-0.1,0.3])
     plot_add_requirements(level=0.05,target=0)
     pl.title(title)
     pl.show()
@@ -747,7 +748,14 @@ def plot_bias_vs_redshift():
     import pdb; pdb.set_trace()
 
 
-def get_shear_estimator(res,use_calibration=False,use_weights=False):
+def get_shear_estimator(res,use_calibration=False,use_weights=False,res_tru=None):
+
+    if res_tru==None:
+        g1 = np.zeros(len(res))
+        g2 = np.zeros(len(res))
+    else:
+        g1 = res_tru['g1_true']
+        g2 = res_tru['g2_true']
 
     if use_calibration:
         if 'nbc_m1' not in res.dtype.names:
@@ -765,9 +773,9 @@ def get_shear_estimator(res,use_calibration=False,use_weights=False):
     if use_weights:
         if 'w' not in res.dtype.names:
             raise Exception("column 'w' not found in res")
-        elif np.all(res['w']==1):
-            warnings.warn('using get_weights()')
-            res['w'] = add_weights.get_weights(res['snr'])
+        # elif np.all(res['w']==1):
+            # warnings.warn('using get_weights()')
+            # res['w'] = add_weights.get_weights(res['snr'])
         else:
             warnings.warn("using weights from 'w' column")
             # warnings.warn("but actually replacing them with weight-snr!!!!!!")
@@ -780,12 +788,12 @@ def get_shear_estimator(res,use_calibration=False,use_weights=False):
     n_select = len(res)
     
     # mean_e1 += [ res_sim_select['e1'](np.mean(res_sim_select['e1'] - nbc_c1_sim_select)) / (1+np.mean(nbc_m1_sim_select))  ]
-    mean_e1 =  np.sum(res['w']*(res['e1'] - nbc_c1)) / np.sum(res['w']*(1+nbc_m1))  
+    mean_e1 =  np.sum(res['w']*(res['e1'] - g1 - nbc_c1)) / np.sum(res['w']*(1+nbc_m1))  
     stdv_e1 =  np.std( (res['e1']-nbc_c1)*(1+nbc_m1),ddof=1)  
     stdm_e1 =  stdv_e1/np.sqrt(n_select)     
 
     # mean_e2 += [ (np.mean(res['e2'] - nbc_c2_sim_select)) / (1+np.mean(nbc_m2_sim_select))  ]
-    mean_e2 =  np.sum(res['w']*(res['e2'] - nbc_c2)) / np.sum(res['w']*(1+nbc_m2))  
+    mean_e2 =  np.sum(res['w']*(res['e2'] - g2 - nbc_c2)) / np.sum(res['w']*(1+nbc_m2))  
     stdv_e2 =  np.std( (res['e2']-nbc_c2)*(1+nbc_m2),ddof=1)  
     stdm_e2 =  stdv_e2/np.sqrt(n_select)     
 
@@ -1095,12 +1103,13 @@ def get_calibration():
 
 def get_distributions():
 
-    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=['coadd_objects_id','ra_as','dec_as','e1','e2','snr','disc_A','bulge_A','mean_rgpp_rp','radius'],cols_tru=['id','snr','psf_e1','psf_e2','cosmos_mag_auto'])
+    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=['coadd_objects_id','ra_as','dec_as','e1','e2','snr','disc_A','bulge_A','mean_rgpp_rp','radius'],cols_tru=['id','snr','psf_e1','psf_e2', 'psf_fwhm', 'cosmos_mag_auto'])
     res_des = nbc_v7_select.get_selection_des(selection_string_des,cols=['ra_as','dec_as','e1','e2','snr','mean_psf_e1_sky','mean_psf_e2_sky','disc_A','bulge_A','mean_rgpp_rp','radius'],n_files=args.num)
 
     great_des_e1 = res_sim['e1'] #- cat_tru['g1_true']
     great_des_e2 = res_sim['e2'] #- cat_tru['g2_true']
 
+    
     # res_sim = res_sim[~np.isinf(res_sim['rgpp_rp_1'])]
     # res_sim = res_sim[~np.isnan(res_sim['rgpp_rp_1'])]
     print selection_string_sim
@@ -1120,11 +1129,17 @@ def get_distributions():
     ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
     pl.legend(framealpha=0.0,frameon=False)
 
+
     pl.subplot(2,3,3)
-    pl.hist(res_sim['mean_rgpp_rp'] ,bins=np.linspace(0,2,100),histtype='step',label='GREAT-DES rgpp_rp'      , normed=True, color='r') 
-    pl.hist(res_des['mean_rgpp_rp']   ,bins=np.linspace(0,2,100),histtype='step',label='%s rgpp_rp' % config['methods'][args.method]['label'] , normed=True, color='b') 
+    dilation = 0.83
+    xx=np.sqrt(res_sim['mean_rgpp_rp']**2-1)
+    fwhm=np.sqrt((xx*dilation)**2+res_tru['psf_fwhm']**2)
+    # pl.hist( ( res_sim['mean_rgpp_rp']*0.855 ) ,bins=np.linspace(0,2,100),histtype='step',label='GREAT-DES rgpp_rp'      , normed=True, color='r') 
+    pl.hist( ( fwhm ) ,bins=np.linspace(0.5,2,200),histtype='step',label='GREAT-DES rgpp_rp'      , normed=True, color='r') 
+    pl.hist( ( res_des['mean_rgpp_rp']       ) ,bins=np.linspace(0.5,2,200),histtype='step',label='%s rgpp_rp' % config['methods'][args.method]['label'] , normed=True, color='b') 
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+    pl.xlabel('Rgpp/Rp dilation=%f' % dilation)
 
     pl.subplot(2,3,4)
     pl.hist(res_sim['radius'] ,bins=np.linspace(0,4,100),histtype='step',label='GREAT-DES radius'     , normed=True, color='r') 
@@ -1278,6 +1293,241 @@ def get_histograms():
 
 
 
+def get_meane_vs_size():
+    
+    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=['e1','e2','snr','mean_rgpp_rp','nbc_m1','nbc_m2','nbc_c1','nbc_c2','w'],cols_tru=['snr','psf_e1','psf_e2','g1_true','g2_true','sf_hlr'])
+
+    # bins_snr_edges = [0,5,10,15,20,30,40,60,100,1000]    
+    bins_snr_edges = [10,1000,2000]    
+    if args.method=='im3shape':
+        bins_rgp_edges = np.linspace(1,2,5)
+        label_size = 'mean_rgpp_rp'
+        use_xlim = [0.9,2.2]
+    elif args.method=='ngmix':
+        bins_rgp_edges = np.linspace(0,3,10)
+        # raise Exception('implement ngmix ')
+        label_size = 'pars[:,4]'
+        use_xlim = [-0.1,2.2]
+    else:
+        raise Exception('unknown method %s',args.method)
+
+    # import pdb; pdb.set_trace()
+
+    bins_hlr_edges = np.linspace(0.2,1.5,5)
+
+    list_results1 = []
+    list_results2 = []
+    list_results3 = []
+    list_results4 = []
+    list_results5 = []
+    list_results6 = []
+    list_results7 = []
+    list_results8 = []
+
+    list_results_hlr1 = []
+    list_results_hlr2 = []
+    list_results_hlr3 = []
+    list_results_hlr4 = []
+    list_results_hlr5 = []
+    list_results_hlr6 = []
+    list_results_hlr7 = []
+    list_results_hlr8 = []
+
+
+    for isnr in range(1,len(bins_snr_edges)):
+        
+        list_results1.append( [] );
+        list_results2.append( [] );
+        list_results3.append( [] );
+        list_results4.append( [] );
+        list_results5.append( [] );
+        list_results6.append( [] );
+        list_results7.append( [] );
+        list_results8.append( [] );
+       
+        for irgp in range(1,len(bins_rgp_edges)):
+
+            select1 = (res_sim['snr'] > bins_snr_edges[isnr-1]) & (res_sim['snr'] < bins_snr_edges[isnr])
+            select2 = (res_sim['mean_rgpp_rp'] > bins_rgp_edges[irgp-1]) & (res_sim['mean_rgpp_rp'] < bins_rgp_edges[irgp])
+
+            select3 = np.isclose(res_tru['psf_e1'],-0.02)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results1[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+            select3 = np.isclose(res_tru['psf_e1'], 0.02)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results2[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+            select3 = np.isclose(res_tru['psf_e2'],-0.02)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results3[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+            select3 = np.isclose(res_tru['psf_e2'], 0.02)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results4[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+
+            select3 = np.isclose(res_tru['psf_e1'],-0.006666666666)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results5[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+            select3 = np.isclose(res_tru['psf_e1'], 0.006666666666)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results6[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+            select3 = np.isclose(res_tru['psf_e2'],-0.006666666666)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results7[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+            select3 = np.isclose(res_tru['psf_e2'],  0.006666666666)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results8[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+        # sf_hlr
+        list_results_hlr1.append( [] );
+        list_results_hlr2.append( [] );
+        list_results_hlr3.append( [] );
+        list_results_hlr4.append( [] );
+        list_results_hlr5.append( [] );
+        list_results_hlr6.append( [] );
+        list_results_hlr7.append( [] );
+        list_results_hlr8.append( [] );
+
+        for ihlr in range(1,len(bins_hlr_edges)):
+
+            select1 = (res_sim['snr'] > bins_snr_edges[isnr-1]) & (res_sim['snr'] < bins_snr_edges[isnr])
+            select2 = (res_tru['sf_hlr'] > bins_hlr_edges[ihlr-1]) & (res_tru['sf_hlr'] < bins_hlr_edges[ihlr])
+
+            select3 = np.isclose(res_tru['psf_e1'],-0.02)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results_hlr1[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+            select3 = np.isclose(res_tru['psf_e1'], 0.02)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results_hlr2[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+            select3 = np.isclose(res_tru['psf_e2'],-0.02)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results_hlr3[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+            select3 = np.isclose(res_tru['psf_e2'], 0.02)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results_hlr4[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+
+            select3 = np.isclose(res_tru['psf_e1'],-0.006666666666)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results_hlr5[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+            select3 = np.isclose(res_tru['psf_e1'], 0.006666666666)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results_hlr6[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+            select3 = np.isclose(res_tru['psf_e2'],-0.006666666666)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results_hlr7[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+            select3 = np.isclose(res_tru['psf_e2'],  0.006666666666)
+            select = select1 & select2 & select3          
+            # mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True )
+            mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2 = get_shear_estimator( res_sim[select], use_weights=True, use_calibration=True, res_tru=res_tru[select] )
+            list_results_hlr8[isnr-1].append( [mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2] )
+
+            print bins_snr_edges[isnr], bins_rgp_edges[irgp]
+
+    means1 = np.array(list_results1)
+    means2 = np.array(list_results2)
+    means3 = np.array(list_results3)
+    means4 = np.array(list_results4)
+    means5 = np.array(list_results5)
+    means6 = np.array(list_results6)
+    means7 = np.array(list_results7)
+    means8 = np.array(list_results8)
+
+    means_hlr1 = np.array(list_results_hlr1)
+    means_hlr2 = np.array(list_results_hlr2)
+    means_hlr3 = np.array(list_results_hlr3)
+    means_hlr4 = np.array(list_results_hlr4)
+    means_hlr5 = np.array(list_results_hlr5)
+    means_hlr6 = np.array(list_results_hlr6)
+    means_hlr7 = np.array(list_results_hlr7)
+    means_hlr8 = np.array(list_results_hlr8)
+
+
+    pl.figure()
+    pl.errorbar(bins_rgp_edges[1:],means1[0,:,0],yerr=means1[0,:,2],label = 'mean(e1) psf_e1=% 2.2f' % -0.02)
+    pl.errorbar(bins_rgp_edges[1:],means2[0,:,0],yerr=means2[0,:,2],label = 'mean(e1) psf_e1=% 2.2f' %  0.02)
+    pl.errorbar(bins_rgp_edges[1:],means3[0,:,3],yerr=means3[0,:,5],label = 'mean(e2) psf_e2=% 2.2f' % -0.02)
+    pl.errorbar(bins_rgp_edges[1:],means4[0,:,3],yerr=means4[0,:,5],label = 'mean(e2) psf_e2=% 2.2f' %  0.02)
+    pl.axhline(0,color='k')
+    pl.xlabel(label_size)
+    pl.ylabel('e')
+    pl.legend(framealpha=0.0,frameon=False, loc='lower right')
+    pl.xlim(use_xlim)
+    pl.title('%s' % args.method)
+
+    pl.figure()
+    pl.errorbar(bins_hlr_edges[1:],means_hlr1[0,:,0],yerr=means_hlr1[0,:,2],label = 'mean(e1) psf_e1=% 2.2f' % -0.02)
+    pl.errorbar(bins_hlr_edges[1:],means_hlr2[0,:,0],yerr=means_hlr2[0,:,2],label = 'mean(e1) psf_e1=% 2.2f' %  0.02)
+    pl.errorbar(bins_hlr_edges[1:],means_hlr3[0,:,3],yerr=means_hlr3[0,:,5],label = 'mean(e2) psf_e2=% 2.2f' % -0.02)
+    pl.errorbar(bins_hlr_edges[1:],means_hlr4[0,:,3],yerr=means_hlr4[0,:,5],label = 'mean(e2) psf_e2=% 2.2f' %  0.02)
+    pl.axhline(0,color='k')
+    pl.xlabel('COSMOS HLR [arcmin]')
+    pl.ylabel('e')
+    pl.legend(framealpha=0.0,frameon=False, loc='lower right')
+    pl.xlim([0.4,1.6])
+    pl.title('%s' % args.method)
+
+    pl.figure()
+    pl.hist(res_sim['mean_rgpp_rp'],bins=np.linspace(0,2,100))
+    pl.xlabel(label_size)
+
+    pl.figure()
+    pl.hist(res_tru['sf_hlr'],bins=np.linspace(0,2,100))
+    pl.xlabel('COSMOS hlr')
+
+    pl.show()
+
+            
+    import pdb; pdb.set_trace()
+
+
+
+
+
+
+    
+
 def get_meane_vs_snr():
 
     res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=['e1','e2','snr'],cols_tru=['snr','psf_e1','psf_e2'])
@@ -1414,8 +1664,11 @@ def plot_meane_vs_snr():
 
 def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
 
-    bins_psf_edges = np.linspace(-0.014,0.014,5)
-    bins_psf_centers = plotstools.get_bins_centers(bins_psf_edges)
+    # bins_psf_edges = np.linspace(-0.014,0.014,5)
+    # bins_psf_centers = plotstools.get_bins_centers(bins_psf_edges)
+
+    bins_psf_centers = np.array([-0.02      , -0.00666667,  0.00666667,  0.02      ])
+    bins_psf_edges = plotstools.get_bins_edges(bins_psf_centers)
 
 
     list_mean_e1 = []
@@ -1452,7 +1705,11 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
             pmean_g2=pmean_e2*0
         list_mean_e2.append(pmean_e2)
         list_stdm_e2.append(pstdm_e2)
-        list_mean_g2.append(pmean_g2)           
+        list_mean_g2.append(pmean_g2)     
+
+        if np.abs(pmean_e1)>10:
+            warnings.warn('np.abs(pmean_e1)>10')
+            import pdb; pdb.set_trace()      
 
     pmean_e1=np.array(list_mean_e1)
     pstdm_e1=np.array(list_stdm_e1)
@@ -1514,7 +1771,7 @@ def get_jacknife_regions():
 
 def main():
 
-    valid_actions = ['plot_mc_vs_snr','plot_meane_vs_snr','get_meane_vs_snr','get_histograms','get_distributions','get_PSF_leakage','get_calibration','get_bias_model','apply_calibration_sim','apply_calibration_des','plot_bias_vs_redshift','plot_face_fig','get_bias_vs_redshift','get_jacknife_regions']
+    valid_actions = ['plot_mc_vs_snr','plot_meane_vs_snr','get_meane_vs_snr','get_histograms','get_distributions','get_PSF_leakage','get_calibration','get_bias_model','apply_calibration_sim','apply_calibration_des','plot_bias_vs_redshift','plot_face_fig','get_bias_vs_redshift','get_jacknife_regions','get_meane_vs_size']
 
     global logger , config , args
 
