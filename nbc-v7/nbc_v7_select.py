@@ -18,7 +18,15 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
         cat_res = tabletools.appendColumn(cat_res,'error_flag', cat_res['flags'])
         cat_res = tabletools.appendColumn(cat_res,'info_flag', cat_res['arate'])
         cat_res = tabletools.appendColumn(cat_res,'snr', cat_res['s2n_w'])
+
+    if 'T' in cat_res.dtype.names:
         cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', cat_res['T'])
+    elif 'ngmix009_EXP_T' in cat_res.dtype.names:
+        cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', cat_res['ngmix010_EXP_T'])
+    elif 'pars' in cat_res.dtype.names:
+        cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', np.sqrt(np.abs(cat_res['pars'][:,4]/2.)))       
+    else:
+        cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', np.random.uniform(len(cat_res))*5 )
 
     if 'g_sens' in cat_res.dtype.names:
 
@@ -43,12 +51,11 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
         cat_res = tabletools.appendColumn(cat_res,'flags', cat_res['ngmix010_FLAGS'])
         cat_res = tabletools.appendColumn(cat_res,'arate', cat_res['ngmix010_EXP_ARATE'])
         cat_res = tabletools.appendColumn(cat_res,'T_s2n', cat_res['ngmix010_EXP_T_S2N'])
+        cat_res = tabletools.appendColumn(cat_res,'snr', cat_res['ngmix010_EXP_S2N_W'])
         
         cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_res['ngmix010_PSFREC_E_1'])
-        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_res['ngmix010_PSFREC_E_2'])
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_res['ngmix010_PSFREC_E_2'])     
 
-
-        
 
     if 'w' not in cat_res.dtype.names:
 
@@ -78,7 +85,7 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
 
     return cat_res
 
-def rename_im3shape_cols(cat_res):
+def rename_im3shape_cols(cat_res,cat_tru=None):
 
     if 'nbc_m' in cat_res.dtype.names:
 
@@ -89,6 +96,11 @@ def rename_im3shape_cols(cat_res):
 
         cat_res = tabletools.appendColumn(cat_res,'w', np.ones(len(cat_res)))
         warnings.warn('added weight column - all ones')
+
+    if cat_tru!=None:
+        if 'mean_psf_e1_sky' in cat_res.dtype.names:
+            cat_res['mean_psf_e1_sky'] = cat_tru['psf_e1']
+            cat_res['mean_psf_e2_sky'] = cat_tru['psf_e2']
 
     return cat_res
 
@@ -120,7 +132,7 @@ def get_selection_des(selection_string,cols,n_files=30,get_calibrated=False):
         list_results.append(res_select)
         n_gals_selected += len(res_select)
 
-        if n_files_loaded % 100 == 0:
+        if n_files_loaded % 20 == 0:
             logger.info('loaded %d files, last %s, n_gals %d/%d %2.2f',n_files_loaded,filename_des,n_gals_selected,n_all,n_gals_selected/float(n_all))
 
     results = np.concatenate(list_results)
@@ -186,21 +198,12 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
                     cat_res_all = tabletools.loadTable(filename_res,log=1,remember=False)
                     cat_res = cat_res_all
                     logger.debug('loaded %05d galaxies from file: %s' % (len(cat_res_all),filename_res))
-                    if args.method == 'ngmix':
-                        cat_res = rename_ngmix_cols(cat_res,cat_tru)
-                    elif args.method == 'im3shape':
-                        cat_res = rename_im3shape_cols(cat_res)
-
-
 
             except Exception,errmsg:
                 logger.debug('sth wrong with file %s errmsg %s' % (filename_res,errmsg) )
                 n_missing+=1
                 continue
  
-            for col in cols_res:
-                if col not in cat_res.dtype.names:
-                    raise Exception('column %s not found in results catalog %s' % (col,filename_res))
 
             if ('e1' in cols_res) & (args.method=='im3shape'):
                 # cat_res['e1'] = cat_res['e1']*config['methods'][args.method]['flip_g1']
@@ -210,6 +213,15 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
 
             if len(cat_tru) != len(cat_res):
                 cat_tru=cat_tru[cat_res['coadd_objects_id']]
+
+            if args.method == 'ngmix':
+                cat_res = rename_ngmix_cols(cat_res,cat_tru)
+            elif args.method == 'im3shape':
+                cat_res = rename_im3shape_cols(cat_res,cat_tru)
+
+            for col in cols_res:
+                if col not in cat_res.dtype.names:
+                    raise Exception('column %s not found in results catalog %s' % (col,filename_res))
 
             n_all_loaded+=len(cat_res)
             try:
