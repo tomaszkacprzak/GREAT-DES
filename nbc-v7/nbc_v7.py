@@ -1023,6 +1023,7 @@ def get_calibration():
     list_bias = []
 
     # entire sample
+    logger.info('calculating bias for the entire sample')
     filename_str = 'all.%s' % args.method
     mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim,res_tru,res_des,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
 
@@ -1033,12 +1034,15 @@ def get_calibration():
         for isnr in range(1,len(list_snr_edges)):
 
             select = (res_sim['snr'] > list_snr_edges[isnr-1]) & (res_sim['snr'] < list_snr_edges[isnr]) & (res_sim['mean_rgpp_rp'] > list_psf_edges[ipsf-1]) & (res_sim['mean_rgpp_rp'] < list_psf_edges[ipsf])
-            print ipsf,isnr,len(np.nonzero(select)[0])
+            n_gals_sim = len(np.nonzero(select)[0])
+            logger.info('ipsf=%2d isnr=%2d n_gals_sim=%d' % (ipsf,isnr,n_gals_sim))
             res_sim_select = res_sim[select]
             res_tru_select = res_tru[select]
 
             select = (res_des['snr'] > list_snr_edges[isnr-1]) & (res_des['snr'] < list_snr_edges[isnr]) & (res_des['mean_rgpp_rp'] > list_psf_edges[ipsf-1]) & (res_des['mean_rgpp_rp'] < list_psf_edges[ipsf])
+            n_gals_des = len(np.nonzero(select)[0])
             res_des_select = res_des[select]
+            logger.info('ipsf=%2d isnr=%2d n_gals_des=%d' % (ipsf,isnr,n_gals_des))
 
             vpsf_mid = list_psf_centers[ipsf-1]
             vsnr_mid = list_snr_centers[isnr-1]
@@ -1053,11 +1057,11 @@ def get_calibration():
             mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim_select,res_tru_select,res_des_select,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
 
             std_e = np.std(res_sim_select['e1'],ddof=1)
-            list_bias.append( [ipsf,isnr,vpsf_min,vpsf_max,vsnr_min,vsnr_max,std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc] )
+            list_bias.append( [ipsf,isnr,n_gals_sim,vpsf_min,vpsf_max,vsnr_min,vsnr_max,std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc] )
 
 
 
-    arr_bias = arraytools.arr2rec(np.array(list_bias),dtype={'names': ["ipsf","isnr","vpsf_min","vpsf_max","vsnr_min","vsnr_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc"], 'formats': ['i4']*2 + ['f8']*21 })
+    arr_bias = tktools.arr2rec(np.array(list_bias),dtype={'names': ["ipsf","isnr","n_gals","vpsf_min","vpsf_max","vsnr_min","vsnr_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc"], 'formats': ['i4']*3 + ['f8']*21 })
 
     if args.use_calibration:
         filename_table_bias = 'bias_table.calibrated.fits'
