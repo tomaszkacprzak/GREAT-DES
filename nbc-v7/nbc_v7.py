@@ -1674,6 +1674,8 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
     bins_psf_centers = np.array([-0.02      , -0.00666667,  0.00666667,  0.02      ])
     bins_psf_edges = plotstools.get_bins_edges(bins_psf_centers)
 
+    logger.debug('bins_psf_edges: [ ' +  (' '.join(['% 5.2f']*len(bins_psf_edges)))%tuple(bins_psf_edges) + ' ]')
+
 
     list_mean_e1 = []
     list_stdm_e1 = []
@@ -1688,6 +1690,8 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
         select = (res['mean_psf_e1_sky'] > (bins_psf_edges[ic-1])) & (res['mean_psf_e1_sky'] < (bins_psf_edges[ic]))
         res_select=res[select]
 
+        logger.debug('getting PSF leakage e1, bin %2d [% 5.2f % 5.2f], n_gals=%6d' % (ic, bins_psf_edges[ic-1], bins_psf_edges[ic], len(res_select)))
+
         pmean_e1, pstdv_e1, pstdm_e1, pmean_e2, pstdv_e2, pstdm_e2, pmean_m1, pmean_m2 = get_shear_estimator(res_select,use_calibration=use_calibration,use_weights=use_weights)
 
         if res_tru!=None:
@@ -1700,6 +1704,8 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
 
         select = (res['mean_psf_e2_sky'] > (bins_psf_edges[ic-1])) & (res['mean_psf_e2_sky'] < (bins_psf_edges[ic]))
         res_select=res[select]
+
+        logger.debug('getting PSF leakage e2, bin %2d [% 5.2f % 5.2f], n_gals=%6d' % (ic, bins_psf_edges[ic-1], bins_psf_edges[ic], len(res_select)))
 
         pmean_e1, pstdv_e1, pstdm_e1, pmean_e2, pstdv_e2, pstdm_e2, pmean_m1, pmean_m2 = get_shear_estimator(res_select,use_calibration=use_calibration,use_weights=use_weights)
 
