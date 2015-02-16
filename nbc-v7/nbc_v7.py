@@ -39,8 +39,12 @@ selection_string_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']
 # selection_string_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & "+ select_info 
 
 # for fitting
-list_snr_edges = [8,9,10,11,12,14,16,18,20,25,30,50,80,200,1000]
+# list_snr_edges = [8,9,10,11,12,14,16,18,20,25,30,50,80,200,1000]
+# list_psf_edges = [1.15,1.175,1.2,1.225,1.25,1.3,1.4,1.5,1.75,3.0]
+
+list_snr_edges = [10,11,12,14,16,18,20,25,30,50,80,200,1000]
 list_psf_edges = [1.15,1.175,1.2,1.225,1.25,1.3,1.4,1.5,1.75,3.0]
+
 
 # for plotting
 # list_snr_edges = [10,13,19,22,30,50,80,200]
@@ -349,7 +353,7 @@ def get_calibration_columns(res_des):
 def plot_face_fig():
 
     import fitsio
-    filename_table_bias = 'bias_table.fits'
+    filename_table_bias = 'bias_table.004.fits'
     bias_table = fitsio.read(filename_table_bias)
     dx=0.5
 
@@ -392,7 +396,7 @@ def plot_face_fig():
 def get_bias_model():
 
     import fitsio
-    filename_table_bias = 'bias_table.fits'
+    filename_table_bias = 'bias_table.004.fits'
     bias_table = tktools.load(filename_table_bias)
     dx=0.05
 
@@ -433,14 +437,15 @@ def get_bias_model():
 
 
     # pl.title(selection_string_des,fontsize=10)
-    pl.title('noise bias: multiplicative - im3shape')
+    pl.xscale('log')
+    pl.title('noise bias: multiplicative - im3shape - %s' % filename_table_bias)
     pl.axhline(0,c='k')
     pl.xticks(list_snr_edges)
     pl.grid()
     pl.legend(framealpha=0.0,frameon=False)
     pl.xlim([5,200])
-    pl.ylim([-0.5,0.4])
-    pl.xscale('log')
+    pl.ylim([-0.5,0.2])
+    pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
 
     model_arr_m = np.array(list_model_m)
     model_arr_x = np.array(list_arr_x)
@@ -506,7 +511,8 @@ def get_bias_model():
         list_arr_y.append(np.ones_like(snr_pred)*rgp_mid[0])
 
 
-    pl.title('noise bias: PSF leakage - im3shape')
+    pl.title('noise bias: PSF leakage - im3shape %s' % filename_table_bias)
+    pl.xscale('log')
     ylim=list(pl.ylim()); ylim[1]*=1.; pl.ylim(ylim)
     pl.axhline(0,c='k')
     pl.xlim([5,200])
@@ -515,7 +521,8 @@ def get_bias_model():
     pl.ylabel(r'leakage $\alpha$')
     pl.xticks(list_snr_edges)
     pl.grid()
-    pl.xscale('log')
+    pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
+
     
     # pl.imshow(model_arr_a,aspect='auto',interpolation='nearest'); pl.show()
 
@@ -1016,6 +1023,8 @@ def get_calibration():
 
     res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
     res_des         = nbc_v7_select.get_selection_des(selection_string_des,cols=cols_des,n_files=10,get_calibrated=args.use_calibration)
+
+    import pdb; pdb.set_trace()
     
     list_snr_centers = plotstools.get_bins_centers(list_snr_edges)
     list_psf_centers = plotstools.get_bins_centers(list_psf_edges)
@@ -1036,6 +1045,10 @@ def get_calibration():
             select = (res_sim['snr'] > list_snr_edges[isnr-1]) & (res_sim['snr'] < list_snr_edges[isnr]) & (res_sim['mean_rgpp_rp'] > list_psf_edges[ipsf-1]) & (res_sim['mean_rgpp_rp'] < list_psf_edges[ipsf])
             n_gals_sim = len(np.nonzero(select)[0])
             logger.info('ipsf=%2d isnr=%2d n_gals_sim=%d' % (ipsf,isnr,n_gals_sim))
+
+            if n_gals_sim < 100:
+                import pdb; pdb.set_trace()
+
             res_sim_select = res_sim[select]
             res_tru_select = res_tru[select]
 
@@ -1107,8 +1120,8 @@ def get_calibration():
 
 def get_distributions():
 
-    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=['coadd_objects_id','ra_as','dec_as','e1','e2','snr','disc_A','bulge_A','mean_rgpp_rp','radius'],cols_tru=['id','snr','psf_e1','psf_e2', 'psf_fwhm', 'cosmos_mag_auto'])
-    res_des = nbc_v7_select.get_selection_des(selection_string_des,cols=['ra_as','dec_as','e1','e2','snr','mean_psf_e1_sky','mean_psf_e2_sky','disc_A','bulge_A','mean_rgpp_rp','radius'],n_files=args.num)
+    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=['coadd_objects_id','ra_as','dec_as','e1','e2','snr','disc_flux','bulge_flux','mean_rgpp_rp','radius'],cols_tru=['id','snr','psf_e1','psf_e2', 'psf_fwhm', 'cosmos_mag_auto'])
+    res_des = nbc_v7_select.get_selection_des(selection_string_des,cols=['ra_as','dec_as','e1','e2','snr','mean_psf_e1_sky','mean_psf_e2_sky','disc_flux','bulge_flux','mean_rgpp_rp','radius'],n_files=args.num)
 
     great_des_e1 = res_sim['e1'] #- cat_tru['g1_true']
     great_des_e2 = res_sim['e2'] #- cat_tru['g2_true']
@@ -1135,15 +1148,15 @@ def get_distributions():
 
 
     pl.subplot(2,3,3)
-    dilation = 0.83
-    xx=np.sqrt(res_sim['mean_rgpp_rp']**2-1)
-    fwhm=np.sqrt((xx*dilation)**2+res_tru['psf_fwhm']**2)
-    # pl.hist( ( res_sim['mean_rgpp_rp']*0.855 ) ,bins=np.linspace(0,2,100),histtype='step',label='GREAT-DES rgpp_rp'      , normed=True, color='r') 
-    pl.hist( ( fwhm ) ,bins=np.linspace(0.5,2,200),histtype='step',label='GREAT-DES rgpp_rp'      , normed=True, color='r') 
-    pl.hist( ( res_des['mean_rgpp_rp']       ) ,bins=np.linspace(0.5,2,200),histtype='step',label='%s rgpp_rp' % config['methods'][args.method]['label'] , normed=True, color='b') 
+    # dilation = 0.83
+    # xx=np.sqrt(res_sim['mean_rgpp_rp']**2-1)
+    # fwhm=np.sqrt((xx*dilation)**2+res_tru['psf_fwhm']**2)
+    # pl.hist( ( fwhm ) ,bins=np.linspace(0.5,2,200),histtype='step',label='GREAT-DES rgpp_rp'      , normed=True, color='r') 
+    pl.hist( ( res_sim['mean_rgpp_rp']) ,bins=np.linspace(0.5,2,200),histtype='step',label='GREAT-DES rgpp_rp'      , normed=True, color='r') 
+    pl.hist( ( res_des['mean_rgpp_rp']) ,bins=np.linspace(0.5,2,200),histtype='step',label='%s rgpp_rp' % config['methods'][args.method]['label'] , normed=True, color='b') 
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
-    pl.xlabel('Rgpp/Rp dilation=%f' % dilation)
+    pl.xlabel('Rgpp/Rp dilation')
 
     pl.subplot(2,3,4)
     pl.hist(res_sim['radius'] ,bins=np.linspace(0,4,100),histtype='step',label='GREAT-DES radius'     , normed=True, color='r') 
@@ -1152,14 +1165,14 @@ def get_distributions():
     ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
 
     pl.subplot(2,3,5)
-    pl.hist(res_sim['bulge_A'], bins=np.linspace(-200,400,100),histtype='step',normed=True , label='GREAT-DES bulge_A'      , color='r')
-    pl.hist(res_des['bulge_A'], bins=np.linspace(-200,400,100),histtype='step',normed=True , label='%s bulge_A' % config['methods'][args.method]['label']  , color='b')
+    pl.hist(res_sim['bulge_flux'], bins=np.linspace(-20,40,100),histtype='step',normed=True , label='GREAT-DES bulge_flux'      , color='r')
+    pl.hist(res_des['bulge_flux'], bins=np.linspace(-20,40,100),histtype='step',normed=True , label='%s bulge_flux' % config['methods'][args.method]['label']  , color='b')
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
 
     pl.subplot(2,3,6)
-    pl.hist(res_sim['disc_A'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='GREAT-DES disc_A'      , color='r')
-    pl.hist(res_des['disc_A'], bins=np.linspace(-2,2,100),histtype='step',normed=True , label='%s disc_A' % config['methods'][args.method]['label']  , color='b')
+    pl.hist(res_sim['disc_flux'], bins=np.linspace(-5,5,100),histtype='step',normed=True , label='GREAT-DES disc_flux'      , color='r')
+    pl.hist(res_des['disc_flux'], bins=np.linspace(-5,5,100),histtype='step',normed=True , label='%s disc_flux' % config['methods'][args.method]['label']  , color='b')
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
 

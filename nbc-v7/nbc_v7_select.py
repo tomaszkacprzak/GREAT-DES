@@ -87,6 +87,28 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
 
 def rename_im3shape_cols(cat_res,cat_tru=None):
 
+    if 'im3shape_r_e1' in cat_res.dtype.names:
+
+        cat_res = tabletools.appendColumn(cat_res,'e1', cat_res['im3shape_r_e1'])
+        cat_res = tabletools.appendColumn(cat_res,'e2', cat_res['im3shape_r_e2'])
+        cat_res = tabletools.appendColumn(cat_res,'ra_as', cat_res['im3shape_r_ra_as'])
+        cat_res = tabletools.appendColumn(cat_res,'dec_as', cat_res['im3shape_r_dec_as'])
+        cat_res = tabletools.appendColumn(cat_res,'radius', cat_res['im3shape_r_radius'])
+        cat_res = tabletools.appendColumn(cat_res,'info_flag', cat_res['im3shape_r_info_flag'])
+        cat_res = tabletools.appendColumn(cat_res,'error_flag', cat_res['im3shape_r_error_flag'])
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_res['im3shape_r_mean_psf_e1_sky'])
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_res['im3shape_r_mean_psf_e2_sky'])
+        cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', cat_res['im3shape_r_mean_rgpp_rp'])
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_fwhm', cat_res['im3shape_r_mean_psf_fwhm'])
+        cat_res = tabletools.appendColumn(cat_res,'nbc_c1', cat_res['im3shape_r_nbc_c1'])
+        cat_res = tabletools.appendColumn(cat_res,'nbc_c2', cat_res['im3shape_r_nbc_c2'])
+        cat_res = tabletools.appendColumn(cat_res,'nbc_m', cat_res['im3shape_r_nbc_m'])
+        cat_res = tabletools.appendColumn(cat_res,'w', cat_res['im3shape_r_w'])
+        cat_res = tabletools.appendColumn(cat_res,'disc_flux', cat_res['im3shape_r_disc_flux'])
+        cat_res = tabletools.appendColumn(cat_res,'bulge_flux', cat_res['im3shape_r_bulge_flux'])
+        cat_res = tabletools.appendColumn(cat_res,'snr', cat_res['im3shape_r_snr'])
+
+
     if 'nbc_m' in cat_res.dtype.names:
 
         cat_res = tabletools.appendColumn(cat_res,'nbc_m1', cat_res['nbc_m'])
