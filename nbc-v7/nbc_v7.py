@@ -27,8 +27,10 @@ select_info = (' '.join(select_info))[:-1]
 # selection_string_des = "default"
 
 # plots
-selection_string_sim = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & (cat_tru['cosmos_mag_auto']<23.25) & (cat_tru['sf_hlr']>0.2) &" + select_info
-selection_string_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & "+ select_info 
+# selection_string_sim = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & (cat_tru['cosmos_mag_auto']<23.25) & (cat_tru['sf_hlr']>0.2) &" + select_info
+# selection_string_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & "+ select_info 
+selection_string_sim = "select =  (cat_res['error_flag']==0) & (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15)  & (cat_tru['cosmos_mag_auto']<23.0) & (cat_tru['sf_hlr']> 0.) &" + select_info 
+selection_string_des = "select =  (cat_res['error_flag']==0) & (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & "+ select_info 
 
 # get_calibration
 # selection_string_sim = "select =  (cat_res['snr']>8) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & (cat_tru['cosmos_mag_auto']<23.25) & (cat_tru['sf_hlr']>0.2) &" + select_info
@@ -42,7 +44,7 @@ selection_string_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']
 # list_snr_edges = [8,9,10,11,12,14,16,18,20,25,30,50,80,200,1000]
 # list_psf_edges = [1.15,1.175,1.2,1.225,1.25,1.3,1.4,1.5,1.75,3.0]
 
-list_snr_edges = [10,11,12,14,16,18,20,25,30,50,80,200,1000]
+list_snr_edges = [10,10.5,11,11.5,12,14,16,18,20,25,30,50,80,200,1000]
 list_psf_edges = [1.15,1.175,1.2,1.225,1.25,1.3,1.4,1.5,1.75,3.0]
 
 
@@ -257,13 +259,20 @@ def get_weight_column(cat):
     func_interp = scipy.interpolate.interp2d(vec_snr,vec_rgp,sigma_greater.T, kind='cubic')
     sigma_e_hires = func_interp(vec_snr_hires,vec_rgp_hires)
 
-    cat['snr'][~np.isfinite(cat['snr'])]=0
-    cat['mean_rgpp_rp'][~np.isfinite(cat['mean_rgpp_rp'])]=0
+    if 'snr'  in cat.dtype.names: 
+        size_col = 'mean_rgpp_rp'
+        snr_col = 'snr'
+    else:
+        snr_col = 'im3shape_r_snr'
+        size_col = 'im3shape_r_mean_rgpp_rp'
 
-    col_sig = scipy.interpolate.griddata((X1.flatten(),X2.flatten()),sigma_e_hires.flatten(),(cat['snr'],cat['mean_rgpp_rp']),method='nearest',rescale=True)
+    cat[snr_col][~np.isfinite(cat[snr_col])]=0
+    cat[size_col][~np.isfinite(cat[size_col])]=0
 
-    col_sig[cat['snr']>list_snr_edges.max()] = sigma_e_max
-    col_sig[cat['mean_rgpp_rp']>list_rgp_edges.max()] = sigma_e_max
+    col_sig = scipy.interpolate.griddata((X1.flatten(),X2.flatten()),sigma_e_hires.flatten(),(cat[snr_col],cat[size_col]),method='nearest',rescale=True)
+
+    col_sig[cat[snr_col]>list_snr_edges.max()] = sigma_e_max
+    col_sig[cat[size_col]>list_rgp_edges.max()] = sigma_e_max
     col_sig[col_sig<sigma_e_max] = sigma_e_max
 
     col_w = 1./col_sig**2
@@ -289,12 +298,17 @@ def get_calibration_columns(res_des):
     import cPickle as pickle
     filename_bias_models = 'bias_models.cpickle'
     bm=pickle.load(open(filename_bias_models))
+    warnings.warn('using %s' % filename_bias_models)
 
     X1,X2 = np.meshgrid(bm['model_snr'],bm['model_rgp'])
     x1=X1.flatten('C'); x2=X2.flatten('C'); y1=bm['model_m'].flatten('C'); y2=bm['model_a'].flatten('C')
 
-    q1=np.array(res_des['snr'])
-    q2=np.array(res_des['mean_rgpp_rp'])
+    if 'snr'  in res_des.dtype.names: 
+        q1=np.array(res_des['snr'])
+        q2=np.array(res_des['mean_rgpp_rp'])
+    else:
+        q1=np.array(res_des['im3shape_r_snr'])
+        q2=np.array(res_des['im3shape_r_mean_rgpp_rp'])
 
     griddata_method = 'linear'
 
@@ -302,8 +316,12 @@ def get_calibration_columns(res_des):
     m = scipy.interpolate.griddata((x1,x2),y1,(q1,q2),method=griddata_method,fill_value=0)
     a = scipy.interpolate.griddata((x1,x2),y2,(q1,q2),method=griddata_method,fill_value=0)
     
-    c1 = res_des['mean_psf_e1_sky']*a
-    c2 = res_des['mean_psf_e2_sky']*a
+    if 'mean_psf_e1_sky' in res_des.dtype.names:
+        c1 = res_des['mean_psf_e1_sky']*a
+        c2 = res_des['mean_psf_e2_sky']*a
+    else:
+        c1 = res_des['im3shape_r_mean_psf_e1_sky']*a
+        c2 = res_des['im3shape_r_mean_psf_e2_sky']*a
     # warnings.warn('adding snr-based weights')
     # w = add_weights.get_weights(res_des['snr'])
 
@@ -396,7 +414,7 @@ def plot_face_fig():
 def get_bias_model():
 
     import fitsio
-    filename_table_bias = 'bias_table.004.fits'
+    filename_table_bias = 'bias_table.fits'
     bias_table = tktools.load(filename_table_bias)
     dx=0.05
 
@@ -591,11 +609,11 @@ def get_bias_vs_redshift():
 
     # entire sample
     filename_str = 'all.nonbc.%s' % args.method
-    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim,res_tru,res_des,use_calibration=False,use_weights=args.use_weights,filename_str=filename_str)
+    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim,res_tru,res_des,use_calibration=False,use_weights=args.use_weights,filename_str=filename_str)
 
 
     filename_str = 'all.withnbc.%s' % args.method
-    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim,res_tru,res_des,use_calibration=True,use_weights=args.use_weights,filename_str=filename_str)
+    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim,res_tru,res_des,use_calibration=True,use_weights=args.use_weights,filename_str=filename_str)
 
 
     z_bins = [ 0.3, 0.644, 0.901, 1.3 ]
@@ -622,19 +640,20 @@ def get_bias_vs_redshift():
 
         logger.info(selection_string_sim)
         filename_str = 'z%2.2f.%s' % ((vbin[0]+vbin[1])/2.,args.method)
-        mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim_select,res_tru_select,None,use_calibration=False,use_weights=args.use_weights,filename_str=filename_str)
+        mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim_select,res_tru_select,None,use_calibration=False,use_weights=args.use_weights,filename_str=filename_str)
 
         std_e = np.std(res_sim_select['e1'],ddof=1)
-        list_bias.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2] )
+        list_bias.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2] )
 
         filename_str = 'z%2.2f.%s.corr' % ((vbin[0]+vbin[1])/2.,args.method)
-        mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(cal_sim_select,cal_tru_select,None,use_calibration=True,use_weights=args.use_weights,filename_str=filename_str)
+        mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(cal_sim_select,cal_tru_select,None,use_calibration=True,use_weights=args.use_weights,filename_str=filename_str)
 
         std_e = np.std(cal_sim_select['e1'],ddof=1)
-        list_bias_calibr.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2] )
+        list_bias_calibr.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2] )
 
-    arr_bias = tktools.arr2rec(np.array(list_bias),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2"], 'formats': ['i4']*1 + ['f8']*23 })
-    arr_bias_calibr = tktools.arr2rec(np.array(list_bias_calibr),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2"], 'formats': ['i4']*1 + ['f8']*23 })
+    import pdb; pdb.set_trace()
+    arr_bias = tktools.arr2rec(np.array(list_bias),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2","mean_e1","mean_e2","stdm_e1","stdm_e2"], 'formats': ['i4']*1 + ['f8']*27 })
+    arr_bias_calibr = tktools.arr2rec(np.array(list_bias_calibr),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2","mean_e1","mean_e2","stdm_e1","stdm_e2"], 'formats': ['i4']*1 + ['f8']*27 })
 
     import cPickle as pickle
     
@@ -679,16 +698,16 @@ def get_bias_vs_redshift():
 
     #         logger.info(selection_string_sim)
     #         filename_str = 'z%2.2f.%s.jack%02d' % ((vbin[0]+vbin[1])/2.,args.method,ijack)
-    #         mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim_select,res_tru_select,None,use_calibration=False,use_weights=args.use_weights,filename_str=filename_str)
+    #         mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim_select,res_tru_select,None,use_calibration=False,use_weights=args.use_weights,filename_str=filename_str)
 
     #         std_e = np.std(res_sim_select['e1'],ddof=1)
-    #         list_jack.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2] )
+    #         list_jack.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2] )
     
     #         filename_str = 'z%2.2f.%s.jack%02d.corr' % ((vbin[0]+vbin[1])/2.,args.method,ijack)
-    #         mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(cal_sim_select,cal_tru_select,None,use_calibration=True,use_weights=args.use_weights,filename_str=filename_str)
+    #         mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(cal_sim_select,cal_tru_select,None,use_calibration=True,use_weights=args.use_weights,filename_str=filename_str)
 
     #         std_e = np.std(cal_sim_select['e1'],ddof=1)
-    #         list_jack_calibr.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2] )
+    #         list_jack_calibr.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2] )
 
 
     #     arr_jack = tktools.arr2rec(np.array(list_jack),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2"], 'formats': ['i4']*1 + ['f8']*23 })
@@ -758,12 +777,14 @@ def plot_bias_vs_redshift():
 def get_shear_estimator(res,use_calibration=False,use_weights=False,res_tru=None):
 
     if res_tru==None:
-        g1 = np.zeros(len(res))
-        g2 = np.zeros(len(res))
+        e1 = res['e1']
+        e2 = res['e2']
     else:
-        g1 = res_tru['g1_true']
-        g2 = res_tru['g2_true']
-
+        gt = res_tru['g1_true'] + 1j*res_tru['g2_true']
+        eo = res['e1'] + 1j*res['e2']
+        ei = (gt-eo)/(eo*gt.conjugate()-1)
+        e1,e2 = ei.real, ei.imag
+        
     if use_calibration:
         if 'nbc_m1' not in res.dtype.names:
             raise Exception("column 'nbc_m' not found in res_des")
@@ -795,13 +816,13 @@ def get_shear_estimator(res,use_calibration=False,use_weights=False,res_tru=None
     n_select = len(res)
     
     # mean_e1 += [ res_sim_select['e1'](np.mean(res_sim_select['e1'] - nbc_c1_sim_select)) / (1+np.mean(nbc_m1_sim_select))  ]
-    mean_e1 =  np.sum(res['w']*(res['e1'] - g1 - nbc_c1)) / np.sum(res['w']*(1+nbc_m1))  
-    stdv_e1 =  np.std( (res['e1']-nbc_c1)*(1+nbc_m1),ddof=1)  
+    mean_e1 =  np.sum(res['w']*(e1 - nbc_c1)) / np.sum(res['w']*(1+nbc_m1))  
+    stdv_e1 =  np.std( (e1-nbc_c1)*(1+nbc_m1),ddof=1)  
     stdm_e1 =  stdv_e1/np.sqrt(n_select)     
 
     # mean_e2 += [ (np.mean(res['e2'] - nbc_c2_sim_select)) / (1+np.mean(nbc_m2_sim_select))  ]
-    mean_e2 =  np.sum(res['w']*(res['e2'] - g2 - nbc_c2)) / np.sum(res['w']*(1+nbc_m2))  
-    stdv_e2 =  np.std( (res['e2']-nbc_c2)*(1+nbc_m2),ddof=1)  
+    mean_e2 =  np.sum(res['w']*(e2 - nbc_c2)) / np.sum(res['w']*(1+nbc_m2))  
+    stdv_e2 =  np.std( (e2-nbc_c2)*(1+nbc_m2),ddof=1)  
     stdm_e2 =  stdv_e2/np.sqrt(n_select)     
 
     mean_m1 = np.mean(nbc_m1)
@@ -924,6 +945,12 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
     std_pmm = np.sqrt( (std_pmm1**2 + std_pmm2**2)/2. )
     std_pcc = np.sqrt( (std_pcc1**2 + std_pcc2**2)/2. )
 
+    # now calculate mean ellipticity, no shear
+
+    e1i_mean, e1i_stdv, e1i_stdm, e2i_mean, e2i_stdv, e2i_stdm, m1i_mean, m2i_mean = get_shear_estimator(res_sim,use_calibration=use_calibration,use_weights=use_weights,res_tru=res_tru)
+
+
+
     pl.figure(figsize=(15,8))
 
     pl.subplot(2,3,1)
@@ -951,20 +978,21 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
     pl.subplot(2,3,3)
     pl.errorbar(bins_psf_centers,pmean_e1-pmean_g1,yerr=pstdm_e1,fmt='rd') # ,label='e1 vs PSF e1'
     pl.errorbar(bins_psf_centers,pmean_e2-pmean_g2,yerr=pstdm_e2,fmt='md') # ,label='e2 vs PSF e2'
-    if res_des!=None: pl.errorbar(bins_psf_centers,dmean_e1-dmean_g1,yerr=dstdm_e1,fmt='bd')
-    if res_des!=None: pl.errorbar(bins_psf_centers,dmean_e2-dmean_g2,yerr=dstdm_e2,fmt='cd')   
+    # if res_des!=None: pl.errorbar(bins_psf_centers,dmean_e1-dmean_g1,yerr=dstdm_e1,fmt='bd')
+    # if res_des!=None: pl.errorbar(bins_psf_centers,dmean_e2-dmean_g2,yerr=dstdm_e2,fmt='cd')   
     pl.plot(bins_psf_centers,bins_psf_centers*pmm1+pcc1,'r-',label=r'sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm %2.4f$' % (pmm1,std_pmm1,pcc1,std_pcc1))
     pl.plot(bins_psf_centers,bins_psf_centers*pmm2+pcc2,'m-',label=r'sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm %2.4f$' % (pmm2,std_pmm2,pcc2,std_pcc2))
-    if res_des!=None: pl.plot(bins_psf_centers,bins_psf_centers*dmm1+dcc1,'b-',label=r'sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm %2.4f$' % (dmm1,std_dmm1,dcc1,std_dcc1))
-    if res_des!=None: pl.plot(bins_psf_centers,bins_psf_centers*dmm2+dcc2,'c-',label=r'sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm %2.4f$' % (dmm2,std_dmm2,dcc2,std_dcc2))
-    pl.plot(bins_psf_centers,pmean_g1,'rx')
-    pl.plot(bins_psf_centers,pmean_g2,'bx')
+    # if res_des!=None: pl.plot(bins_psf_centers,bins_psf_centers*dmm1+dcc1,'b-',label=r'sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm %2.4f$' % (dmm1,std_dmm1,dcc1,std_dcc1))
+    # if res_des!=None: pl.plot(bins_psf_centers,bins_psf_centers*dmm2+dcc2,'c-',label=r'sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm %2.4f$' % (dmm2,std_dmm2,dcc2,std_dcc2))
+    # pl.plot(bins_psf_centers,pmean_g1,'rx')
+    # pl.plot(bins_psf_centers,pmean_g2,'bx')
     pl.legend(mode='expand',fontsize=8,framealpha=0.0,frameon=False)
     pl.axhline(0,c='k')
     pl.xlabel('PSF e')
     pl.ylabel('<e>')
     pl.suptitle( filename_str )
     ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+    pl.xlim([-0.03,0.03])
 
     # pl.ylim([-0.005,0.01])
 
@@ -975,7 +1003,7 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
     if res_des!= None: pl.hist(res_des['e2'],bins=np.linspace(-1,1,100),color='c',histtype='step',normed=True)       
     pl.legend(mode='expand',fontsize=8,framealpha=0.0,frameon=False)
     pl.xlabel('e')
-    ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
+    # ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
 
     try:
         pl.subplot(2,3,5)
@@ -1004,9 +1032,101 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
 
     #TODO: make resampled error-bars
 
-    return mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2
+    return mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,e1i_mean,e2i_mean,e1i_stdm,e2i_stdm
 
+def plot_mc_vs_snr():
+
+    cols_res=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky']
+    cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true']
+    cols_des=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky']
+
+    if args.use_calibration:
+        logger.info('testing calibration columns')
+        cols_res += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
+        cols_des += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
+    else:
+        logger.info('measuring bias')
+
+    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
+ 
+    list_snr_centers = plotstools.get_bins_centers(list_snr_edges)
+
+    list_bias = []
+
+    # entire sample
+    logger.info('calculating bias for the entire sample')
+    filename_str = 'all.%s' % args.method
+    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim,res_tru,None,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
+
+    for isnr in range(1,len(list_snr_edges)):
+
+            select = (res_sim['snr'] > list_snr_edges[isnr-1]) & (res_sim['snr'] < list_snr_edges[isnr]) 
+            n_gals_sim = len(np.nonzero(select)[0])
+            logger.info('isnr=%2d n_gals_sim=%d' % (isnr,n_gals_sim))
+
+            res_sim_select = res_sim[select]
+            res_tru_select = res_tru[select]
+
+            vsnr_mid = list_snr_centers[isnr-1]
+
+            logger.info(selection_string_sim)
+            filename_str = 'm_vs_snr.snr%2.2f' % (vsnr_mid)
+            mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim_select,res_tru_select,None,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
+
+            std_e = np.std(res_sim_select['e1'],ddof=1)
+            list_bias.append( [isnr,n_gals_sim,vsnr_mid,std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,mean_e1,mean_e2,stdm_e1,stdm_e2] )
+
+    import tktools;
+    arr_bias = tktools.arr2rec(np.array(list_bias),dtype={'names': ["isnr","n_gals","snr","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc",'mean_e1','mean_e2','stdm_e1','stdm_e2'], 'formats': ['i4']*2 + ['f8']*22 } )
+
+    pl.figure(figsize=(20,15))
+    pl.errorbar(arr_bias['snr'],arr_bias['m'],yerr=arr_bias['std_m'], fmt='k-'  , label='m')
+    pl.errorbar(arr_bias['snr'],arr_bias['m1'],yerr=arr_bias['std_m'],  fmt='r:', label='m1')
+    pl.errorbar(arr_bias['snr'],arr_bias['m2'],yerr=arr_bias['std_m'],  fmt='m:', label='m2')
+    pl.xscale('log')
+    pl.xlabel('snr')
+    pl.ylabel('multiplicative bias m')
+    pl.xticks(arr_bias['snr'])
+    pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
+    plot_add_requirements()
+    pl.xlim([0,250])
+    pl.title('%s\n%s\n weights=%d calib/sens=%d' % (args.method,selection_string_sim,args.use_weights,args.use_calibration))
+    pl.legend(framealpha=0.0,frameon=False,loc='lower right')
+    filename_fig = 'figs/plot_mc_vs_snr.m.png'
+    pl.savefig(filename_fig)
+    logger.info('wrote %s' % (filename_fig))
     
+    pl.figure(figsize=(20,15))
+    pl.errorbar(arr_bias['snr'],arr_bias['pmm'],yerr=arr_bias['std_pmm'],  fmt='k-' , label='alpha')
+    pl.xscale('log')
+    pl.xticks(arr_bias['snr'])
+    pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
+    plot_add_requirements()
+    pl.xlim([0,250])
+    pl.title('%s\n%s\n weights=%d calib/sens=%d' % (args.method,selection_string_sim,args.use_weights,args.use_calibration))
+    pl.legend(framealpha=0.0,frameon=False,loc='lower right')
+    filename_fig = 'figs/plot_mc_vs_snr.alpha.png'
+    pl.savefig(filename_fig)
+    logger.info('wrote %s' % (filename_fig))
+
+    pl.figure(figsize=(20,15))
+    pl.errorbar(arr_bias['snr'],arr_bias['mean_e1'],yerr=arr_bias['stdm_e1'],  fmt='-' , label='mean_e1')
+    pl.errorbar(arr_bias['snr'],arr_bias['mean_e2'],yerr=arr_bias['stdm_e2'],  fmt='-' , label='mean_e2')
+    pl.xscale('log')
+    pl.xticks(arr_bias['snr'])
+    pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
+    plot_add_requirements()
+    pl.xlim([0,250])
+    pl.title('%s\n%s\n weights=%d calib/sens=%d' % (args.method,selection_string_sim,args.use_weights,args.use_calibration))
+    pl.legend(framealpha=0.0,frameon=False,loc='lower right')
+    filename_fig = 'figs/plot_mc_vs_snr.meane.png'
+    pl.savefig(filename_fig)
+    logger.info('wrote %s' % (filename_fig))
+
+    pl.show()
+
+    import pdb; pdb.set_trace()
+
 
 def get_calibration():
 
@@ -1022,10 +1142,8 @@ def get_calibration():
         logger.info('measuring bias')
 
     res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
-    res_des         = nbc_v7_select.get_selection_des(selection_string_des,cols=cols_des,n_files=10,get_calibrated=args.use_calibration)
-
-    import pdb; pdb.set_trace()
-    
+    res_des         = nbc_v7_select.get_selection_des(selection_string_des,cols=cols_des,n_files=args.num,get_calibrated=args.use_calibration)
+ 
     list_snr_centers = plotstools.get_bins_centers(list_snr_edges)
     list_psf_centers = plotstools.get_bins_centers(list_psf_edges)
 
@@ -1034,10 +1152,7 @@ def get_calibration():
     # entire sample
     logger.info('calculating bias for the entire sample')
     filename_str = 'all.%s' % args.method
-    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim,res_tru,res_des,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
-
-
-
+    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim,res_tru,res_des,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
 
     for ipsf in range(1,len(list_psf_edges)):
         for isnr in range(1,len(list_snr_edges)):
@@ -1067,7 +1182,7 @@ def get_calibration():
 
             logger.info(selection_string_sim)
             filename_str = 'snr%2.2f.psf%2.2f' % (vsnr_mid,vpsf_mid)
-            mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2=get_mc(res_sim_select,res_tru_select,res_des_select,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
+            mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim_select,res_tru_select,res_des_select,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
 
             std_e = np.std(res_sim_select['e1'],ddof=1)
             list_bias.append( [ipsf,isnr,n_gals_sim,vpsf_min,vpsf_max,vsnr_min,vsnr_max,std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc] )
@@ -1159,20 +1274,20 @@ def get_distributions():
     pl.xlabel('Rgpp/Rp dilation')
 
     pl.subplot(2,3,4)
-    pl.hist(res_sim['radius'] ,bins=np.linspace(0,4,100),histtype='step',label='GREAT-DES radius'     , normed=True, color='r') 
-    pl.hist(res_des['radius'] ,bins=np.linspace(0,4,100),histtype='step',label='%s radius' % config['methods'][args.method]['label'] , normed=True, color='b') 
+    pl.hist(res_sim['radius'] ,bins=np.linspace(0,5,100),histtype='step',label='GREAT-DES radius'     , normed=True, color='r') 
+    pl.hist(res_des['radius'] ,bins=np.linspace(0,5,100),histtype='step',label='%s radius' % config['methods'][args.method]['label'] , normed=True, color='b') 
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
 
     pl.subplot(2,3,5)
-    pl.hist(res_sim['bulge_flux'], bins=np.linspace(-20,40,100),histtype='step',normed=True , label='GREAT-DES bulge_flux'      , color='r')
-    pl.hist(res_des['bulge_flux'], bins=np.linspace(-20,40,100),histtype='step',normed=True , label='%s bulge_flux' % config['methods'][args.method]['label']  , color='b')
+    pl.hist(res_sim['bulge_flux'], bins=np.linspace(-10,20,100),histtype='step',normed=True , label='GREAT-DES bulge_flux'      , color='r')
+    pl.hist(res_des['bulge_flux'], bins=np.linspace(-10,20,100),histtype='step',normed=True , label='%s bulge_flux' % config['methods'][args.method]['label']  , color='b')
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
 
     pl.subplot(2,3,6)
-    pl.hist(res_sim['disc_flux'], bins=np.linspace(-5,5,100),histtype='step',normed=True , label='GREAT-DES disc_flux'      , color='r')
-    pl.hist(res_des['disc_flux'], bins=np.linspace(-5,5,100),histtype='step',normed=True , label='%s disc_flux' % config['methods'][args.method]['label']  , color='b')
+    pl.hist(res_sim['disc_flux'], bins=np.linspace(-10,10,100),histtype='step',normed=True , label='GREAT-DES disc_flux'      , color='r')
+    pl.hist(res_des['disc_flux'], bins=np.linspace(-10,10,100),histtype='step',normed=True , label='%s disc_flux' % config['methods'][args.method]['label']  , color='b')
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
 
@@ -1548,7 +1663,7 @@ def get_meane_vs_size():
 def get_meane_vs_snr():
 
     res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=['e1','e2','snr'],cols_tru=['snr','psf_e1','psf_e2'])
-    res_des = nbc_v7_select.get_selection_des(selection_string_des,cols=['e1','e2','snr','mean_psf_e1_sky','mean_psf_e2_sky'],n_files=args.num)
+    # res_des = nbc_v7_select.get_selection_des(selection_string_des,cols=['e1','e2','snr','mean_psf_e1_sky','mean_psf_e2_sky'],n_files=args.num)
 
     pl.figure()
     pl.subplot(2,2,1)
@@ -1684,8 +1799,21 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
     # bins_psf_edges = np.linspace(-0.014,0.014,5)
     # bins_psf_centers = plotstools.get_bins_centers(bins_psf_edges)
 
-    bins_psf_centers = np.array([-0.02      , -0.00666667,  0.00666667,  0.02      ])
-    bins_psf_edges = plotstools.get_bins_edges(bins_psf_centers)
+    if args.method=='ngmix':
+        # for NGMIX we use true PSF shape as the measured one is not provided in GREAT-DES results catalogs
+        # so bin centers correspond to true PSF ellipticity
+        bins_psf_centers = np.array([-0.02      , -0.00666667,  0.00666667,  0.02      ])
+        bins_psf_edges = plotstools.get_bins_edges(bins_psf_centers)
+    elif args.method=='im3shape':
+        # there is a difference between measured shape in im3shape and in true PSF shape in sims -- 
+        # so here we use the measured PSF shape in im3shape, as that is used in analysis in DES
+        # there is also a sign flip on e1 for PSF
+        bins_psf_edges = np.linspace(-0.014,0.014,5)
+        bins_psf_centers = plotstools.get_bins_centers(bins_psf_edges)
+    else:
+        raise Exception('invalid method name %s' % args.method)
+
+    # pl.hist(res['mean_psf_e1_sky'],1000); pl.plot(bins_psf_edges,np.zeros_like(bins_psf_edges),'rd'); pl.show()
 
     logger.debug('bins_psf_edges: [ ' +  (' '.join(['% 5.2f']*len(bins_psf_edges)))%tuple(bins_psf_edges) + ' ]')
 

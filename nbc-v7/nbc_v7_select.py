@@ -21,8 +21,8 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
 
     if 'T' in cat_res.dtype.names:
         cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', cat_res['T'])
-    elif 'ngmix009_EXP_T' in cat_res.dtype.names:
-        cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', cat_res['ngmix010_EXP_T'])
+    elif 'ngmix_EXP_T' in cat_res.dtype.names:
+        cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', cat_res['ngmix_EXP_T'])
     elif 'pars' in cat_res.dtype.names:
         cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', np.sqrt(np.abs(cat_res['pars'][:,4]/2.)))       
     else:
@@ -30,31 +30,42 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
 
     if 'g_sens' in cat_res.dtype.names:
 
-        cat_res = tabletools.appendColumn(cat_res,'nbc_m1', (cat_res['g_sens'][:,0]-1) )
-        cat_res = tabletools.appendColumn(cat_res,'nbc_m2', (cat_res['g_sens'][:,1]-1) )
+        # cat_res = tabletools.appendColumn(cat_res,'nbc_m1', (cat_res['g_sens'][:,0]-1) )
+        # cat_res = tabletools.appendColumn(cat_res,'nbc_m2', (cat_res['g_sens'][:,1]-1) )
         cat_res = tabletools.appendColumn(cat_res,'nbc_c1', np.zeros(len(cat_res)))
         cat_res = tabletools.appendColumn(cat_res,'nbc_c2', np.zeros(len(cat_res)))
+        # cat_res['nbc_c1'] = 0
+        # cat_res['nbc_c2'] = 0
 
-    if 'ngmix009_PSFREC_E_1' not in cat_res.dtype.names:
+        warnings.warn('using mean g_sens')
+        col_m = ( cat_res['g_sens'][:,0] + cat_res['g_sens'][:,1] ) / 2.
+        cat_res = tabletools.appendColumn(cat_res,'nbc_m1', (col_m - 1) )
+        cat_res = tabletools.appendColumn(cat_res,'nbc_m2', (col_m - 1) )
+
+    if 'ngmix_PSFREC_E_1' not in cat_res.dtype.names:
 
         cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_tru['psf_e1'])
         cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_tru['psf_e2'])
 
-    if 'ngmix009_EXP_E_1' in cat_res.dtype.names:
+    if 'ngmix_EXP_E_1' in cat_res.dtype.names:
 
-        cat_res = tabletools.appendColumn(cat_res,'e1', cat_res['ngmix010_EXP_E_1'])
-        cat_res = tabletools.appendColumn(cat_res,'e2', cat_res['ngmix010_EXP_E_2'])
-        cat_res = tabletools.appendColumn(cat_res,'nbc_m1', (cat_res['ngmix010_EXP_E_SENS_1']-1) )
-        cat_res = tabletools.appendColumn(cat_res,'nbc_m2', (cat_res['ngmix010_EXP_E_SENS_2']-1) )
-        cat_res = tabletools.appendColumn(cat_res,'nbc_c1', np.zeros(len(cat_res)))
-        cat_res = tabletools.appendColumn(cat_res,'nbc_c2', np.zeros(len(cat_res)))
-        cat_res = tabletools.appendColumn(cat_res,'flags', cat_res['ngmix010_FLAGS'])
-        cat_res = tabletools.appendColumn(cat_res,'arate', cat_res['ngmix010_EXP_ARATE'])
-        cat_res = tabletools.appendColumn(cat_res,'T_s2n', cat_res['ngmix010_EXP_T_S2N'])
-        cat_res = tabletools.appendColumn(cat_res,'snr', cat_res['ngmix010_EXP_S2N_W'])
+        cat_res = tabletools.appendColumn(cat_res,'e1', cat_res['ngmix_EXP_E_1'])
+        cat_res = tabletools.appendColumn(cat_res,'e2', cat_res['ngmix_EXP_E_2'])
+        cat_res = tabletools.appendColumn(cat_res,'nbc_m1', (cat_res['ngmix_EXP_E_SENS_1']-1) )
+        cat_res = tabletools.appendColumn(cat_res,'nbc_m2', (cat_res['ngmix_EXP_E_SENS_2']-1) )
+        # cat_res = tabletools.appendColumn(cat_res,'nbc_c1', np.zeros(len(cat_res)))
+        # cat_res = tabletools.appendColumn(cat_res,'nbc_c2', np.zeros(len(cat_res)))
+        cat_res = tabletools.appendColumn(cat_res,'flags', cat_res['ngmix_FLAGS'])
+        cat_res = tabletools.appendColumn(cat_res,'arate', cat_res['ngmix_EXP_ARATE'])
+        cat_res = tabletools.appendColumn(cat_res,'T_s2n', cat_res['ngmix_EXP_T_S2N'])
+        cat_res = tabletools.appendColumn(cat_res,'snr', cat_res['ngmix_EXP_S2N_W'])
         
-        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_res['ngmix010_PSFREC_E_1'])
-        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_res['ngmix010_PSFREC_E_2'])     
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_res['ngmix_PSFREC_E_1'])
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_res['ngmix_PSFREC_E_2'])     
+
+        cat_res['nbc_c1'] = 0
+        cat_res['nbc_c2'] = 0
+
 
 
     if 'w' not in cat_res.dtype.names:
@@ -64,15 +75,16 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
             e_cov_1_1 = cat_res['g_cov'][:,0,0]
             e_cov_2_2 = cat_res['g_cov'][:,1,1]
             e_cov_1_2 = cat_res['g_cov'][:,0,1]
-            SN=0.16
-            w = 1.0/(2*SN**2 + e_cov_1_1 + e_cov_2_2 + 2*e_cov_1_2)
+            SN=0.32
+            w = 1.0/( SN**2 + e_cov_1_1 + e_cov_2_2 + 2*e_cov_1_2 )
             cat_res = tabletools.appendColumn(cat_res,'w', w)
+            warnings.warn('ngmix: using g_cov to create weight w')
 
-        elif 'ngmix009_EXP_E_COV_1_1' in cat_res.dtype.names:
+        elif 'ngmix_EXP_E_COV_1_1' in cat_res.dtype.names:
 
-            e_cov_1_1 = cat_res['ngmix009_EXP_E_COV_1_1']
-            e_cov_2_2 = cat_res['ngmix009_EXP_E_COV_2_2']
-            e_cov_1_2 = cat_res['ngmix009_EXP_E_COV_1_2']
+            e_cov_1_1 = cat_res['ngmix_EXP_E_COV_1_1']
+            e_cov_2_2 = cat_res['ngmix_EXP_E_COV_2_2']
+            e_cov_1_2 = cat_res['ngmix_EXP_E_COV_1_2']
             SN=0.16
             w = 1.0/(2*SN**2 + e_cov_1_1 + e_cov_2_2 + 2*e_cov_1_2)
             cat_res = tabletools.appendColumn(cat_res,'w', w)
@@ -100,13 +112,17 @@ def rename_im3shape_cols(cat_res,cat_tru=None):
         cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_res['im3shape_r_mean_psf_e2_sky'])
         cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', cat_res['im3shape_r_mean_rgpp_rp'])
         cat_res = tabletools.appendColumn(cat_res,'mean_psf_fwhm', cat_res['im3shape_r_mean_psf_fwhm'])
-        cat_res = tabletools.appendColumn(cat_res,'nbc_c1', cat_res['im3shape_r_nbc_c1'])
-        cat_res = tabletools.appendColumn(cat_res,'nbc_c2', cat_res['im3shape_r_nbc_c2'])
-        cat_res = tabletools.appendColumn(cat_res,'nbc_m', cat_res['im3shape_r_nbc_m'])
-        cat_res = tabletools.appendColumn(cat_res,'w', cat_res['im3shape_r_w'])
         cat_res = tabletools.appendColumn(cat_res,'disc_flux', cat_res['im3shape_r_disc_flux'])
         cat_res = tabletools.appendColumn(cat_res,'bulge_flux', cat_res['im3shape_r_bulge_flux'])
         cat_res = tabletools.appendColumn(cat_res,'snr', cat_res['im3shape_r_snr'])
+
+
+    if 'nbc_m' not in cat_res.dtype.names:
+        
+        cat_res = tabletools.appendColumn(cat_res,'w', cat_res['im3shape_r_w'])
+        cat_res = tabletools.appendColumn(cat_res,'nbc_c1', cat_res['im3shape_r_nbc_c1'])
+        cat_res = tabletools.appendColumn(cat_res,'nbc_c2', cat_res['im3shape_r_nbc_c2'])
+        cat_res = tabletools.appendColumn(cat_res,'nbc_m', cat_res['im3shape_r_nbc_m'])
 
 
     if 'nbc_m' in cat_res.dtype.names:
@@ -120,6 +136,7 @@ def rename_im3shape_cols(cat_res,cat_tru=None):
         warnings.warn('added weight column - all ones')
 
     if cat_tru!=None:
+        warnings.warn('using true psf e1 for mean_psf_e1_sky')
         if 'mean_psf_e1_sky' in cat_res.dtype.names:
             cat_res['mean_psf_e1_sky'] = cat_tru['psf_e1']
             cat_res['mean_psf_e2_sky'] = cat_tru['psf_e2']
@@ -239,7 +256,7 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
             if args.method == 'ngmix':
                 cat_res = rename_ngmix_cols(cat_res,cat_tru)
             elif args.method == 'im3shape':
-                cat_res = rename_im3shape_cols(cat_res,cat_tru)
+                cat_res = rename_im3shape_cols(cat_res)
 
             for col in cols_res:
                 if col not in cat_res.dtype.names:
