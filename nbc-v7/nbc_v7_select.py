@@ -117,7 +117,7 @@ def rename_im3shape_cols(cat_res,cat_tru=None):
         cat_res = tabletools.appendColumn(cat_res,'snr', cat_res['im3shape_r_snr'])
 
 
-    if 'nbc_m' not in cat_res.dtype.names:
+    if ('nbc_m' not in cat_res.dtype.names) & ( 'im3shape_r_w' in cat_res.dtype.names ) :
         
         cat_res = tabletools.appendColumn(cat_res,'w', cat_res['im3shape_r_w'])
         cat_res = tabletools.appendColumn(cat_res,'nbc_c1', cat_res['im3shape_r_nbc_c1'])
@@ -242,6 +242,7 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
                 logger.debug('sth wrong with file %s errmsg %s' % (filename_res,errmsg) )
                 n_missing+=1
                 continue
+
  
 
             if ('e1' in cols_res) & (args.method=='im3shape'):
