@@ -54,11 +54,10 @@ select_info_sim_final = select_info_sim_model
 # selection_string_des = "select =  (cat_res['error_flag']==0) & (cat_res['snr']>8) & (cat_res['mean_rgpp_rp']>1.) & "+ select_info 
 
 # get_calibration
-selection_string_model_sim = "select =  (cat_res['snr']>8) & (cat_res['mean_rgpp_rp']>1.0) & (cat_res['error_flag']==0) & (cat_tru['cosmos_mag_auto']<25) & (cat_tru['sf_hlr']>0.) &" + select_info_sim_model
-selection_string_model_des = "select =  (cat_res['snr']>8) & (cat_res['mean_rgpp_rp']>1.0) & (cat_res['error_flag']==0) &" + select_info_des 
-
-selection_string_final_sim = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.2) & (cat_res['error_flag']==0) & (cat_tru['cosmos_mag_auto']<25) & (cat_tru['sf_hlr']>0.) &" + select_info_sim_final
-selection_string_final_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.2) & (cat_res['error_flag']==0) &" + select_info_des 
+# selection_string_model_sim = "select =  (cat_res['snr']>8) & (cat_res['mean_rgpp_rp']>1.0) & (cat_res['error_flag']==0) & (cat_tru['cosmos_mag_auto']<25) & (cat_tru['sf_hlr']>0.) & ((cat_res['info_flag']&(~16)&(~16384))==0)" 
+# selection_string_model_des = "select =  (cat_res['snr']>8) & (cat_res['mean_rgpp_rp']>1.0) & (cat_res['error_flag']==0) & ((cat_res['info_flag'])&(~4)==0) " 
+# selection_string_final_sim = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.2) & (cat_res['error_flag']==0) & (cat_tru['cosmos_mag_auto']<25) & (cat_tru['sf_hlr']>0.) & (cat_res['info_flag']==0)"
+# selection_string_final_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.2) & (cat_res['error_flag']==0) & ((cat_res['info_flag'])&(~4)==0) "
 
 # ngmix
 # selection_string_sim = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & (cat_tru['cosmos_mag_auto']<23.25) & (cat_tru['sf_hlr']>0.2) &" + select_info
@@ -986,10 +985,10 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
     logger.info( "--- SIM mean_e2 = %2.5f +/- %2.5f" % (e2i_mean, e2i_stdm) )        
 
     if res_des!=None: dcc1,dmm1,dcc2,dmm2,std_dcc1,std_dmm1,std_dcc2,std_dmm2,dmean_e1,dstdm_e1,dmean_e2,dstdm_e2,dmean_g1,dmean_g2,bins_psf_centers = get_PSF_leakage(res_des,None,use_calibration=use_calibration,use_weights=use_weights)
-    if res_des!=None: logger.info( "--- DES m1  = % 2.5f +/- % 2.5f" % (dmm1,std_dmm1) )
-    if res_des!=None: logger.info( "--- DES c1  = % 2.5f +/- % 2.5f" % (dcc1,std_dcc1) )
-    if res_des!=None: logger.info( "--- DES m2  = % 2.5f +/- % 2.5f" % (dmm2,std_dmm2) )
-    if res_des!=None: logger.info( "--- DES c2  = % 2.5f +/- % 2.5f" % (dcc2,std_dcc2) )
+    if res_des!=None: logger.info( "--- DES pm1  = % 2.5f +/- % 2.5f" % (dmm1,std_dmm1) )
+    if res_des!=None: logger.info( "--- DES pc1  = % 2.5f +/- % 2.5f" % (dcc1,std_dcc1) )
+    if res_des!=None: logger.info( "--- DES pm2  = % 2.5f +/- % 2.5f" % (dmm2,std_dmm2) )
+    if res_des!=None: logger.info( "--- DES pc2  = % 2.5f +/- % 2.5f" % (dcc2,std_dcc2) )
 
     pmm = (pmm1+pmm2)/2.
     pcc = (pcc1+pcc2)/2.
@@ -1233,7 +1232,7 @@ def get_calibration():
 
     cols_res=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','error_flag','info_flag']
     cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true','sf_hlr']
-    cols_des=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky']
+    cols_des=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','error_flag','info_flag']
 
     if args.use_calibration:
         logger.info('testing calibration columns')
@@ -1243,7 +1242,7 @@ def get_calibration():
         logger.info('measuring bias')
 
     res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_model_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
-    res_des         = nbc_v7_select.get_selection_des(selection_string_model_des,cols=cols_des,n_files=args.num,get_calibrated=args.use_calibration)
+    res_des         = nbc_v7_select.get_selection_des(selection_string_model_des,cols=cols_des,n_files=410,get_calibrated=args.use_calibration)
  
     list_snr_centers = plotstools.get_bins_centers(list_snr_edges)
     list_psf_centers = plotstools.get_bins_centers(list_psf_edges)
@@ -1255,10 +1254,16 @@ def get_calibration():
     cat_res = res_sim
     cat_tru = res_tru
     exec selection_string_final_sim
+    select_sim = select.copy()
+    cat_res = res_des
+    exec selection_string_final_des
+    select_des = select.copy()
     filename_str = 'all.%s' % args.method
 
     logger.info(selection_string_final_sim)
-    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(cat_res[select],cat_tru[select],None,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
+    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim[select_sim],res_tru[select_sim],res_des[select_des],use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
+
+    import pdb; pdb.set_trace()
 
     for ipsf in range(1,len(list_psf_edges)):
         for isnr in range(1,len(list_snr_edges)):
@@ -1446,8 +1451,12 @@ def get_distributions():
     print 'selection_string_final_des'
     print selection_string_final_des
 
-    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_final_sim,cols_res=['coadd_objects_id','ra_as','dec_as','e1','e2','snr','disc_flux','bulge_flux','mean_rgpp_rp','radius'],cols_tru=['id','snr','psf_e1','psf_e2', 'psf_fwhm', 'cosmos_mag_auto'])
+    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_final_sim,cols_res=['coadd_objects_id','ra_as','dec_as','e1','e2','snr','disc_flux','bulge_flux','mean_rgpp_rp','radius','bord'],cols_tru=['id','snr','psf_e1','psf_e2', 'psf_fwhm', 'cosmos_mag_auto'])
     res_des         = nbc_v7_select.get_selection_des(selection_string_final_des,cols=['ra_as','dec_as','e1','e2','snr','mean_psf_e1_sky','mean_psf_e2_sky','disc_flux','bulge_flux','mean_rgpp_rp','radius'],n_files=args.num)
+
+    bulge_fraction = np.sum(res_sim['bord']==1)/float(len(res_sim))
+    logger.info('bulge_fraction=%2.4f',bulge_fraction)
+
 
     # match_weights = get_match_weights(res_sim,res_des)
 
@@ -2163,11 +2172,16 @@ def main():
     config = yaml.load(open(args.filename_config))
     nbc_v7_select.config=config; nbc_v7_select.args = args; 
 
-    global selection_string_sim; 
-    global selection_string_des;
+    global selection_string_model_sim; 
+    global selection_string_model_des;
+    global selection_string_final_sim; 
+    global selection_string_final_des;
 
-    # selection_string_sim = config['selection_string_sim']
-    # selection_string_des = config['selection_string_des']
+    selection_string_model_sim = config['selection_string_model_sim']
+    selection_string_model_des = config['selection_string_model_des']
+    selection_string_final_sim = config['selection_string_final_sim']
+    selection_string_final_des = config['selection_string_final_des']
+
 
     if args.actions==None:
         logger.error('no action specified, choose from %s' % valid_actions)

@@ -187,6 +187,55 @@ def get_selection_sim(selection_string, cols_res, cols_tru, get_calibrated=False
 
     return all_res, all_tru
 
+def get_bord_results(filename):
+
+    filename_d = filename.replace('$bord$','disc')
+    filename_b = filename.replace('$bord$','bulge')
+    cat_d = tabletools.loadTable(filename_d,log=1,remember=False)
+    cat_b = tabletools.loadTable(filename_b,log=1,remember=False)
+
+    common_indices = np.intersect1d(cat_b['coadd_objects_id'],cat_d['coadd_objects_id'])
+
+    common_b = cat_b[common_indices]
+    common_d = cat_d[common_indices]
+
+    select_b = (common_b['likelihood']-common_d['likelihood']) > 0
+    select_d = (common_b['likelihood']-common_d['likelihood']) < 0
+
+    common = np.copy(common_b)
+    common[select_b]=common_b[select_b]
+    common[select_d]=common_d[select_d]
+
+    common['info_flag'] = common_d['info_flag'] | common_b['info_flag']
+    common['error_flag'] = common_d['error_flag'] | common_b['error_flag']
+
+    common = add_col(common,'bord',select_b,dtype=np.bool)
+
+
+    # import pdb; pdb.set_trace()
+    # for i in range(len(common)): print 'L=% 2.4e e1=% 2.2f e2=% 2.2f b=%d d=%d Lb=% 2.4e Ld=% 2.4e e1b=% 2.2f e2b=% 2.2f e1d=% 2.2f e2d=% 2.2f' % (common['likelihood'][i],common['e1'][i],common['e2'][i],select_b[i],select_d[i],common_b['likelihood'][i],common_d['likelihood'][i],common_b['e1'][i],common_b['e2'][i],common_d['e1'][i],common_d['e2'][i])
+    #  i=11; print '{0:b}'.format(common_b['info_flag'][i]).zfill(30); print '{0:b}'.format(common_d['info_flag'][i]).zfill(30); print '{0:b}'.format(common['info_flag'][i]).zfill(30)
+
+
+    logger.debug('bord: selected intersection %5d / %5d %5d' % (len(common),len(cat_b),len(cat_d)))
+
+    return common 
+    
+def add_col(rec, name, arr, dtype=None):
+    import numpy
+    arr = numpy.asarray(arr)
+    if dtype is None:
+        dtype = arr.dtype
+    newdtype = numpy.dtype(rec.dtype.descr + [(name, dtype)])
+    newrec = numpy.empty(rec.shape, dtype=newdtype)
+    for field in rec.dtype.fields:
+        newrec[field] = rec[field]
+    newrec[name] = arr
+    return newrec
+
+
+
+
 
 def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=False):
 
@@ -234,7 +283,8 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
                     raise Exception('column %s not found in truth catalog %s' % (col,filename_tru))
 
             try:
-                    cat_res_all = tabletools.loadTable(filename_res,log=1,remember=False)
+                    cat_res_all = get_bord_results(filename_res)
+                    # cat_res_all = tabletools.loadTable(filename_res,log=1,remember=False)
                     cat_res = cat_res_all
                     logger.debug('loaded %05d galaxies from file: %s' % (len(cat_res_all),filename_res))
 
