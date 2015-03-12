@@ -8,8 +8,9 @@ dtype_truth = {
                            , 'sf_q'         
                            , 'sf_boxiness'  
                            , 'sf_phi'
-                           , 'zphot' ] ,    
-        'formats' : ['i8']*4 + ['f8']*28 }
+                           , 'zphot'
+                           , 'psf_file' ] ,    
+        'formats' : ['i8']*4 + ['f8']*28 + ['a2048'] }
 
 dtype_psfkey = {
         'names' : [ 'id_psf' ,  'id_psf_fwhm' , 'id_psf_e1' , 'id_psf_e2' ,  'psf_fwhm' , 'psf_e1' , 'psf_e2' ]  ,

@@ -637,11 +637,21 @@ def get_useful_cosmos_galaxies_ids():
 
 def get_truth_catalogs():
 
-    filename_psf_fwhm = 'psf_fwhm_dist.txt'
-    filename_psf_ell = 'psf_ell_dist.txt'
+    if config['psf']['type'] == 'InterpolatedImage':
+        logger.info('using PSF interpoalted image')
+        n_psf_images = config['n_psf_images']
+        filename_psf_images_prob = 'psf_images_prob.txt'
+        img_psf_id, img_prob_psf_id, img_psf_fwhm, img_psf_e1, img_psf_e2=tktools.load(filename_psf_images_prob).T
+        img_psf_filenames = [ 'nbc.realpsf.%03d.fits'%i for i in range(n_psf_images) ]
+
+    else:
+        logger.info('using PSF parametric model')
+        filename_psf_fwhm = 'psf_fwhm_dist.txt'
+        filename_psf_ell = 'psf_ell_dist.txt'
     
-    bins_psf_fwhm,prob_psf_fwhm=np.loadtxt(filename_psf_fwhm).T
-    bins_psf_e,prob_psf_e1,prob_psf_e2=np.loadtxt(filename_psf_ell).T
+        bins_psf_fwhm,prob_psf_fwhm=np.loadtxt(filename_psf_fwhm).T
+        bins_psf_e,prob_psf_e1,prob_psf_e2=np.loadtxt(filename_psf_ell).T
+
     
     n_shears = len(config['shear'])
     n_gals = int(float(config['n_gals_per_file'])) 
@@ -669,13 +679,22 @@ def get_truth_catalogs():
             shear_ids = np.ones_like(ids) * ig
             shear_g1  = np.ones_like(ids) * vg[0]
             shear_g2  = np.ones_like(ids) * vg[1]
-            psf_fwhm_ids = np.random.choice(a=len(bins_psf_fwhm),size=n_gals,p=prob_psf_fwhm)
-            psf_e1_ids = np.random.choice(a=len(bins_psf_e),size=n_gals,p=prob_psf_e1)
-            psf_e2_ids = np.random.choice(a=len(bins_psf_e),size=n_gals,p=prob_psf_e2)
-            psf_fwhm = bins_psf_fwhm[psf_fwhm_ids]
-            psf_e1 = bins_psf_e[psf_e1_ids]
-            psf_e2 = bins_psf_e[psf_e2_ids]
-            psf_ids = get_psf_index(psf_fwhm_ids, psf_e1_ids, psf_e2_ids)
+
+            if config['psf']['type'] == 'InterpolatedImage': 
+                psf_ids = np.random.choice(a=n_psf_images,size=n_gals,p=img_prob_psf_id)
+                catalog['psf_fwhm'] = img_psf_fwhm[psf_ids]
+                catalog['psf_e1']   = img_psf_e1[psf_ids]
+                catalog['psf_e2']   = img_psf_e2[psf_ids]
+                catalog['psf_file'] = img_psf_filenames[psf_ids]
+
+            else:
+                psf_fwhm_ids = np.random.choice(a=len(bins_psf_fwhm),size=n_gals,p=prob_psf_fwhm)
+                psf_e1_ids = np.random.choice(a=len(bins_psf_e),size=n_gals,p=prob_psf_e1)
+                psf_e2_ids = np.random.choice(a=len(bins_psf_e),size=n_gals,p=prob_psf_e2)
+                psf_fwhm = bins_psf_fwhm[psf_fwhm_ids]
+                psf_e1 = bins_psf_e[psf_e1_ids]
+                psf_e2 = bins_psf_e[psf_e2_ids]
+                psf_ids = get_psf_index(psf_fwhm_ids, psf_e1_ids, psf_e2_ids)
 
             catalog['id'] = ids
             catalog['id_cosmos'] = cosmos_ids
