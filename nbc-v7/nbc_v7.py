@@ -91,7 +91,8 @@ def inv_snr_basis(x):
     # X = np.concatenate( [ np.ones((n_points_x,1)), 1/x, 1./x**1.5, 1./x**2, 1./x**2.5 ],axis=1 )
     
     # use this one for real calibration
-    X = np.concatenate( [  np.ones((n_points_x,1)), 1./x**1, 1/x**2, 1/x**3 ],axis=1 ) 
+    # X = np.concatenate( [  np.ones((n_points_x,1)), 1./x**1, 1/x**2, 1/x**3 ],axis=1 ) 
+    X = np.concatenate( [  1/x**1, 1/x**2, 1/x**3 ],axis=1 ) 
 
     # X = np.concatenate( [  1./x**1, 1/x**1.25, 1/x**1.5, 1/x**2],axis=1 ) 
     # X = np.concatenate( [  1./x**1, 1/x**1.5, 1/x**2],axis=1 ) 
@@ -1239,10 +1240,14 @@ def get_calibration():
         cols_res += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
         cols_des += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
     else:
-        logger.info('measuring bias')
+        logger.info('will measure bias, no calibration applied')
 
+    logger.info('loading SIM results with following selection:')
+    logger.info(selection_string_model_sim)
     res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_model_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
-    res_des         = nbc_v7_select.get_selection_des(selection_string_model_des,cols=cols_des,n_files=410,get_calibrated=args.use_calibration)
+    logger.info('loading DES results with following selection:')
+    logger.info(selection_string_model_des)
+    res_des         = nbc_v7_select.get_selection_des(selection_string_model_des,cols=cols_des,n_files=args.n_des_files,get_calibrated=args.use_calibration)
  
     list_snr_centers = plotstools.get_bins_centers(list_snr_edges)
     list_psf_centers = plotstools.get_bins_centers(list_psf_edges)
@@ -1251,6 +1256,9 @@ def get_calibration():
     
     # entire sample
     logger.info('calculating bias for the entire sample - using cuts from final selection')
+    logger.info(selection_string_final_sim)
+    logger.info(selection_string_final_des)
+    
     cat_res = res_sim
     cat_tru = res_tru
     exec selection_string_final_sim
@@ -1259,8 +1267,9 @@ def get_calibration():
     exec selection_string_final_des
     select_des = select.copy()
     filename_str = 'all.%s' % args.method
+    logger.info('final selection SIM %d/%d %f',res_sim[select_sim],len(res_sim[select_sim]), res_sim[select_sim]/float(len(res_sim[select_sim])))
+    logger.info('final selection DES %d/%d %f',res_des[select_des],len(res_des[select_des]), res_des[select_des]/float(len(res_des[select_des])))
 
-    logger.info(selection_string_final_sim)
     mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim[select_sim],res_tru[select_sim],res_des[select_des],use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
 
     import pdb; pdb.set_trace()
@@ -1451,10 +1460,10 @@ def get_distributions():
     print 'selection_string_final_des'
     print selection_string_final_des
 
-    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_final_sim,cols_res=['coadd_objects_id','ra_as','dec_as','e1','e2','snr','disc_flux','bulge_flux','mean_rgpp_rp','radius','bord'],cols_tru=['id','snr','psf_e1','psf_e2', 'psf_fwhm', 'cosmos_mag_auto'])
-    res_des         = nbc_v7_select.get_selection_des(selection_string_final_des,cols=['ra_as','dec_as','e1','e2','snr','mean_psf_e1_sky','mean_psf_e2_sky','disc_flux','bulge_flux','mean_rgpp_rp','radius'],n_files=args.num)
+    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_final_sim,cols_res=['coadd_objects_id','ra_as','dec_as','e1','e2','snr','disc_flux','bulge_flux','mean_rgpp_rp','radius','is_bulge','is_disc'],cols_tru=['id','snr','psf_e1','psf_e2', 'psf_fwhm', 'cosmos_mag_auto'])
+    res_des         = nbc_v7_select.get_selection_des(selection_string_final_des,cols=['ra_as','dec_as','e1','e2','snr','mean_psf_e1_sky','mean_psf_e2_sky','disc_flux','bulge_flux','mean_rgpp_rp','radius'],n_files=args.n_des_files)
 
-    bulge_fraction = np.sum(res_sim['bord']==1)/float(len(res_sim))
+    bulge_fraction = np.sum(res_sim['is_bulge']==1)/float(np.sum( (res_sim['is_bulge']==1) | (res_sim['is_disc']==1) ))
     logger.info('bulge_fraction=%2.4f',bulge_fraction)
 
 
@@ -2163,6 +2172,9 @@ def main():
     parser.add_argument('-a', '--actions', nargs='+' ,default=None, type=str, action='store',  help='which actions to run, available: %s' % str(valid_actions) )
     parser.add_argument('--use_calibration', default=False, action='store_true', help='if to apply calibration columns')
     parser.add_argument('--use_weights', default=False, action='store_true', help='if to apply weights')
+    parser.add_argument('--n_des_files', default=460, type=int, action='store', help='number of DES files to read')
+    
+
     
     args = parser.parse_args()
     logging_levels = { 0: logging.CRITICAL,1: logging.WARNING,2: logging.INFO,3: logging.DEBUG }

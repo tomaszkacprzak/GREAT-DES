@@ -1,5 +1,5 @@
 import numpy as np; import pylab as pl
-import  sys
+import  sys, os
 sys.path.append('/Users/tomek/code/tktools')
 import logging, yaml, argparse, time, copy, itertools, tabletools, warnings
 warnings.simplefilter("once")
@@ -151,17 +151,20 @@ def get_selection_des(selection_string,cols,n_files=30,get_calibrated=False):
     if get_calibrated:
         filelist_i =glob.glob(config['filelist_des_calibrated'])
     else:
-        filelist_i = glob.glob(config['filelist_des'])
+        filelist_i = glob.glob(config['filelist_des'].replace('$bord$','bulge'))
     list_results = []
     logger.info('got %d DES files',len(filelist_i))
     n_files_loaded = 0
     n_gals_selected = 0
     for filename_des in filelist_i[:n_files]:
-        cat_res=tabletools.loadTable(filename_des,log=0,remember=False)
-        if args.method == 'ngmix':
-            cat_res = rename_ngmix_cols(cat_res)
-        elif args.method == 'im3shape':
-            cat_res = rename_im3shape_cols(cat_res)
+        # cat_res=tabletools.loadTable(filename_des,log=0,remember=False)
+        # if args.method == 'ngmix':
+        #     cat_res = rename_ngmix_cols(cat_res)
+        # elif args.method == 'im3shape':
+        #     cat_res = rename_im3shape_cols(cat_res)
+        cat_res = get_bord_results_des(filename_des.replace('bulge', '$bord$'), selection_string, mode='2')
+        if cat_res == None: 
+            continue
 
         n_all+=len(cat_res)
         n_files_loaded+=1
@@ -187,39 +190,244 @@ def get_selection_sim(selection_string, cols_res, cols_tru, get_calibrated=False
 
     return all_res, all_tru
 
-def get_bord_results(filename):
+def get_bord_results_des(filename,selection_string=None,cat_tru=None,mode='2'):
+
+    warnings.warn('using bord with mode %s' % mode)
+
+    filename_d = filename.replace('$bord$','disc')
+    filename_b = filename.replace('$bord$','bulge')
+    if not os.path.isfile(filename_d): 
+        logger.warning('file does not exist: %s',filename_d)
+        return None
+    if not os.path.isfile(filename_b): 
+        logger.warning('file does not exist: %s',filename_b)
+        return None
+        
+    cat_d = tabletools.loadTable(filename_d,log=1,remember=False)
+    cat_b = tabletools.loadTable(filename_b,log=1,remember=False)
+
+
+    if (len(cat_b)!=len(cat_d)):
+
+        both_files_indices = np.intersect1d(cat_b['coadd_objects_id'],cat_d['coadd_objects_id'])        
+        logger.debug('bulge n_gals: %d disc n_gals: %d, left %d' % (len(cat_b),len(cat_d),len(both_files_indices)))
+        try:
+            import tktools
+            iib = tktools.search_unsorted(both_files_indices,cat_b['coadd_objects_id'])
+            iid = tktools.search_unsorted(both_files_indices,cat_d['coadd_objects_id'])
+            cat_b = cat_b[iib]
+            cat_d = cat_d[iid]
+        except:
+            import pdb; pdb.set_trace()
+
+    if mode == '1':
+
+        common_indices = np.intersect1d(cat_b['coadd_objects_id'],cat_d['coadd_objects_id'])
+        import tktools
+        iib = tktools.search_unsorted(common_indices,cat_b['coadd_objects_id'])
+        iid = tktools.search_unsorted(common_indices,cat_d['coadd_objects_id'])
+        common_b = cat_b[iib]
+        common_d = cat_d[iid]
+
+        # common_b = cat_b[common_indices]
+        # common_d = cat_d[common_indices]
+
+        select_b = (common_b['likelihood']-common_d['likelihood']) > 0
+        select_d = (common_b['likelihood']-common_d['likelihood']) < 0
+
+        common = np.copy(common_b)
+        common[select_b]=common_b[select_b]
+        common[select_d]=common_d[select_d]
+
+        common['info_flag'] = common_d['info_flag'] | common_b['info_flag']
+        common['error_flag'] = common_d['error_flag'] | common_b['error_flag']
+
+        common = add_col(common,'is_bulge', select_b,dtype=np.bool)
+        common = add_col(common,'is_disc ', select_d,dtype=np.bool)
+
+
+        # import pdb; pdb.set_trace()
+        # for i in range(len(common)): print 'L=% 2.4e e1=% 2.2f e2=% 2.2f b=%d d=%d Lb=% 2.4e Ld=% 2.4e e1b=% 2.2f e2b=% 2.2f e1d=% 2.2f e2d=% 2.2f' % (common['likelihood'][i],common['e1'][i],common['e2'][i],select_b[i],select_d[i],common_b['likelihood'][i],common_d['likelihood'][i],common_b['e1'][i],common_b['e2'][i],common_d['e1'][i],common_d['e2'][i])
+        #  i=11; print '{0:b}'.format(common_b['info_flag'][i]).zfill(30); print '{0:b}'.format(common_d['info_flag'][i]).zfill(30); print '{0:b}'.format(common['info_flag'][i]).zfill(30)
+
+        logger.debug('bord: selected intersection %5d / %5d %5d' % (len(common),len(cat_b),len(cat_d)))
+
+        return common 
+
+    elif mode=='2':
+
+        if args.method == 'ngmix':
+            cat_b = rename_ngmix_cols(cat_b,cat_tru)
+            cat_d = rename_ngmix_cols(cat_d,cat_tru)
+        elif args.method == 'im3shape':
+            cat_b = rename_im3shape_cols(cat_b)
+            cat_d = rename_im3shape_cols(cat_d)
+
+        try:
+            cat_res = cat_b
+            exec selection_string
+            FB = select.copy()
+            cat_res = cat_d
+            exec selection_string
+            FD = select.copy()
+        except Exception,errmsg:
+            print errmsg
+            import pdb; pdb.set_trace()
+
+        LB = (cat_b['likelihood']-cat_d['likelihood']) > 0
+        LD = (cat_b['likelihood']-cat_d['likelihood']) < 0
+
+        cat_final = np.copy(cat_b)
+
+        # cat_final[ FB&FD&LD ] = cat_b[ FB&FD&LD ]
+        # cat_final[ FB&FD&LB ] = cat_d[ FB&FD&LB ]
+        # cat_final[ FB&(~FD) ] = cat_b[ FB&(~FD) ]
+        # cat_final[ FD&(~FB) ] = cat_d[ FD&(~FB) ]
+
+        select_b = (FB&(~FD)) | (FB&FD&LB)
+        select_d = (FD&(~FB)) | (FB&FD&LD)
+        cat_final[select_b] = cat_b[select_b]
+        cat_final[select_d] = cat_d[select_d]
+
+        cat_final = add_col(cat_final,'is_bulge', select_b,dtype=np.bool)
+        cat_final = add_col(cat_final,'is_disc', select_d,dtype=np.bool)
+
+        n_total = len(cat_final)
+        n_common = np.sum(FB&FD)
+        n_common_b = np.sum(FB&FD&LB)
+        n_common_d = np.sum(FB&FD&LD)
+        n_only_b = np.sum(FB&(~FD))
+        n_only_d = np.sum(FD&(~FB))  
+        n_check = n_only_b + n_only_d +  n_common_b + n_common_d
+        logger.debug('%s: total=%d, common=%d, common_b=%d, common_d=%d, only_b=%d, only_d=%d, n_check=%d' % (filename,n_total,n_common,n_common_b,n_common_d,n_only_b,n_only_d,n_check) )
+
+        return cat_final
+
+    else:
+
+        raise Exception('unknown mode %s, choose from [1,2]' % mode)
+
+
+
+def get_bord_results_sim(filename,selection_string=None,cat_tru=None,mode='2'):
+
+    warnings.warn('using bord with mode %s' % mode)
 
     filename_d = filename.replace('$bord$','disc')
     filename_b = filename.replace('$bord$','bulge')
     cat_d = tabletools.loadTable(filename_d,log=1,remember=False)
     cat_b = tabletools.loadTable(filename_b,log=1,remember=False)
 
-    common_indices = np.intersect1d(cat_b['coadd_objects_id'],cat_d['coadd_objects_id'])
+    if (len(cat_b)!=len(cat_d)) | (len(cat_b)!=len(cat_tru)):
 
-    common_b = cat_b[common_indices]
-    common_d = cat_d[common_indices]
+        both_files_indices = np.intersect1d(cat_b['coadd_objects_id'],cat_d['coadd_objects_id'])        
+        logger.debug('bulge n_gals: %d disc n_gals: %d, left %d' % (len(cat_b),len(cat_d),len(both_files_indices)))
+        try:
+            import tktools
+            iib = tktools.search_unsorted(both_files_indices,cat_b['coadd_objects_id'])
+            iid = tktools.search_unsorted(both_files_indices,cat_d['coadd_objects_id'])
+            iit = tktools.search_unsorted(both_files_indices,cat_tru['id'])
+            cat_b = cat_b[iib]
+            cat_d = cat_d[iid]
+            cat_tru = cat_tru[iit]
+        except:
+            import pdb; pdb.set_trace()
 
-    select_b = (common_b['likelihood']-common_d['likelihood']) > 0
-    select_d = (common_b['likelihood']-common_d['likelihood']) < 0
+    if mode == '1':
 
-    common = np.copy(common_b)
-    common[select_b]=common_b[select_b]
-    common[select_d]=common_d[select_d]
+        common_indices = np.intersect1d(cat_b['coadd_objects_id'],cat_d['coadd_objects_id'])
+        import tktools
+        iib = tktools.search_unsorted(common_indices,cat_b['coadd_objects_id'])
+        iid = tktools.search_unsorted(common_indices,cat_d['coadd_objects_id'])
+        common_b = cat_b[iib]
+        common_d = cat_d[iid]
 
-    common['info_flag'] = common_d['info_flag'] | common_b['info_flag']
-    common['error_flag'] = common_d['error_flag'] | common_b['error_flag']
+        # common_b = cat_b[common_indices]
+        # common_d = cat_d[common_indices]
 
-    common = add_col(common,'bord',select_b,dtype=np.bool)
+        select_b = (common_b['likelihood']-common_d['likelihood']) > 0
+        select_d = (common_b['likelihood']-common_d['likelihood']) < 0
+
+        common = np.copy(common_b)
+        common[select_b]=common_b[select_b]
+        common[select_d]=common_d[select_d]
+
+        common['info_flag'] = common_d['info_flag'] | common_b['info_flag']
+        common['error_flag'] = common_d['error_flag'] | common_b['error_flag']
+
+        common = add_col(common,'is_bulge', select_b,dtype=np.bool)
+        common = add_col(common,'is_disc ', select_d,dtype=np.bool)
 
 
-    # import pdb; pdb.set_trace()
-    # for i in range(len(common)): print 'L=% 2.4e e1=% 2.2f e2=% 2.2f b=%d d=%d Lb=% 2.4e Ld=% 2.4e e1b=% 2.2f e2b=% 2.2f e1d=% 2.2f e2d=% 2.2f' % (common['likelihood'][i],common['e1'][i],common['e2'][i],select_b[i],select_d[i],common_b['likelihood'][i],common_d['likelihood'][i],common_b['e1'][i],common_b['e2'][i],common_d['e1'][i],common_d['e2'][i])
-    #  i=11; print '{0:b}'.format(common_b['info_flag'][i]).zfill(30); print '{0:b}'.format(common_d['info_flag'][i]).zfill(30); print '{0:b}'.format(common['info_flag'][i]).zfill(30)
+        # import pdb; pdb.set_trace()
+        # for i in range(len(common)): print 'L=% 2.4e e1=% 2.2f e2=% 2.2f b=%d d=%d Lb=% 2.4e Ld=% 2.4e e1b=% 2.2f e2b=% 2.2f e1d=% 2.2f e2d=% 2.2f' % (common['likelihood'][i],common['e1'][i],common['e2'][i],select_b[i],select_d[i],common_b['likelihood'][i],common_d['likelihood'][i],common_b['e1'][i],common_b['e2'][i],common_d['e1'][i],common_d['e2'][i])
+        #  i=11; print '{0:b}'.format(common_b['info_flag'][i]).zfill(30); print '{0:b}'.format(common_d['info_flag'][i]).zfill(30); print '{0:b}'.format(common['info_flag'][i]).zfill(30)
+
+        logger.debug('bord: selected intersection %5d / %5d %5d' % (len(common),len(cat_b),len(cat_d)))
+
+        return common 
+
+    elif mode=='2':
+
+        if args.method == 'ngmix':
+            cat_b = rename_ngmix_cols(cat_b,cat_tru)
+            cat_d = rename_ngmix_cols(cat_d,cat_tru)
+        elif args.method == 'im3shape':
+            cat_b = rename_im3shape_cols(cat_b)
+            cat_d = rename_im3shape_cols(cat_d)
+
+        try:
+            cat_res = cat_b
+            exec selection_string
+            FB = select.copy()
+            cat_res = cat_d
+            exec selection_string
+            FD = select.copy()
+        except Exception,errmsg:
+            print errmsg
+            import pdb; pdb.set_trace()
+
+        LB = (cat_b['likelihood']-cat_d['likelihood']) > 0
+        LD = (cat_b['likelihood']-cat_d['likelihood']) < 0
+
+        cat_final = np.copy(cat_b)
+
+        # cat_final[ FB&FD&LD ] = cat_b[ FB&FD&LD ]
+        # cat_final[ FB&FD&LB ] = cat_d[ FB&FD&LB ]
+        # cat_final[ FB&(~FD) ] = cat_b[ FB&(~FD) ]
+        # cat_final[ FD&(~FB) ] = cat_d[ FD&(~FB) ]
+
+        select_b = (FB&(~FD)) | (FB&FD&LB)
+        select_d = (FD&(~FB)) | (FB&FD&LD)
+        cat_final[select_b] = cat_b[select_b]
+        cat_final[select_d] = cat_d[select_d]
+
+        cat_final = add_col(cat_final,'is_bulge', select_b,dtype=np.bool)
+        cat_final = add_col(cat_final,'is_disc', select_d,dtype=np.bool)
+
+        n_total = len(cat_final)
+        n_common = np.sum(FB&FD)
+        n_common_b = np.sum(FB&FD&LB)
+        n_common_d = np.sum(FB&FD&LD)
+        n_only_b = np.sum(FB&(~FD))
+        n_only_d = np.sum(FD&(~FB))  
+        n_check = n_only_b + n_only_d +  n_common_b + n_common_d
+        logger.debug('%s: total=%d, common=%d, common_b=%d, common_d=%d, only_b=%d, only_d=%d, n_check=%d' % (filename,n_total,n_common,n_common_b,n_common_d,n_only_b,n_only_d,n_check) )
+
+        return cat_final
+
+    else:
+
+        raise Exception('unknown mode %s, choose from [1,2]' % mode)
 
 
-    logger.debug('bord: selected intersection %5d / %5d %5d' % (len(common),len(cat_b),len(cat_d)))
 
-    return common 
+
+
+
+
+
+
     
 def add_col(rec, name, arr, dtype=None):
     import numpy
@@ -283,7 +491,7 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
                     raise Exception('column %s not found in truth catalog %s' % (col,filename_tru))
 
             try:
-                    cat_res_all = get_bord_results(filename_res)
+                    cat_res_all = get_bord_results_sim(filename_res,selection_string,cat_tru,mode='2')
                     # cat_res_all = tabletools.loadTable(filename_res,log=1,remember=False)
                     cat_res = cat_res_all
                     logger.debug('loaded %05d galaxies from file: %s' % (len(cat_res_all),filename_res))
