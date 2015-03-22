@@ -1227,25 +1227,69 @@ def plot_mc_vs_snr():
 
     import pdb; pdb.set_trace()
 
-
-def get_calibration():
-
-    cols_res=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','error_flag','info_flag']
+def save_selection():
+    
+    cols_res=['coadd_objects_id','e1','e2','w','snr','radius','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','error_flag','info_flag','is_bulge','is_disc','bulge_flux','disc_flux','ra_as','dec_as']
     cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true','sf_hlr']
-    cols_des=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky']
+    cols_des=['coadd_objects_id','e1','e2','w','snr','radius','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','error_flag','info_flag','sva1_gold_flags','bulge_flux','disc_flux','ra_as','dec_as']
 
     if args.use_calibration:
         logger.info('testing calibration columns')
         cols_res += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
         cols_des += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
     else:
-        logger.info('measuring bias')
+        logger.info('will measure bias, no calibration applied')
 
+    logger.info('loading SIM results with following selection:')
+    logger.info(selection_string_model_sim)
     res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_model_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
-    res_des         = nbc_v7_select.get_selection_des(selection_string_model_des,cols=cols_des,n_files=args.num,get_calibrated=args.use_calibration)
+    logger.info('loading DES results with following selection:')
+    logger.info(selection_string_model_des)
+
+    res_des = nbc_v7_select.get_selection_des(selection_string_model_des,cols=cols_des,n_files=args.n_des_files,get_calibrated=args.use_calibration)
+
+    bulge_fraction = np.sum(res_sim['is_bulge']==1)/float(np.sum( (res_sim['is_bulge']==1) | (res_sim['is_disc']==1) ))
+    logger.info('bulge_fraction=%2.4f',bulge_fraction)
+
+    filename_pickle = 'nbc_selection.calibr%d.weight%d.cpickle' % (args.use_calibration,args.use_weights)
+    import cPickle as pickle
+    pickle_dict = { 'res_sim':res_sim, 'res_tru':res_tru, 'res_des':res_des , 'selection_string_model_sim':selection_string_model_sim, 'selection_string_model_des':selection_string_model_des }
+    pickle.dump(pickle_dict, open(filename_pickle,'w'), protocol=2)
+    logger.info('wrote %s' % (filename_pickle))
+
+
+
+def get_calibration():
+
+    # cols_res=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','error_flag','info_flag']
+    # cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true','sf_hlr']
+    # cols_des=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky']
+
+    # if args.use_calibration:
+    #     logger.info('testing calibration columns')
+    #     cols_res += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
+    #     cols_des += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
+    # else:
+    #     logger.info('measuring bias')
+
+    # res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_model_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
+    # res_des         = nbc_v7_select.get_selection_des(selection_string_model_des,cols=cols_des,n_files=args.num,get_calibrated=args.use_calibration)
  
-    list_snr_centers = plotstools.get_bins_centers(list_snr_edges)
-    list_psf_centers = plotstools.get_bins_centers(list_psf_edges)
+    # list_snr_centers = plotstools.get_bins_centers(list_snr_edges)
+    # list_psf_centers = plotstools.get_bins_centers(list_psf_edges)
+
+    pickle_dict = tktools.load(args.filename_selection)
+
+    # match_weights = get_match_weights(res_sim,res_des)
+    res_sim = pickle_dict['res_sim']
+    res_tru = pickle_dict['res_tru']
+    res_des = pickle_dict['res_des']
+
+    logger.info('loaded DES results with following selection:')
+    logger.info(pickle_dict['selection_string_model_des'])
+    logger.info('loaded SIM results with following selection:')
+    logger.info(pickle_dict['selection_string_model_sim'])
+
 
     list_bias = []
     
