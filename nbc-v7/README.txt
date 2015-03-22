@@ -80,3 +80,13 @@ python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-v7.yaml -m im3shape -a get_jackn
 
 minion$ python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-ngmix009-002.yaml -m ngmix -a get_meane_vs_size
 
+
+
+
+
+
+
+# bord branch
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord.yaml -m im3shape -a save_selection -n 210 --n_des_files=460
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord.yaml -m im3shape --filename_selection nbc_selection.calibr0.weight0.cpickle -a get_calibration
+

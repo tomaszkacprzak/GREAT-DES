@@ -1,7 +1,7 @@
 import numpy as np; import pylab as pl
 import  sys, os
 sys.path.append('/Users/tomek/code/tktools')
-import logging, yaml, argparse, time, copy, itertools, tabletools, warnings
+import logging, yaml, argparse, time, copy, itertools, tabletools, warnings, tktools
 warnings.simplefilter("once")
 # from nbc2_dtypes import *
 logging_level = logging.INFO; logger = logging.getLogger("nbc-v7"); logger.setLevel(logging_level)  
@@ -143,8 +143,29 @@ def rename_im3shape_cols(cat_res,cat_tru=None):
 
     return cat_res
 
+def add_gold_col(cat_res,filename_des):
+
+    if config['use_gold']:
+
+        sva1_gold_flags = tktools.load('/Users/tomek/data/DES/sva1_gold_wl_flatcats_v4_info.fits',logger=1)
+        cat_res = add_col(cat_res,'sva1_gold_flags',np.ones(len(cat_res))*99)
+        intersect = np.intersect1d(cat_res['coadd_objects_id'],sva1_gold_flags['coadd_objects_id'])
+        if len(intersect) == 0:
+            logger.debug('%s no galaxies in the gold catalog' % filename_des)
+            return None
+        else:
+            sorting_gold = tktools.search_unsorted(intersect,sva1_gold_flags['coadd_objects_id'])
+            sorting_all = tktools.search_unsorted(intersect,cat_res['coadd_objects_id'])
+            cat_res['sva1_gold_flags'][sorting_all] = sva1_gold_flags[sorting_gold]['sva1_gold_flags']
+        
+    else:
+        warnings.warn('not using gold cat')
+        cat_res = add_col(cat_res,'sva1_gold_flags',np.ones(len(cat_res))*0)
+
+    return cat_res
 
 def get_selection_des(selection_string,cols,n_files=30,get_calibrated=False):
+
 
     n_all = 0
     import glob
@@ -163,7 +184,9 @@ def get_selection_des(selection_string,cols,n_files=30,get_calibrated=False):
         # elif args.method == 'im3shape':
         #     cat_res = rename_im3shape_cols(cat_res)
         cat_res = get_bord_results_des(filename_des.replace('bulge', '$bord$'), selection_string, mode='2')
+
         if cat_res == None: 
+            logger.info('%s tile removed' % filename_des)
             continue
 
         n_all+=len(cat_res)
@@ -206,6 +229,11 @@ def get_bord_results_des(filename,selection_string=None,cat_tru=None,mode='2'):
     cat_d = tabletools.loadTable(filename_d,log=1,remember=False)
     cat_b = tabletools.loadTable(filename_b,log=1,remember=False)
 
+    warnings.warn('adding SVA1 gold column')
+    cat_b = add_gold_col(cat_b,filename)
+    cat_d = add_gold_col(cat_d,filename)
+    if (cat_b==None) or (cat_d==None):
+        return None
 
     if (len(cat_b)!=len(cat_d)):
 
