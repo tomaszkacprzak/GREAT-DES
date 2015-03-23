@@ -64,8 +64,10 @@ selection_string_final_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgp
 # selection_string_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & "+ select_info 
 
 # for fitting
-list_snr_edges = [8,9,10,11,12,14,16,18,20,25,30,50,80,200,1000]
-list_psf_edges = [1.125,1.15,1.175,1.2,1.225,1.25,1.3,1.4,1.5,1.75,3.0]
+# list_snr_edges = [10,11,12,14,16,18,20,25,30,50,80,200,500]
+list_snr_edges = [10,12,15,20,25,30,50,100,200,500]
+# list_psf_edges = [1.15,1.175,1.2,1.225,1.25,1.3,1.4,1.5,1.75,3.0]
+list_psf_edges = [1.2,1.3,1.6,3.0]
 
 # list_snr_edges = [5,6,7,8,9,10,11,11.5,12,14,16,18,20,25,30,50,80,200,1000]
 # list_psf_edges = [1.15,1.175,1.2,1.225,1.25,1.3,1.4,1.5,1.75,3.0]
@@ -91,10 +93,10 @@ def inv_snr_basis(x):
     # X = np.concatenate( [ np.ones((n_points_x,1)), 1/x, 1./x**1.5, 1./x**2, 1./x**2.5 ],axis=1 )
     
     # use this one for real calibration
-    X = np.concatenate( [  np.ones((n_points_x,1)), 1./x**1, 1/x**2, 1/x**3 ],axis=1 ) 
+    # X = np.concatenate( [  np.ones((n_points_x,1)), 1./x**1, 1/x**2, 1/x**3 ],axis=1 ) 
 
     # X = np.concatenate( [  1./x**1, 1/x**1.25, 1/x**1.5, 1/x**2],axis=1 ) 
-    # X = np.concatenate( [  1./x**1, 1/x**1.5, 1/x**2],axis=1 ) 
+    X = np.concatenate( [ 1/x**2],axis=1 ) 
 
     # use this one for figure
     # X = np.concatenate( [ 1./x**2,  1./x**3, 1/x**4],axis=1 ) 
@@ -521,6 +523,8 @@ def get_bias_model():
     pl.ylabel('Rgp/Rp')
     pl.axis('tight')
     pl.title('multiplicative shear bias')
+
+    pl.show()
 
     # now leakage
 
@@ -1248,8 +1252,10 @@ def save_selection():
 
     res_des = nbc_v7_select.get_selection_des(selection_string_model_des,cols=cols_des,n_files=args.n_des_files,get_calibrated=args.use_calibration)
 
-    bulge_fraction = np.sum(res_sim['is_bulge']==1)/float(np.sum( (res_sim['is_bulge']==1) | (res_sim['is_disc']==1) ))
-    logger.info('bulge_fraction=%2.4f',bulge_fraction)
+    bulge_fraction_sim = np.sum(res_sim['bulge_flux']!=0)/float(len(res_sim))
+    bulge_fraction_des = np.sum(res_des['bulge_flux']!=0)/float(len(res_des))
+    logger.info('bulge_fraction SIM=%2.4f',bulge_fraction_sim)
+    logger.info('bulge_fraction DES=%2.4f',bulge_fraction_des)
 
     filename_pickle = 'nbc_selection.calibr%d.weight%d.cpickle' % (args.use_calibration,args.use_weights)
     import cPickle as pickle
@@ -1257,26 +1263,7 @@ def save_selection():
     pickle.dump(pickle_dict, open(filename_pickle,'w'), protocol=2)
     logger.info('wrote %s' % (filename_pickle))
 
-
-
 def get_calibration():
-
-    # cols_res=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','error_flag','info_flag']
-    # cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true','sf_hlr']
-    # cols_des=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky']
-
-    # if args.use_calibration:
-    #     logger.info('testing calibration columns')
-    #     cols_res += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
-    #     cols_des += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
-    # else:
-    #     logger.info('measuring bias')
-
-    # res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_model_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
-    # res_des         = nbc_v7_select.get_selection_des(selection_string_model_des,cols=cols_des,n_files=args.num,get_calibrated=args.use_calibration)
- 
-    # list_snr_centers = plotstools.get_bins_centers(list_snr_edges)
-    # list_psf_centers = plotstools.get_bins_centers(list_psf_edges)
 
     pickle_dict = tktools.load(args.filename_selection)
 
@@ -1290,34 +1277,88 @@ def get_calibration():
     logger.info('loaded SIM results with following selection:')
     logger.info(pickle_dict['selection_string_model_sim'])
 
+    # cols_res=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','error_flag','info_flag']
+    # cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true','sf_hlr']
+    # cols_des=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','error_flag','info_flag']
+
+    # if args.use_calibration:
+    #     logger.info('testing calibration columns')
+    #     cols_res += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
+    #     cols_des += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
+    # else:
+    #     logger.info('will measure bias, no calibration applied')
+
+    # logger.info('loading SIM results with following selection:')
+    # logger.info(selection_string_model_sim)
+    # res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_model_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
+    # logger.info('loading DES results with following selection:')
+    # logger.info(selection_string_model_des)
+    # res_des         = nbc_v7_select.get_selection_des(selection_string_model_des,cols=cols_des,n_files=args.n_des_files,get_calibrated=args.use_calibration)
+ 
+    list_snr_centers = plotstools.get_bins_centers(list_snr_edges)
+    list_psf_centers = plotstools.get_bins_centers(list_psf_edges)
 
     list_bias = []
     
     # entire sample
     logger.info('calculating bias for the entire sample - using cuts from final selection')
+    logger.info(selection_string_final_sim)
+    logger.info(selection_string_final_des)
     cat_res = res_sim
     cat_tru = res_tru
     exec selection_string_final_sim
+    select_sim = select.copy()
+    cat_res = res_des
+    exec selection_string_final_des
+    select_des = select.copy()
     filename_str = 'all.%s' % args.method
+    logger.info('final selection SIM %d/%d %f',len(res_sim[select_sim]),len(res_sim), len(res_sim[select_sim])/float(len(res_sim)))
+    logger.info('final selection DES %d/%d %f',len(res_des[select_des]),len(res_des), len(res_des[select_des])/float(len(res_des)))
+    res_sim_final = res_sim[select_sim]
+    res_tru_final = res_tru[select_sim]
+    res_des_final = res_des[select_des]
 
-    logger.info(selection_string_final_sim)
-    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(cat_res[select],cat_tru[select],None,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
+    # model
+
+    logger.info('calculating bias for the model - using cuts from model selection')
+    logger.info(selection_string_model_sim)
+    logger.info(selection_string_model_des)
+    cat_res = res_sim
+    cat_tru = res_tru
+    exec selection_string_model_sim
+    select_sim = select.copy()
+    cat_res = res_des
+    exec selection_string_model_des
+    select_des = select.copy()
+    filename_str = 'all.%s' % args.method
+    logger.info('model selection SIM %d/%d %f',len(res_sim[select_sim]),len(res_sim), len(res_sim[select_sim])/float(len(res_sim)))
+    logger.info('model selection DES %d/%d %f',len(res_des[select_des]),len(res_des), len(res_des[select_des])/float(len(res_des)))
+    res_sim_model = res_sim[select_sim]
+    res_tru_model = res_tru[select_sim]
+    res_des_model = res_des[select_des]
+
+    
+    # select_sim = get_subselection(res_sim_final,res_tru_final,res_des)
+    # res_sim_final = res_sim_final[select_sim]
+    # res_tru_final = res_tru_final[select_sim]
+
+    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim_final,res_tru_final,res_des_final,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
+
+    import pdb; pdb.set_trace()
 
     for ipsf in range(1,len(list_psf_edges)):
         for isnr in range(1,len(list_snr_edges)):
 
-            select = (res_sim['snr'] > list_snr_edges[isnr-1]) & (res_sim['snr'] < list_snr_edges[isnr]) & (res_sim['mean_rgpp_rp'] > list_psf_edges[ipsf-1]) & (res_sim['mean_rgpp_rp'] < list_psf_edges[ipsf])
+            select = (res_sim_model['snr'] > list_snr_edges[isnr-1]) & (res_sim_model['snr'] < list_snr_edges[isnr]) & (res_sim_model['mean_rgpp_rp'] > list_psf_edges[ipsf-1]) & (res_sim_model['mean_rgpp_rp'] < list_psf_edges[ipsf])
             n_gals_sim = len(np.nonzero(select)[0])
-
             if n_gals_sim < 100:
                 import pdb; pdb.set_trace()
+            res_sim_select = res_sim_model[select]
+            res_tru_select = res_tru_model[select]
 
-            res_sim_select = res_sim[select]
-            res_tru_select = res_tru[select]
-
-            select = (res_des['snr'] > list_snr_edges[isnr-1]) & (res_des['snr'] < list_snr_edges[isnr]) & (res_des['mean_rgpp_rp'] > list_psf_edges[ipsf-1]) & (res_des['mean_rgpp_rp'] < list_psf_edges[ipsf])
+            select = (res_des_model['snr'] > list_snr_edges[isnr-1]) & (res_des_model['snr'] < list_snr_edges[isnr]) & (res_des_model['mean_rgpp_rp'] > list_psf_edges[ipsf-1]) & (res_des_model['mean_rgpp_rp'] < list_psf_edges[ipsf])
             n_gals_des = len(np.nonzero(select)[0])
-            res_des_select = res_des[select]
+            res_des_select = res_des_model[select]
 
             vpsf_mid = list_psf_centers[ipsf-1]
             vsnr_mid = list_snr_centers[isnr-1]
@@ -1325,6 +1366,8 @@ def get_calibration():
             vsnr_min = list_snr_edges[isnr-1]
             vpsf_max = list_psf_edges[ipsf]
             vsnr_max = list_snr_edges[isnr]
+
+            print res_tru_select['psf_e1'].max(),res_tru_select['psf_e2'].max(),res_tru_select['psf_e1'].min(),res_tru_select['psf_e2'].min()
 
             logger.info('ipsf=%2d isnr=%2d snr=[%2.2f %2.2f] rgprp=[%2.2f %2.2f] n_gals_sim=%d n_gals_des=%d' % (ipsf,isnr,vsnr_min,vsnr_max,vpsf_min,vpsf_max,n_gals_sim,n_gals_des))
 
@@ -1349,37 +1392,6 @@ def get_calibration():
 
     import pdb; pdb.set_trace()
 
-
-
-    #     print 'total number in all bins n=' , n_total
-    #     bias_results = np.concatenate(list_bias_result)
-
-    #     m_mean = (bias_results['m1'] + bias_results['m2'])/2.
-    #     m_mean_std = np.sqrt((bias_results['m1_std']**2 + bias_results['m2_std']**2))/np.sqrt(2.)
-
-    #     array_m[ipsf,:] = m_mean
-    #     array_m_std[ipsf,:] = m_mean_std
-
-    #     # pl.plot(list_snr_centers,bias_results['m1'],list_psf_colors[ipsf-1]+':',label='m1')
-    #     # pl.plot(list_snr_centers,bias_results['m2'],list_psf_colors[ipsf-1]+'--',label='m2')
-    #     pl.errorbar(list_snr_centers,m_mean,m_mean_std,label='PSF_FWHM in (%2.1f,%2.1f)'%(list_psf_edges[ipsf-1],list_psf_edges[ipsf]),fmt=list_psf_colors[ipsf-1]+'-' )
-
-    # list_psf_colors = ['r' , 'g' , 'b']
-    # pl.figure(figsize=figsize)
-    # pl.legend()
-    # pl.xlabel('SNR')
-    # pl.ylabel('multiplicative shear bias')
-    # # pl.title('PSF_FWHM in {%2.1f,%2.1f}'%(list_psf_edges[ipsf-1],list_psf_edges[ipsf]))
-    # plotstools.adjust_limits()
-    # plot_add_requirements()
-    # pl.title(args.method)
-    # filename_fig = 'figs/bias_vs_snr_vs_psf.png'
-    # pl.savefig(filename_fig)
-    # log.info('saved %s', filename_fig)
-
-    # bias_result = { 'm_mean' : array_m, 'm_mean_std' : array_m_std}
-    # filename_pickle = 'bias_m.pp2'
-    # arraytools.savePickle(filename_pickle,bias_results)
 
 def get_match_weights(res_sim,res_des):
 
@@ -1482,27 +1494,10 @@ def get_match_weights(res_sim,res_des):
 
     return np.ones(len(res_sim))
 
-def get_distributions():
-
-    print 'selection_string_final_sim'
-    print selection_string_final_sim
-    print 'selection_string_final_des'
-    print selection_string_final_des
-
-    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_final_sim,cols_res=['coadd_objects_id','ra_as','dec_as','e1','e2','snr','disc_flux','bulge_flux','mean_rgpp_rp','radius'],cols_tru=['id','snr','psf_e1','psf_e2', 'psf_fwhm', 'cosmos_mag_auto'])
-    res_des         = nbc_v7_select.get_selection_des(selection_string_final_des,cols=['ra_as','dec_as','e1','e2','snr','mean_psf_e1_sky','mean_psf_e2_sky','disc_flux','bulge_flux','mean_rgpp_rp','radius'],n_files=args.num)
-
-    filename_pickle = 'get_distributions.cpickle'
-    import cPickle as pickle
-    pickle_dict = { 'res_sim':res_sim, 'res_tru':res_tru, 'res_des':res_des }
-    pickle.dump(pickle_dict, open(filename_pickle,'w'), protocol=2)
-
 
 def plot_distributions():
 
-    filename_pickle = 'get_distributions.cpickle'
-    pickle_dict = tktools.load(filename_pickle)
-    # match_weights = get_match_weights(res_sim,res_des)
+    pickle_dict = tktools.load(args.filename_selection)
     res_sim = pickle_dict['res_sim']
     res_tru = pickle_dict['res_tru']
     res_des = pickle_dict['res_des']
@@ -1512,11 +1507,32 @@ def plot_distributions():
 
     fig_format = '.eps'
 
-    
-    # res_sim = res_sim[~np.isinf(res_sim['rgpp_rp_1'])]
-    # res_sim = res_sim[~np.isnan(res_sim['rgpp_rp_1'])]
-    # print selection_string_sim
 
+    logger.info('calculating bias for the entire sample - using cuts from final selection')
+    logger.info(selection_string_final_sim)
+    logger.info(selection_string_final_des)
+
+    
+    cat_res = res_sim
+    cat_tru = res_tru
+    exec selection_string_final_sim
+    select_sim = select.copy()
+    cat_res = res_des
+    exec selection_string_final_des
+    select_des = select.copy()
+    filename_str = 'all.%s' % args.method
+    logger.info('final selection SIM %d/%d %f',len(res_sim[select_sim]),len(res_sim), len(res_sim[select_sim])/float(len(res_sim)))
+    logger.info('final selection DES %d/%d %f',len(res_des[select_des]),len(res_des), len(res_des[select_des])/float(len(res_des)))
+
+    bulge_fraction_sim = np.sum(res_sim['bulge_flux']!=0)/float(len(res_sim))
+    bulge_fraction_des = np.sum(res_des['bulge_flux']!=0)/float(len(res_des))
+    logger.info('bulge_fraction SIM=%2.4f',bulge_fraction_sim)
+    logger.info('bulge_fraction DES=%2.4f',bulge_fraction_des)
+    
+    res_sim = res_sim[select_sim]
+    res_des = res_des[select_des]
+
+    # res_sim,res_tru,res_des = get_subselection(res_sim,res_tru,res_des)
     pl.figure()
     pl.hist(great_des_e1, bins=np.linspace(-1,1,100), histtype='step',normed=True , label=r'SIM $e_1$'      , color='r')
     pl.hist(great_des_e2, bins=np.linspace(-1,1,100), histtype='step',normed=True , label=r'SIM $e_2$'      , color='m')
@@ -1530,9 +1546,13 @@ def plot_distributions():
     logger.info('wrote %s' % (filename_fig))
 
     pl.figure()
-    hsnr_res, _ , _= pl.hist(res_sim['snr'] ,bins=np.linspace(15,100,200),histtype='step',label='SIM snr'      , normed=True, color='r') 
-    hsnr_des, _ , _= pl.hist(res_des['snr'] ,bins=np.linspace(15,100,200),histtype='step',label='%s snr' % config['methods'][args.method]['label'] , normed=True, color='b') 
-    ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+    # hsnr_res, _ , _= pl.hist(res_sim['snr'] ,bins=np.linspace(5,300,300),histtype='step',label='SIM snr'      , normed=True, color='r') 
+    # hsnr_des, _ , _= pl.hist(res_des['snr'] ,bins=np.linspace(5,300,300),histtype='step',label='%s snr' % config['methods'][args.method]['label'] , normed=True, color='b') 
+    hsnr_des, _ , _= pl.hist(res_des['snr'] ,bins=np.logspace(0,3,300),histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
+    hsnr_res, _ , _= pl.hist(res_sim['snr'] ,bins=np.logspace(0,3,300),histtype='step',label='SIM' , normed=True, color='r') 
+    ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
+    pl.xlim([0,1200])
+    pl.xscale('log')
     pl.legend(framealpha=0.0,frameon=False)
     pl.xlabel('SNR')
     filename_fig = 'figs/dist-DES-SIM.snr%s'%fig_format
@@ -1540,12 +1560,8 @@ def plot_distributions():
     logger.info('wrote %s' % (filename_fig))
 
     pl.figure()
-    # dilation = 0.83
-    # xx=np.sqrt(res_sim['mean_rgpp_rp']**2-1)
-    # fwhm=np.sqrt((xx*dilation)**2+res_tru['psf_fwhm']**2)
-    # pl.hist( ( fwhm ) ,bins=np.linspace(0.5,2,200),histtype='step',label='SIM rgpp_rp'      , normed=True, color='r') 
-    pl.hist( ( res_sim['mean_rgpp_rp']) ,bins=np.linspace(1,2,200),histtype='step',label='SIM rgpp_rp'      , normed=True, color='r') 
-    pl.hist( ( res_des['mean_rgpp_rp']) ,bins=np.linspace(1,2,200),histtype='step',label='%s rgpp_rp' % config['methods'][args.method]['label'] , normed=True, color='b') 
+    pl.hist( ( res_sim['mean_rgpp_rp']) ,bins=np.linspace(1,3,200),histtype='step',label='SIM'      , normed=True, color='r') 
+    pl.hist( ( res_des['mean_rgpp_rp']) ,bins=np.linspace(1,3,200),histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
     pl.xlabel(r'$R_{gpp}/R_{p}$')
@@ -1554,8 +1570,8 @@ def plot_distributions():
     logger.info('wrote %s' % (filename_fig))
 
     pl.figure()
-    pl.hist(res_sim['radius'] ,bins=np.linspace(0,5,200),histtype='step',label='SIM radius'     , normed=True, color='r') 
-    pl.hist(res_des['radius'] ,bins=np.linspace(0,5,200),histtype='step',label='%s radius' % config['methods'][args.method]['label'] , normed=True, color='b') 
+    pl.hist(res_sim['radius'] ,bins=np.linspace(0,6,200),histtype='step',label='SIM'     , normed=True, color='r') 
+    pl.hist(res_des['radius'] ,bins=np.linspace(0,6,200),histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
     pl.xlabel('radius [arcmin]')
@@ -1564,8 +1580,8 @@ def plot_distributions():
     logger.info('wrote %s' % (filename_fig))
 
     pl.figure()
-    pl.hist(res_sim['bulge_flux'], bins=np.linspace(-10,20,200),histtype='step',normed=True , label='SIM bulge_flux'      , color='r')
-    pl.hist(res_des['bulge_flux'], bins=np.linspace(-10,20,200),histtype='step',normed=True , label='%s bulge_flux' % config['methods'][args.method]['label']  , color='b')
+    pl.hist(res_sim['bulge_flux'], bins=np.linspace(-10,20,200),histtype='step',normed=True , label='SIM'      , color='r')
+    pl.hist(res_des['bulge_flux'], bins=np.linspace(-10,20,200),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
     pl.xlabel('bulge flux')
@@ -1575,8 +1591,8 @@ def plot_distributions():
 
 
     pl.figure()
-    pl.hist(res_sim['disc_flux'], bins=np.linspace(-10,10,200),histtype='step',normed=True , label='SIM disc_flux'      , color='r')
-    pl.hist(res_des['disc_flux'], bins=np.linspace(-10,10,200),histtype='step',normed=True , label='%s disc_flux' % config['methods'][args.method]['label']  , color='b')
+    pl.hist(res_sim['disc_flux'], bins=np.linspace(-10,10,200),histtype='step',normed=True , label='SIM'      , color='r')
+    pl.hist(res_des['disc_flux'], bins=np.linspace(-10,10,200),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
     pl.xlabel('disc flux')
@@ -1585,8 +1601,8 @@ def plot_distributions():
     logger.info('wrote %s' % (filename_fig))
 
     pl.figure()
-    pl.hist(res_sim['dec_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='SIM dec_as'      , color='r')
-    pl.hist(res_des['dec_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='%s dec_as' % config['methods'][args.method]['label']  , color='b')
+    pl.hist(res_sim['dec_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='SIM'      , color='r')
+    pl.hist(res_des['dec_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
     pl.legend()
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
     filename_fig = 'figs/dist-DES-SIM.dec%s'%fig_format
@@ -1594,8 +1610,8 @@ def plot_distributions():
     logger.info('wrote %s' % (filename_fig))
 
     pl.figure()    
-    pl.hist(res_sim['ra_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='SIM ra_as'      , color='r')
-    pl.hist(res_des['ra_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='%s ra_as' % config['methods'][args.method]['label']  , color='b')
+    pl.hist(res_sim['ra_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='SIM'      , color='r')
+    pl.hist(res_des['ra_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
     pl.legend()
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
     filename_fig = 'figs/dist-DES-SIM.ra%s'%fig_format
@@ -1604,18 +1620,10 @@ def plot_distributions():
 
     pl.suptitle(selection_string_final_sim + '\n' + selection_string_final_des)
 
-    # pl.subplot(2,2,4)
-    # pl.hist(res_sim['radius'] ,bins=np.linspace(0,5,100),histtype='step',label='SIM radius'      , normed=True, color='r') 
-    # pl.hist(res_des['radius'] ,bins=np.linspace(0,5,100),histtype='step',label='im3shape-011-4-r radius' , normed=True, color='b') 
-    # pl.legend()
-    # pl.figure()
-    # pl.hist(res_des['FWHMPSF_IMAGE'],bins=100)
-    # pl.show()
-
+    pl.show()
     import pdb; pdb.set_trace()
 
-
-    list_snr_centers = [20,25,30,40,50,60,70,80,90]
+    list_snr_centers = [10,20,25,30,40,50,60,70,80,90]
     list_snr_edges = plotstools.get_bins_edges(list_snr_centers)
 
     for ib in range(1,len(list_snr_edges)):
@@ -1640,10 +1648,10 @@ def plot_distributions():
         ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
         pl.legend()
 
-        filename_fig = 'figs/histograms.e_vs_snr.%02d%s'%fig_format  % ib
+        filename_fig = 'figs/histograms.e_vs_snr.%02d%s'% (ib,fig_format)
         pl.savefig(filename_fig)
         logger.info('saved %s', filename_fig)
-        pl.close()
+
 
     # pl.figure()
     # pl.scatter(res_sim['snr'][:20000],cat_tru['snr_mean_all'][:20000],0.1)
@@ -1661,29 +1669,29 @@ def plot_distributions():
     # pl.subplot(2,2,4)
     # pl.hist(cat_tru['hsm_obs_sigma'] ,bins=np.linspace(-2,10),histtype='step') 
 
-    list_pos_centers = np.linspace(-0.03,0.03,10)
-    list_pos_edges = plotstools.get_bins_edges(list_snr_centers)
-    list_mean_e1 = []
-    list_mean_e2 = []
-    pos_type = 'ra_as'
+    # list_pos_centers = np.linspace(-0.03,0.03,10)
+    # list_pos_edges = plotstools.get_bins_edges(list_snr_centers)
+    # list_mean_e1 = []
+    # list_mean_e2 = []
+    # pos_type = 'ra_as'
 
-    for ib in range(1,len(list_pos_edges)):
+    # for ib in range(1,len(list_pos_edges)):
 
-        print ib, len(list_pos_centers)
+    #     print ib, len(list_pos_centers)
         
-        select1 = (list_pos_edges[ib-1] < res_sim[pos_type]) *  (res_sim[pos_type]< list_pos_edges[ib])
-        select2 = (list_pos_edges[ib-1] < res_des[pos_type]) *  (res_des[pos_type]< list_pos_edges[ib])
+    #     select1 = (list_pos_edges[ib-1] < res_sim[pos_type]) *  (res_sim[pos_type]< list_pos_edges[ib])
+    #     select2 = (list_pos_edges[ib-1] < res_des[pos_type]) *  (res_des[pos_type]< list_pos_edges[ib])
 
-        list_mean_e1.append(np.mean(res_sim['e1'][select1]))
-        list_mean_e2.append(np.mean(res_des['e2'][select2]))
+    #     list_mean_e1.append(np.mean(res_sim['e1'][select1]))
+    #     list_mean_e2.append(np.mean(res_des['e2'][select2]))
 
-    pl.show()
-    import pdb; pdb.set_trace()
-    list_mean_e1 = np.array(list_mean_e1)
-    list_mean_e2 = np.array(list_mean_e2)
+    # pl.show()
 
-    pl.plot(list_pos_centers,list_mean_e1)
-    pl.plot(list_pos_centers,list_mean_e2)
+    # list_mean_e1 = np.array(list_mean_e1)
+    # list_mean_e2 = np.array(list_mean_e2)
+
+    # pl.plot(list_pos_centers,list_mean_e1)
+    # pl.plot(list_pos_centers,list_mean_e2)
 
     pl.show()
 
@@ -2215,7 +2223,7 @@ def get_jacknife_regions():
 
 def main():
 
-    valid_actions = ['get_mc_vs_snr','plot_mc_vs_snr','plot_meane_vs_snr','get_meane_vs_snr','get_histograms','get_distributions','plot_distributions','get_PSF_leakage','get_calibration','get_bias_model','apply_calibration_sim','apply_calibration_des','plot_bias_vs_redshift','plot_face_fig','get_bias_vs_redshift','get_jacknife_regions','get_meane_vs_size']
+    valid_actions = ['save_selection','get_mc_vs_snr','plot_mc_vs_snr','plot_meane_vs_snr','get_meane_vs_snr','get_histograms','get_distributions','plot_distributions','get_PSF_leakage','get_calibration','get_bias_model','apply_calibration_sim','apply_calibration_des','plot_bias_vs_redshift','plot_face_fig','get_bias_vs_redshift','get_jacknife_regions','get_meane_vs_size']
 
     global logger , config , args
 
@@ -2229,7 +2237,10 @@ def main():
     parser.add_argument('-a', '--actions', nargs='+' ,default=None, type=str, action='store',  help='which actions to run, available: %s' % str(valid_actions) )
     parser.add_argument('--use_calibration', default=False, action='store_true', help='if to apply calibration columns')
     parser.add_argument('--use_weights', default=False, action='store_true', help='if to apply weights')
-    
+    parser.add_argument('--filename_selection', default='nbc_selection.calibr0.weight0.cpickle', type=str, action='store', help='selection file (for read only)')
+    parser.add_argument('--n_des_files', default=460, type=int, action='store', help='number of DES files to read')
+
+
     args = parser.parse_args()
     logging_levels = { 0: logging.CRITICAL,1: logging.WARNING,2: logging.INFO,3: logging.DEBUG }
     logging_level = logging_levels[args.verbosity]; logger.setLevel(logging_level)  

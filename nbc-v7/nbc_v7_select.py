@@ -179,11 +179,19 @@ def get_selection_des(selection_string,cols,n_files=30,get_calibrated=False):
 
     return results
 
-def get_selection_sim(selection_string, cols_res, cols_tru, get_calibrated=False):
+def get_selection_sim(selection_string, cols_res, cols_tru, get_calibrated=False, short=False):
 
-    list_all_res, list_all_tru = get_selection_split(selection_string, cols_res, cols_tru, get_calibrated)
-    all_tru = np.concatenate(list_all_tru)
-    all_res = np.concatenate(list_all_res)
+    if short==False:
+        list_all_res, list_all_tru = get_selection_split(selection_string, cols_res, cols_tru, get_calibrated)
+        all_tru = np.concatenate(list_all_tru)
+        all_res = np.concatenate(list_all_res)
+    else:
+        if get_calibrated:
+            results_filename_fmt = config['methods'][args.method]['filename_calibrated']  
+        else:   
+            results_filename_fmt = config['methods'][args.method]['filename_results']  
+
+
 
     return all_res, all_tru
 
