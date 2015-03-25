@@ -84,5 +84,5 @@ minion$ python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-ngmix009-002.yaml -m ngm
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord-merged.yaml -m im3shape -a save_selection -n 300 --n_des_files 1
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord-merged.yaml -m im3shape -a get_bias_model -n 300 --n_des_files 1 --filename_selection nbc_selection.calibr0.weight0.bord.cpickle
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord-merged.yaml -m im3shape -a apply_calibration_selection --filename_selection nbc_selection.calibr0.weight0.bord.cpickle
-python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord-merged.yaml -m im3shape -a get_bias_vs_redshift --filename_selection nbc_selection.calibr0.weight0.bord.nbc.cpickle
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord-merged.yaml -m im3shape -a get_bias_vs_redshift --filename_selection nbc_selection.calibr0.weight0.bord.nbc.cpickle --use_weights
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord-merged.yaml -m im3shape -a plot_bias_vs_redshift --filename_selection nbc_selection.calibr0.weight0.bord.nbc.cpickle

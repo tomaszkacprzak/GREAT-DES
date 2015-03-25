@@ -484,6 +484,8 @@ def plot_face_fig():
 
 def get_bias_model():
 
+    pl.style.use('supermongo')
+
     import fitsio
     filename_table_bias = 'bias_table.fits'
     bias_table = tktools.load(filename_table_bias)
@@ -502,7 +504,7 @@ def get_bias_model():
 
         select = bias_table['ipsf'] == ipsf
         bt1=bias_table[select]
-        label = 'FWHM_RATIO=%2.2f-%2.2f'%(bt1['vpsf_min'][0],bt1['vpsf_max'][0])
+        label = r'$R_{gp}/R_p=%2.2f-%2.2f$'%(bt1['vpsf_min'][0],bt1['vpsf_max'][0])
         snr_mid = (bt1['vsnr_min']+bt1['vsnr_max'])/2.
         rgp_mid = (bt1['vpsf_min']+bt1['vpsf_max'])/2.
         warnings.warn('setting highest SNR bin to no bias')
@@ -513,7 +515,7 @@ def get_bias_model():
         # bt1['std_m'][-2] = 0.0001
         pl.errorbar(snr_mid,bt1['m']-1,yerr=bt1['std_m'],label=label,fmt='.',c=colorscale[ipsf-1])
         pl.xlabel('SNR')
-        pl.ylabel('multiplicative shear bias')
+        pl.ylabel('m')
 
         snr_pred =  np.linspace(snr_mid.min(),max_snr,n_upsample)
  
@@ -527,14 +529,15 @@ def get_bias_model():
 
     # pl.title(selection_string_des,fontsize=10)
     pl.xscale('log')
-    pl.title('noise bias: multiplicative - im3shape - %s' % filename_table_bias)
+    # pl.title('noise bias: multiplicative - im3shape - %s' % filename_table_bias)
     pl.axhline(0,c='k')
-    pl.xticks(list_snr_edges)
-    pl.grid()
-    pl.legend(framealpha=0.0,frameon=False,loc='upper left')
-    pl.xlim([5,200])
-    pl.ylim([-0.8,0.2])
+    pl.xticks(list_snr_edges[::2])
+    # pl.grid()
+    pl.legend(framealpha=0.0,frameon=False,loc='lower right',fontsize=14)
+    pl.xlim([9,200])
+    pl.ylim([-0.5,0.15])
     pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
+    # pl.tick_params(axis='both', which='major', labelsize=10)
 
     model_arr_m = np.array(list_model_m)
     model_arr_x = np.array(list_arr_x)
@@ -577,7 +580,7 @@ def get_bias_model():
 
         select = bias_table['ipsf'] == ipsf
         bt1=bias_table[select]
-        label = 'FWHM_RATIO=%2.2f-%2.2f'%(bt1['vpsf_min'][0],bt1['vpsf_max'][0])
+        label = r'$R_{gp}/R_p=%2.2f-%2.2f$'%(bt1['vpsf_min'][0],bt1['vpsf_max'][0])
         snr_mid = (bt1['vsnr_min']+bt1['vsnr_max'])/2.
         rgp_mid = (bt1['vpsf_min']+bt1['vpsf_max'])/2.
 
@@ -600,16 +603,18 @@ def get_bias_model():
         list_arr_y.append(np.ones_like(snr_pred)*rgp_mid[0])
 
 
-    pl.title('noise bias: PSF leakage - im3shape %s' % filename_table_bias)
+    # pl.title('noise bias: PSF leakage - im3shape %s' % filename_table_bias)
+    # pl.legend(framealpha=0.0,frameon=False,loc='lower right',fontsize=14,mode='expand',ncol=2)
     pl.xscale('log')
     ylim=list(pl.ylim()); ylim[1]*=1.; pl.ylim(ylim)
     pl.axhline(0,c='k')
-    pl.xlim([5,200])
-    pl.legend(framealpha=0.0,frameon=False,loc='upper left')
+    # pl.legend(framealpha=0.0,frameon=False,loc='lower right',mode='expand',ncol=2)
     pl.xlabel('SNR')
     pl.ylabel(r'leakage $\alpha$')
-    pl.xticks(list_snr_edges)
-    pl.grid()
+    pl.xticks(list_snr_edges[::2])
+    pl.xlim([9,200])
+    pl.ylim([-1,1])
+    # pl.grid()
     pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
 
     
@@ -829,6 +834,8 @@ def get_bias_vs_redshift():
 
 def plot_bias_vs_redshift():
 
+    pl.style.use('supermongo')
+
     import cPickle as pickle
     if args.use_weights == True:
         title = 'with weights'
@@ -840,41 +847,41 @@ def plot_bias_vs_redshift():
     logger.info('opened %s' % (filename_pickle))
 
     pl.figure()
-    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['m1'], yerr=arr_bias['std_m1'], fmt='r.', label='m1 no correction')
-    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['m2'], yerr=arr_bias['std_m2'], fmt='m.', label='m2 no correction')
-    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['m1'], yerr=arr_bias_calibr['std_m1'], fmt='b.', label='m1 with correction')
-    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['m2'], yerr=arr_bias_calibr['std_m2'], fmt='c.', label='m2 with correction')
+    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['m1'], yerr=arr_bias['std_m1'], fmt='r.', label='$m_1$ no NBC')
+    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['m2'], yerr=arr_bias['std_m2'], fmt='m.', label='$m_2$ no NBC')
+    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['m1'], yerr=arr_bias_calibr['std_m1'], fmt='b.', label='$m_1$ with NBC')
+    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['m2'], yerr=arr_bias_calibr['std_m2'], fmt='c.', label='$m_2$ with NBC')
     pl.xlabel('z')
     pl.ylabel('m')
     pl.xticks(z_bins)
     pl.grid()
-    pl.ylim([0.7,1.1])
+    pl.ylim([0.8,1.05])
     pl.axhline(1,c='k')
-    pl.legend(ncol=2, mode='expand', loc='upper center',framealpha=0.0,frameon=False)
-    plot_add_requirements(level=0.01,target=1)
-    pl.title(title)
+    pl.legend(ncol=2, mode='expand', loc='lower center',framealpha=0.0,frameon=False)
+    plot_add_requirements(level=0.03,target=1)
+    # pl.title(title)
 
     pl.figure()
-    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pm1'], yerr=arr_bias['std_pm1'], fmt='r.', label=r'$\alpha 1$ no correction')
-    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pm2'], yerr=arr_bias['std_pm2'], fmt='m.', label=r'$\alpha 2$ no correction')
-    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['pm1'], yerr=arr_bias_calibr['std_pm1'], fmt='b.', label=r'$\alpha 1$ with correction')
-    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['pm2'], yerr=arr_bias_calibr['std_pm2'], fmt='c.', label=r'$\alpha 2$ with correction')
+    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pm1'], yerr=arr_bias['std_pm1'], fmt='r.', label=r'$\alpha_1$ no NBC')
+    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pm2'], yerr=arr_bias['std_pm2'], fmt='m.', label=r'$\alpha_2$ no NBC')
+    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['pm1'], yerr=arr_bias_calibr['std_pm1'], fmt='b.', label=r'$\alpha_1$ with NBC')
+    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['pm2'], yerr=arr_bias_calibr['std_pm2'], fmt='c.', label=r'$\alpha_2$ with NBC')
     pl.xlabel('z')
     pl.ylabel(r'$\alpha$')
     pl.xticks(z_bins)
     pl.grid()
     pl.axhline(0,c='k')
-    pl.legend(ncol=2, mode='expand', loc='upper center',framealpha=0.0,frameon=False)
-    pl.ylim([-0.1,0.3])
-    plot_add_requirements(level=0.05,target=0)
-    pl.title(title)
+    pl.legend(ncol=2, mode='expand', loc='lower center',framealpha=0.0,frameon=False)
+    pl.ylim([-0.2,0.3])
+    plot_add_requirements(level=0.025,target=0)
+    # pl.title(title)
 
 
     pl.figure() 
-    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['mean_e1'], yerr=arr_bias['stdm_e1'], fmt='r.', label=r'mean_e1 no correction')
-    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['mean_e2'], yerr=arr_bias['stdm_e2'], fmt='m.', label=r'mean_e2 no correction')
-    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['mean_e1'], yerr=arr_bias_calibr['stdm_e1'], fmt='b.', label=r'mean_e1 with correction')
-    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['mean_e2'], yerr=arr_bias_calibr['stdm_e2'], fmt='c.', label=r'mean_e2 with correction')
+    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['mean_e1'], yerr=arr_bias['stdm_e1'], fmt='r.', label=r'mean_e1 no NBC')
+    pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['mean_e2'], yerr=arr_bias['stdm_e2'], fmt='m.', label=r'mean_e2 no NBC')
+    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['mean_e1'], yerr=arr_bias_calibr['stdm_e1'], fmt='b.', label=r'mean_e1 with NBC')
+    pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['mean_e2'], yerr=arr_bias_calibr['stdm_e2'], fmt='c.', label=r'mean_e2 with NBC')
     pl.xlabel('z')
     pl.ylabel(r'mean_e')
     pl.xticks(z_bins)
@@ -1720,7 +1727,6 @@ def plot_distributions():
 
     fig_format = '.eps'
 
-    select_gold = get_gold_cut(res_des)
 
     logger.info('calculating bias for the entire sample - using cuts from final selection')
     logger.info(selection_string_final_sim)
@@ -1735,7 +1741,8 @@ def plot_distributions():
     select_des = select.copy()
     filename_str = 'all.%s' % args.method
 
-    select_des = select_gold & select_des
+    # select_gold = get_gold_cut(res_des)
+    # select_des = select_gold & select_des
 
     res_sim = res_sim[select_sim]
     res_des = res_des[select_des]
