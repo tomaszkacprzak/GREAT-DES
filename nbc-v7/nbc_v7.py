@@ -64,10 +64,10 @@ selection_string_final_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgp
 # selection_string_des = "select =  (cat_res['snr']>10) & (cat_res['mean_rgpp_rp']>1.15) & (cat_res['error_flag']==0) & "+ select_info 
 
 # for fitting
-# list_snr_edges = [10,11,12,14,16,18,20,25,30,50,80,200,500]
-list_snr_edges = [10,12,15,20,25,30,50,100,200,500]
-# list_psf_edges = [1.15,1.175,1.2,1.225,1.25,1.3,1.4,1.5,1.75,3.0]
-list_psf_edges = [1.2,1.3,1.6,3.0]
+list_snr_edges = [10,11,12,14,16,18,20,25,30,50,80,200,500]
+# list_snr_edges = [10,12,15,20,25,30,50,100,200,500]
+list_psf_edges = [1.15,1.175,1.2,1.225,1.25,1.3,1.4,1.5,1.75,3.0]
+# list_psf_edges = [1.15,1.2,1.3,1.6,3.0]
 
 # list_snr_edges = [5,6,7,8,9,10,11,11.5,12,14,16,18,20,25,30,50,80,200,1000]
 # list_psf_edges = [1.15,1.175,1.2,1.225,1.25,1.3,1.4,1.5,1.75,3.0]
@@ -95,8 +95,8 @@ def inv_snr_basis(x):
     # use this one for real calibration
     # X = np.concatenate( [  np.ones((n_points_x,1)), 1./x**1, 1/x**2, 1/x**3 ],axis=1 ) 
 
-    # X = np.concatenate( [  1./x**1, 1/x**1.25, 1/x**1.5, 1/x**2],axis=1 ) 
-    X = np.concatenate( [ 1/x**2],axis=1 ) 
+    X = np.concatenate( [  1/x**1, 1/x**1.5, 1/x**2],axis=1 ) 
+    # X = np.concatenate( [ 1/x**2],axis=1 ) 
 
     # use this one for figure
     # X = np.concatenate( [ 1./x**2,  1./x**3, 1/x**4],axis=1 ) 
@@ -112,6 +112,49 @@ def inv_snr_basis2(x):
     # X = 1./x**2
 
     return X
+
+def apply_calibration_selection():
+
+    res_sim, res_tru, res_des, selection_string_model_sim, selection_string_model_des = load_selection_pickle()
+
+    filename_pickle_calibrated = args.filename_selection.replace('.cpickle','.nbc.cpickle')
+
+    logger.info('applying calibration to SIM')
+    res_sim_cal, calib_m, calib_a=get_calibration_columns(res_sim)
+    res_sim_cal = get_weight_column(res_sim_cal)
+
+    logger.info('applying calibration to DES')
+    res_des_cal , calib_m, calib_a=get_calibration_columns(res_des)
+    res_des_cal = get_weight_column(res_des_cal)
+
+    import cPickle as pickle
+    pickle_dict = { 'res_sim':res_sim_cal, 'res_tru':res_tru, 'res_des':res_des_cal , 'selection_string_model_sim':selection_string_model_sim, 'selection_string_model_des':selection_string_model_des }
+    pickle.dump(pickle_dict, open(filename_pickle_calibrated,'w'), protocol=2)
+    logger.info('wrote %s' % (filename_pickle_calibrated))
+
+    pl.figure()
+    pl.hist(pickle_dict['res_des']['nbc_m'],np.linspace(-0.5,1.1,100),histtype='step');
+    pl.xlabel('nbc_m')
+    pl.figure()
+    pl.hist(pickle_dict['res_des']['nbc_c1'],np.linspace(-0.01,0.01,100),histtype='step');
+    pl.xlabel('nbc_c1')
+    pl.figure()
+    pl.hist(pickle_dict['res_des']['nbc_c2'],np.linspace(-0.01,0.01,100),histtype='step');
+    pl.xlabel('nbc_c2')
+    pl.show()
+
+    filename_des_cal = 'bord.nbc.fits'
+    tktools.save(filename_des_cal, res_des_cal, clobber=True)
+
+    import pdb; pdb.set_trace()
+
+
+
+
+
+
+
+
 
 def apply_calibration_des():
     
@@ -524,8 +567,6 @@ def get_bias_model():
     pl.axis('tight')
     pl.title('multiplicative shear bias')
 
-    pl.show()
-
     # now leakage
 
     list_model_a = []
@@ -617,33 +658,67 @@ def get_bias_model():
     pl.show()
     import pdb; pdb.set_trace()
 
+def load_selection_pickle():
+
+    pickle_dict = tktools.load(args.filename_selection)
+    # match_weights = get_match_weights(res_sim,res_des)
+    res_sim = pickle_dict['res_sim']
+    res_tru = pickle_dict['res_tru']
+    res_des = pickle_dict['res_des']
+    logger.info('loaded DES results with following selection:')
+    logger.info(pickle_dict['selection_string_model_des'])
+    logger.info('loaded SIM results with following selection:')
+    logger.info(pickle_dict['selection_string_model_sim'])
+
+    return res_sim, res_tru, res_des, pickle_dict['selection_string_model_sim'], pickle_dict['selection_string_model_des']
+
+
 
 def get_bias_vs_redshift():
 
-    cols_res=['coadd_objects_id','e1','e2', 'w', 'snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky']
-    cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true','zphot','id_cosmos']
-    cols_des=['coadd_objects_id','e1','e2', 'w', 'snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky']
+    # cols_res=['coadd_objects_id','e1','e2', 'w', 'snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky']
+    # cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true','zphot','id_cosmos']
+    # cols_des=['coadd_objects_id','e1','e2', 'w', 'snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky']
+    # # res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=cols_res,cols_tru=cols_tru)
+    # # res_des         = nbc_v7_select.get_selection_des(selection_string_des,cols=cols_des,n_files=10)
+    # cols_res+= ['nbc_m1','nbc_m2','nbc_c1','nbc_c2']
+    # cols_des+= ['nbc_m1','nbc_m2','nbc_c1','nbc_c2']
+    # cal_sim,cal_tru = nbc_v7_select.get_selection_sim(selection_string_final_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=True)
+    # cal_des         = nbc_v7_select.get_selection_des(selection_string_final_des,cols=cols_des,n_files=args.num,get_calibrated=True)
+    # res_sim,res_tru = cal_sim,cal_tru
+    # res_des         = cal_des        
 
-    # res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=cols_res,cols_tru=cols_tru)
-    # res_des         = nbc_v7_select.get_selection_des(selection_string_des,cols=cols_des,n_files=10)
+    res_sim, res_tru, res_des, selection_string_model_sim, selection_string_model_des = load_selection_pickle()
 
-    cols_res+= ['nbc_m1','nbc_m2','nbc_c1','nbc_c2']
-    cols_des+= ['nbc_m1','nbc_m2','nbc_c1','nbc_c2']
+    logger.info('calculating bias for the entire sample - using cuts from final selection')
+    logger.info(selection_string_final_sim)
+    logger.info(selection_string_final_des)
+    cat_res = res_sim
+    cat_tru = res_tru
+    exec selection_string_final_sim
+    select_sim = select.copy()
+    cat_res = res_des
+    exec selection_string_final_des
+    select_des = select.copy()
 
-    cal_sim,cal_tru = nbc_v7_select.get_selection_sim(selection_string_final_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=True)
-    cal_des         = nbc_v7_select.get_selection_des(selection_string_final_des,cols=cols_des,n_files=args.num,get_calibrated=True)
+    res_sim_final = res_sim[select_sim]
+    res_tru_final = res_tru[select_sim]
+    res_des_final = res_des[select_des]
 
-    res_sim,res_tru = cal_sim,cal_tru
-    res_des         = cal_des        
+    cal_sim_final = res_sim[select_sim]
+    cal_tru_final = res_tru[select_sim]
+    cal_des_final = res_des[select_des]
 
 
+    logger.info('final selection SIM %d/%d %f',len(res_sim[select_sim]),len(res_sim), len(res_sim[select_sim])/float(len(res_sim)))
+    logger.info('final selection DES %d/%d %f',len(res_des[select_des]),len(res_des), len(res_des[select_des])/float(len(res_des)))
+     
     # entire sample
     filename_str = 'all.nonbc.%s' % args.method
-    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim,res_tru,res_des,use_calibration=False,use_weights=args.use_weights,filename_str=filename_str)
-
+    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim_final,res_tru_final,res_des_final,use_calibration=False,use_weights=args.use_weights,filename_str=filename_str)
 
     filename_str = 'all.withnbc.%s' % args.method
-    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim,res_tru,res_des,use_calibration=True,use_weights=args.use_weights,filename_str=filename_str)
+    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim_final,res_tru_final,res_des_final,use_calibration=True,use_weights=args.use_weights,filename_str=filename_str)
 
 
     z_bins = [ 0.3, 0.644, 0.901, 1.3 ]
@@ -654,19 +729,21 @@ def get_bias_vs_redshift():
 
     for ibin in range(1,len(z_bins)):
 
+        logger.info('--------------------------------------------------')
+
         vbin = [z_bins[ibin-1],z_bins[ibin]]
 
-        select = (res_tru['zphot'] > vbin[0]) & (res_tru['zphot'] < vbin[1])
-        res_sim_select = res_sim[select]
-        res_tru_select = res_tru[select]
+        select = (res_tru_final['zphot'] > vbin[0]) & (res_tru_final['zphot'] < vbin[1])
+        res_sim_select = res_sim_final[select]
+        res_tru_select = res_tru_final[select]
 
-        select = (cal_tru['zphot'] > vbin[0]) & (cal_tru['zphot'] < vbin[1])
-        cal_sim_select = cal_sim[select]
-        cal_tru_select = cal_tru[select]
+        select = (cal_tru_final['zphot'] > vbin[0]) & (cal_tru_final['zphot'] < vbin[1])
+        cal_sim_select = cal_sim_final[select]
+        cal_tru_select = cal_tru_final[select]
 
-        # dummy - ignore this
-        cal_des_select = cal_des
-        res_des_select = res_des
+        # dummy - ignore this, it's only here so that the code runs through
+        cal_des_select = cal_des_final
+        res_des_select = res_des_final
 
         logger.info(selection_string_final_sim)
         filename_str = 'z%2.2f.%s' % ((vbin[0]+vbin[1])/2.,args.method)
@@ -681,7 +758,6 @@ def get_bias_vs_redshift():
         std_e = np.std(cal_sim_select['e1'],ddof=1)
         list_bias_calibr.append( [ibin,vbin[0],vbin[1],std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2] )
 
-    import pdb; pdb.set_trace()
     arr_bias = tktools.arr2rec(np.array(list_bias),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2","mean_e1","mean_e2","stdm_e1","stdm_e2"], 'formats': ['i4']*1 + ['f8']*27 })
     arr_bias_calibr = tktools.arr2rec(np.array(list_bias_calibr),dtype={'names': ["iz","z_min","z_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","pm1","std_pm1","pm2","std_pm2","mean_e1","mean_e2","stdm_e1","stdm_e2"], 'formats': ['i4']*1 + ['f8']*27 })
 
@@ -764,52 +840,41 @@ def plot_bias_vs_redshift():
     logger.info('opened %s' % (filename_pickle))
 
     pl.figure()
-    
     pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['m1'], yerr=arr_bias['std_m1'], fmt='r.', label='m1 no correction')
     pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['m2'], yerr=arr_bias['std_m2'], fmt='m.', label='m2 no correction')
-    
     pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['m1'], yerr=arr_bias_calibr['std_m1'], fmt='b.', label='m1 with correction')
     pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['m2'], yerr=arr_bias_calibr['std_m2'], fmt='c.', label='m2 with correction')
-
-    
     pl.xlabel('z')
     pl.ylabel('m')
     pl.xticks(z_bins)
     pl.grid()
-    # pl.ylim([0.8,1.1])
+    pl.ylim([0.7,1.1])
     pl.axhline(1,c='k')
     pl.legend(ncol=2, mode='expand', loc='upper center',framealpha=0.0,frameon=False)
     plot_add_requirements(level=0.01,target=1)
     pl.title(title)
 
     pl.figure()
-    
     pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pm1'], yerr=arr_bias['std_pm1'], fmt='r.', label=r'$\alpha 1$ no correction')
     pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['pm2'], yerr=arr_bias['std_pm2'], fmt='m.', label=r'$\alpha 2$ no correction')
-    
     pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['pm1'], yerr=arr_bias_calibr['std_pm1'], fmt='b.', label=r'$\alpha 1$ with correction')
     pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['pm2'], yerr=arr_bias_calibr['std_pm2'], fmt='c.', label=r'$\alpha 2$ with correction')
-    
     pl.xlabel('z')
     pl.ylabel(r'$\alpha$')
     pl.xticks(z_bins)
     pl.grid()
     pl.axhline(0,c='k')
     pl.legend(ncol=2, mode='expand', loc='upper center',framealpha=0.0,frameon=False)
-    # pl.ylim([-0.1,0.3])
+    pl.ylim([-0.1,0.3])
     plot_add_requirements(level=0.05,target=0)
     pl.title(title)
-    pl.show()
 
 
-    pl.figure()
-    
+    pl.figure() 
     pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['mean_e1'], yerr=arr_bias['stdm_e1'], fmt='r.', label=r'mean_e1 no correction')
     pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['mean_e2'], yerr=arr_bias['stdm_e2'], fmt='m.', label=r'mean_e2 no correction')
-    
     pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['mean_e1'], yerr=arr_bias_calibr['stdm_e1'], fmt='b.', label=r'mean_e1 with correction')
     pl.errorbar( (arr_bias_calibr['z_min']+arr_bias_calibr['z_max'])/2 , arr_bias_calibr['mean_e2'], yerr=arr_bias_calibr['stdm_e2'], fmt='c.', label=r'mean_e2 with correction')
-    
     pl.xlabel('z')
     pl.ylabel(r'mean_e')
     pl.xticks(z_bins)
@@ -817,7 +882,7 @@ def plot_bias_vs_redshift():
     pl.axhline(0,c='k')
     pl.legend(ncol=2, mode='expand', loc='upper center',framealpha=0.0,frameon=False)
     # pl.ylim([-0.1,0.3])
-    plot_add_requirements(level=0.05,target=0)
+    plot_add_requirements(level=0.0005,target=0)
     pl.title(title)
     pl.show()
 
@@ -837,10 +902,14 @@ def get_shear_estimator(res,use_calibration=False,use_weights=False,res_tru=None
         e1,e2 = ei.real, ei.imag
         
     if use_calibration:
-        if 'nbc_m1' not in res.dtype.names:
-            raise Exception("column 'nbc_m' not found in res_des")
-        nbc_m1 = res['nbc_m1']
-        nbc_m2 = res['nbc_m2']
+        if ('nbc_m1' not in res.dtype.names) and ('nbc_m' not in res.dtype.names) :
+            raise Exception("column nbc_m1 or nbc_m not found in res_des")
+        if 'nbc_m' in res.dtype.names:
+            nbc_m1 = res['nbc_m']
+            nbc_m2 = res['nbc_m']
+        elif 'nbc_m1' in res.dtype.names:
+            nbc_m1 = res['nbc_m1']
+            nbc_m2 = res['nbc_m2']
         nbc_c1 = res['nbc_c1']
         nbc_c2 = res['nbc_c2']     
     else:
@@ -908,7 +977,6 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
             # nbc_m2_sim_select = nbc_m2_sim[select]
             
             n_select = len(res_sim_select)
-            
             e1_mean, e1_stdv, e1_stdm, e2_mean, e2_stdv, e2_stdm, m1_mean, m2_mean = get_shear_estimator(res_sim_select,use_calibration=use_calibration,use_weights=use_weights)
             true_e1 += [ np.mean(tru_sim_select['g1_true']) ]
             true_e2 += [ np.mean(tru_sim_select['g2_true']) ]
@@ -988,11 +1056,11 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
     logger.info( "--- SIM mean_e1 = %2.5f +/- %2.5f" % (e1i_mean, e1i_stdm) )        
     logger.info( "--- SIM mean_e2 = %2.5f +/- %2.5f" % (e2i_mean, e2i_stdm) )        
 
-    if res_des!=None: dcc1,dmm1,dcc2,dmm2,std_dcc1,std_dmm1,std_dcc2,std_dmm2,dmean_e1,dstdm_e1,dmean_e2,dstdm_e2,dmean_g1,dmean_g2,bins_psf_centers = get_PSF_leakage(res_des,None,use_calibration=use_calibration,use_weights=use_weights)
-    if res_des!=None: logger.info( "--- DES m1  = % 2.5f +/- % 2.5f" % (dmm1,std_dmm1) )
-    if res_des!=None: logger.info( "--- DES c1  = % 2.5f +/- % 2.5f" % (dcc1,std_dcc1) )
-    if res_des!=None: logger.info( "--- DES m2  = % 2.5f +/- % 2.5f" % (dmm2,std_dmm2) )
-    if res_des!=None: logger.info( "--- DES c2  = % 2.5f +/- % 2.5f" % (dcc2,std_dcc2) )
+    if res_des!=None: dcc1,dmm1,dcc2,dmm2,std_dcc1,std_dmm1,std_dcc2,std_dmm2,dmean_e1,dstdm_e1,dmean_e2,dstdm_e2,dmean_g1,dmean_g2,bins_psf_centers_d = get_PSF_leakage(res_des,None,use_calibration=use_calibration,use_weights=use_weights)
+    if res_des!=None: logger.info( "--- DES pm1  = % 2.5f +/- % 2.5f" % (dmm1,std_dmm1) )
+    if res_des!=None: logger.info( "--- DES pm2  = % 2.5f +/- % 2.5f" % (dmm2,std_dmm2) )
+    if res_des!=None: logger.info( "--- DES pc1  = % 2.5f +/- % 2.5f" % (dcc1,std_dcc1) )
+    if res_des!=None: logger.info( "--- DES pc2  = % 2.5f +/- % 2.5f" % (dcc2,std_dcc2) )
 
     pmm = (pmm1+pmm2)/2.
     pcc = (pcc1+pcc2)/2.
@@ -1089,18 +1157,35 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
 
 def get_mc_vs_snr():
 
-    cols_res=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
-    cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true']
-    cols_des=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
-
+    # cols_res=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
+    # cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true']
+    # cols_des=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
     # if args.use_calibration:
     #     logger.info('testing calibration columns')
     #     cols_res += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
     #     cols_des += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
     # else:
     #     logger.info('measuring bias')
+    # res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_model_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
 
-    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_model_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
+    res_sim, res_tru, res_des, selection_string_model_sim, selection_string_model_des = load_selection_pickle()
+
+    logger.info('calculating bias for the entire sample - using cuts from final selection')
+    logger.info(selection_string_final_sim)
+    logger.info(selection_string_final_des)
+    cat_res = res_sim
+    cat_tru = res_tru
+    exec selection_string_final_sim
+    select_sim = select.copy()
+    cat_res = res_des
+    exec selection_string_final_des
+    select_des = select.copy()
+
+    res_sim_final = res_sim[select_sim]
+    res_tru_final = res_tru[select_sim]
+    res_des_final = res_des[select_des]
+
+    load_selection_pickle()
  
     list_snr_centers = plotstools.get_bins_centers(list_snr_edges)
 
@@ -1109,23 +1194,25 @@ def get_mc_vs_snr():
     # entire sample
     logger.info('calculating bias for the entire sample')
     filename_str = 'all.%s' % args.method
-    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim,res_tru,None,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
+    mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim_final,res_tru_final,None,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
 
     for isnr in range(1,len(list_snr_edges)):
 
-            select = (res_sim['snr'] > list_snr_edges[isnr-1]) & (res_sim['snr'] < list_snr_edges[isnr]) 
+            # select = (res_sim['snr'] > list_snr_edges[isnr-1]) & (res_sim['snr'] < list_snr_edges[isnr]) 
+            select = (res_sim_final['snr'] > list_snr_edges[isnr-1]) 
             n_gals_sim = len(np.nonzero(select)[0])
             logger.info('isnr=%2d snr=[%2.2f %2.2f] n_gals_sim=%d' % (isnr,list_snr_edges[isnr-1],list_snr_edges[isnr],n_gals_sim))
 
-            res_sim_select = res_sim[select]
-            res_tru_select = res_tru[select]
+            res_sim_select = res_sim_final[select]
+            res_tru_select = res_tru_final[select]
 
             vsnr_mid = list_snr_centers[isnr-1]
 
             filename_str = 'm_vs_snr.snr%2.2f' % (vsnr_mid)
-            mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim_select,res_tru_select,None,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
+            # mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim_select,res_tru_select,None,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
+            mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_des_select,None,None,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str)
 
-            m_mean  = np.mean(res_sim_select['nbc_m1'])
+            m_mean  = np.mean(res_sim_select['nbc_m'])
             c1_mean = np.mean(res_sim_select['nbc_c1'])
             c2_mean = np.mean(res_sim_select['nbc_c2'])
 
@@ -1234,7 +1321,7 @@ def plot_mc_vs_snr():
 def save_selection():
     
     cols_res=['coadd_objects_id','e1','e2','w','snr','radius','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','error_flag','info_flag','is_bulge','is_disc','bulge_flux','disc_flux','ra_as','dec_as']
-    cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true','sf_hlr']
+    cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true','sf_hlr','zphot','id_cosmos','ra','de']
     cols_des=['coadd_objects_id','e1','e2','w','snr','radius','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','error_flag','info_flag','sva1_gold_flags','bulge_flux','disc_flux','ra_as','dec_as']
 
     if args.use_calibration:
@@ -1262,6 +1349,117 @@ def save_selection():
     pickle_dict = { 'res_sim':res_sim, 'res_tru':res_tru, 'res_des':res_des , 'selection_string_model_sim':selection_string_model_sim, 'selection_string_model_des':selection_string_model_des }
     pickle.dump(pickle_dict, open(filename_pickle,'w'), protocol=2)
     logger.info('wrote %s' % (filename_pickle))
+
+def get_gold_cut(res_des):
+
+    filename_flatcats='/Users/tomek/data/DES/sva1_gold_wl_flatcats_v4_info.fits'
+    gold=tktools.load(filename_flatcats)
+    select_gold = (gold['sva1_gold_flags']==0)&(gold['sva1_spte_flags']==0)&(gold['sva1_gold_mag_flags']==0)
+    intersect = np.intersect1d(res_des['coadd_objects_id'],gold['coadd_objects_id'][select_gold])
+    select_gold = np.in1d(res_des['coadd_objects_id'], intersect)
+
+    return select_gold
+
+def get_radec_split():
+
+    res_sim, res_tru, res_des, _, _ = load_selection_pickle()
+
+    cosmos=tktools.load('/Users/tomek/data/COSMOS/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits')
+
+    import kmeans_radec
+    from kmeans_radec import KMeans, kmeans_sample
+    X = np.concatenate([cosmos['RA'].astype(np.float)[:,np.newaxis],cosmos['DEC'].astype(np.float)[:,np.newaxis]],axis=1)
+
+    n_patches = 144
+    logger.info('running kmeans')
+    km = kmeans_sample(X, n_patches, maxiter=10, tol=1.0e-5); print("converged?",km.converged)
+    logger.info('done')
+
+    labels = km.labels[res_tru['id_cosmos'].astype(np.int)]
+
+    pl.figure()
+    pl.scatter(cosmos['RA'],cosmos['DEC'],c=km.labels)
+
+    pl.figure()
+    list_m_mean = []
+    list_m_stdm = []
+    list_mm_mean = []
+    list_mm_stdm = []
+    list_mc_mean = []
+    list_mc_stdm = []
+
+    for ip in range(n_patches):
+        logger.info('patch %d',ip)
+        select = labels==ip
+        res_sim_select = res_sim[select] 
+        res_tru_select = res_tru[select] 
+        mean_m, stdm_m = np.mean(res_sim_select['nbc_m']), np.std(res_sim_select['nbc_m'],ddof=1)/np.sqrt(float(len(res_sim_select)))
+        list_m_mean.append(mean_m)
+        list_m_stdm.append(stdm_m)
+
+        filename_str = 'patch%03d.nocal.png' % ip
+        mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim_select,res_tru_select,None,use_calibration=False,use_weights=True,filename_str=filename_str)
+        list_mm_mean.append(mm)
+        list_mm_stdm.append(std_mm)
+
+        filename_str = 'patch%03d.cal.png' % ip
+        mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2=get_mc(res_sim_select,res_tru_select,None,use_calibration=True,use_weights=True,filename_str=filename_str)
+        list_mc_mean.append(mm)
+        list_mc_stdm.append(std_mm)
+
+        pl.subplot(1,2,1)
+        pl.hist(res_sim_select['snr'],bins=np.logspace(1,2,100),histtype='step',normed=True)
+        pl.xscale('log')
+        pl.subplot(1,2,2)
+        pl.hist(res_sim_select['mean_rgpp_rp'],bins=np.linspace(1,2,100),histtype='step',normed=True)
+
+
+    pl.figure()
+    pl.errorbar(range(n_patches),np.array(list_mm_mean)-1, fmt='x', yerr=list_mm_stdm,c='b',label='calibrated')
+    pl.errorbar(range(n_patches),np.array(list_mc_mean)-1, fmt='+', yerr=list_mc_stdm,c='r',label='uncalibrated')
+    pl.errorbar(range(n_patches),np.array(list_m_mean),    fmt='.', yerr=list_m_stdm, c='g',label='correction (no weights used)')
+    pl.axhline(0,color='k')
+    pl.xlim([-1,n_patches+1])
+    pl.ylim([-0.2,0.1])
+    plot_add_requirements(level=0.01,target=0)
+    pl.xlabel('patch number')
+    pl.ylabel('m')
+    pl.legend(framealpha=0.0,frameon=False, mode='expand',ncol=2,loc='lower right')
+    pl.show()
+
+
+    import pdb; pdb.set_trace()
+
+
+
+
+
+
+
+
+
+
+
+    # n_side = 10
+    # mean_ra = np.linspace([res_tru['ra'].max(),res_tru['ra'].min()],n_side)
+    # mean_de = np.linspace([res_tru['de'].max(),res_tru['de'].min()],n_side)
+
+    # select_n = (res_tru['ra'] > mean_ra) & (res_tru['de'] > mean_de) 
+    # select_s = (res_tru['ra'] < mean_ra) & (res_tru['de'] < mean_de) 
+    # select_e = 
+    # select_w = 
+
+    # m_n, std_m_n = np.mean(res_sim[select_n]['nbc_m']), np.std(res_sim[select_n]['nbc_m'],ddof=1)/float(len(res_sim[select_n]))
+    # m_s, std_m_s = np.mean(res_sim[select_s]['nbc_m']), np.std(res_sim[select_s]['nbc_m'],ddof=1)/float(len(res_sim[select_w]))
+    # m_e, std_m_e = np.mean(res_sim[select_e]['nbc_m']), np.std(res_sim[select_e]['nbc_m'],ddof=1)/float(len(res_sim[select_e]))
+    # m_w, std_m_w = np.mean(res_sim[select_w]['nbc_m']), np.std(res_sim[select_w]['nbc_m'],ddof=1)/float(len(res_sim[select_w]))
+
+    # print m_n, m_s, m_e, m_w
+
+
+    # pl.show()
+
+
 
 def get_calibration():
 
@@ -1312,11 +1510,20 @@ def get_calibration():
     exec selection_string_final_des
     select_des = select.copy()
     filename_str = 'all.%s' % args.method
-    logger.info('final selection SIM %d/%d %f',len(res_sim[select_sim]),len(res_sim), len(res_sim[select_sim])/float(len(res_sim)))
-    logger.info('final selection DES %d/%d %f',len(res_des[select_des]),len(res_des), len(res_des[select_des])/float(len(res_des)))
+
+    filename_flatcats='/Users/tomek/data/DES/sva1_gold_wl_flatcats_v4_info.fits'
+    gold=tktools.load(filename_flatcats)
+    select_gold = (gold['sva1_gold_flags']==0)&(gold['sva1_spte_flags']==0)&(gold['sva1_gold_mag_flags']==0)
+    intersect = np.intersect1d(res_des['coadd_objects_id'],gold['coadd_objects_id'][select_gold])
+    select_gold = np.in1d(res_des['coadd_objects_id'], intersect)
+    select_des = select_des*select_gold
+
     res_sim_final = res_sim[select_sim]
     res_tru_final = res_tru[select_sim]
     res_des_final = res_des[select_des]
+
+    logger.info('final selection SIM %d/%d %f',len(res_sim[select_sim]),len(res_sim), len(res_sim[select_sim])/float(len(res_sim)))
+    logger.info('final selection DES %d/%d %f',len(res_des[select_des]),len(res_des), len(res_des[select_des])/float(len(res_des)))
 
     # model
 
@@ -1337,7 +1544,8 @@ def get_calibration():
     res_tru_model = res_tru[select_sim]
     res_des_model = res_des[select_des]
 
-    
+
+   
     # select_sim = get_subselection(res_sim_final,res_tru_final,res_des)
     # res_sim_final = res_sim_final[select_sim]
     # res_tru_final = res_tru_final[select_sim]
@@ -1387,7 +1595,7 @@ def get_calibration():
     else:
         filename_table_bias = 'bias_table.fits'
     import pyfits
-    pyfits.writeto(filename_table_bias,arr_bias,clobber=True)
+    # pyfits.writeto(filename_table_bias,arr_bias,clobber=True)
     logger.info('saved %s',filename_table_bias)
 
     import pdb; pdb.set_trace()
@@ -1502,16 +1710,21 @@ def plot_distributions():
     res_tru = pickle_dict['res_tru']
     res_des = pickle_dict['res_des']
 
+    bulge_fraction_sim = np.sum(res_sim['bulge_flux']!=0)/float(len(res_sim))
+    bulge_fraction_des = np.sum(res_des['bulge_flux']!=0)/float(len(res_des))
+    logger.info('bulge_fraction SIM=%2.4f',bulge_fraction_sim)
+    logger.info('bulge_fraction DES=%2.4f',bulge_fraction_des)
+
     great_des_e1 = res_sim['e1'] #- cat_tru['g1_true']
     great_des_e2 = res_sim['e2'] #- cat_tru['g2_true']
 
     fig_format = '.eps'
 
+    select_gold = get_gold_cut(res_des)
 
     logger.info('calculating bias for the entire sample - using cuts from final selection')
     logger.info(selection_string_final_sim)
     logger.info(selection_string_final_des)
-
     
     cat_res = res_sim
     cat_tru = res_tru
@@ -1521,16 +1734,20 @@ def plot_distributions():
     exec selection_string_final_des
     select_des = select.copy()
     filename_str = 'all.%s' % args.method
-    logger.info('final selection SIM %d/%d %f',len(res_sim[select_sim]),len(res_sim), len(res_sim[select_sim])/float(len(res_sim)))
-    logger.info('final selection DES %d/%d %f',len(res_des[select_des]),len(res_des), len(res_des[select_des])/float(len(res_des)))
+
+    select_des = select_gold & select_des
+
+    res_sim = res_sim[select_sim]
+    res_des = res_des[select_des]
+    logger.info('final selection SIM %d/%d %f',len(res_sim),len(res_sim), len(res_sim)/float(len(res_sim)))
+    logger.info('final selection DES %d/%d %f',len(res_des),len(res_des), len(res_des)/float(len(res_des)))
 
     bulge_fraction_sim = np.sum(res_sim['bulge_flux']!=0)/float(len(res_sim))
     bulge_fraction_des = np.sum(res_des['bulge_flux']!=0)/float(len(res_des))
     logger.info('bulge_fraction SIM=%2.4f',bulge_fraction_sim)
     logger.info('bulge_fraction DES=%2.4f',bulge_fraction_des)
-    
-    res_sim = res_sim[select_sim]
-    res_des = res_des[select_des]
+
+    import pdb; pdb.set_trace()
 
     # res_sim,res_tru,res_des = get_subselection(res_sim,res_tru,res_des)
     pl.figure()
@@ -1551,7 +1768,7 @@ def plot_distributions():
     hsnr_des, _ , _= pl.hist(res_des['snr'] ,bins=np.logspace(0,3,300),histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
     hsnr_res, _ , _= pl.hist(res_sim['snr'] ,bins=np.logspace(0,3,300),histtype='step',label='SIM' , normed=True, color='r') 
     ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
-    pl.xlim([0,1200])
+    pl.xlim([5,1200])
     pl.xscale('log')
     pl.legend(framealpha=0.0,frameon=False)
     pl.xlabel('SNR')
@@ -2109,7 +2326,13 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
         # there is a difference between measured shape in im3shape and in true PSF shape in sims -- 
         # so here we use the measured PSF shape in im3shape, as that is used in analysis in DES
         # there is also a sign flip on e1 for PSF
-        bins_psf_edges = np.linspace(-0.014,0.014,5)
+        if res_tru!=None:
+            warnings.warn('using 5 PSF bins')
+            bins_psf_edges = np.linspace(-0.014,0.014,5)
+        else:
+            bins_psf_edges = np.linspace(-0.01,0.01,50)
+            warnings.warn('using more PSF bins')
+
         bins_psf_centers = plotstools.get_bins_centers(bins_psf_edges)
     else:
         raise Exception('invalid method name %s' % args.method)
@@ -2179,51 +2402,9 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
 
     return pcc1,pmm1,pcc2,pmm2,std_pcc1,std_pmm1,std_pcc2,std_pmm2,pmean_e1,pstdm_e1,pmean_e2,pstdm_e2,pmean_g1,pmean_g2,bins_psf_centers
 
-def get_jacknife_regions():
-
-    cat_cosmos = np.array(pyfits.getdata('/Users/tomek/data/COSMOS/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits'))    
-    import arraytools
-    cat_cosmos = arraytools.ensure_col(cat_cosmos,name='jack_id',dtype=np.int32)
-
-    mean_ra, mean_de = np.mean(cat_cosmos['RA']) , np.mean(cat_cosmos['DEC'])
-
-    import unitstools
-    ra_proj,de_proj = unitstools.get_gnomonic_projection( cat_cosmos['RA'], cat_cosmos['DEC'], mean_ra, mean_de, unit='deg')
-
-    max_ra,min_ra = ra_proj.max(),ra_proj.min()
-    max_de,min_de = de_proj.max(),de_proj.min()
-
-    n_jack = config['n_jack']
-    n_side = int(np.sqrt(n_jack))+1
-    x,y = np.linspace(min_ra,max_ra,n_side),np.linspace(min_de,max_de,n_side)
-
-    import plotstools
-    colors = plotstools.get_colorscale(n_jack)
-
-    ia = 0
-    for ix in range(1,len(x)):
-        for iy in range(1,len(y)):
-
-            select = (ra_proj > x[ix-1]) & (ra_proj < x[ix]) & (de_proj > y[iy-1]) & (de_proj < y[iy])
-            cat_cosmos['jack_id'][select] = ia
-            print ia, len(ra_proj[select])
-            ia+=1
-            
-
-    pl.figure()
-    pl.scatter(ra_proj,de_proj,c=colors[cat_cosmos['jack_id']])
-    pl.show()
-
-    arraytools.save('/Users/tomek/data/COSMOS/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits',cat_cosmos,clobber=True)
-
-
-    import pdb; pdb.set_trace()
-
-
-
 def main():
 
-    valid_actions = ['save_selection','get_mc_vs_snr','plot_mc_vs_snr','plot_meane_vs_snr','get_meane_vs_snr','get_histograms','get_distributions','plot_distributions','get_PSF_leakage','get_calibration','get_bias_model','apply_calibration_sim','apply_calibration_des','plot_bias_vs_redshift','plot_face_fig','get_bias_vs_redshift','get_jacknife_regions','get_meane_vs_size']
+    valid_actions = ['get_radec_split','apply_calibration_selection','save_selection','get_mc_vs_snr','plot_mc_vs_snr','plot_meane_vs_snr','get_meane_vs_snr','get_histograms','get_distributions','plot_distributions','get_PSF_leakage','get_calibration','get_bias_model','apply_calibration_sim','apply_calibration_des','plot_bias_vs_redshift','plot_face_fig','get_bias_vs_redshift','get_jacknife_regions','get_meane_vs_size']
 
     global logger , config , args
 
