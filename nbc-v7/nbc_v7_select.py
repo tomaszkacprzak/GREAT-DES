@@ -215,7 +215,7 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
     n_missing=0
 
     for ig,vg in enumerate(config['shear']):
-        
+      
         list_results = []
 
         id_first = args.first
