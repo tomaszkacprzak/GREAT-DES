@@ -106,3 +106,12 @@ python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord-merged.yaml -m im3shape 
 # for 002-discsim-e
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-sersics.yaml -m im3shape -a save_selection -n 100 --n_des_files 1 -o case-00-test
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-sersics.yaml -m im3shape -a get_calibration -n 100 --n_des_files 1 -o case-00-test
+
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.disc.yaml -m im3shape -a save_selection -n 600 --n_des_files 1 -o case-03-singledisc
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.disc.yaml -m im3shape -a plot_distributions -o case-03-v9disc
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.disc.yaml -m im3shape -a get_calibration -o case-03-v9disc
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.disc.yaml -m im3shape -a get_bias_model -o case-03-v9disc
+
+
+# generating data with optical PSF
+python /cluster/home02/phys/tomaszk/code/GREAT-DES/nbc-v7/nbc_v7_generate.py -c nbc-optical.yaml -f 0 -n 1 -a generate-psf -o .

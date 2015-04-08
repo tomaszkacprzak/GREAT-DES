@@ -317,7 +317,7 @@ def get_weight_column(cat):
 def get_calibration_columns(res_des):
 
     import cPickle as pickle
-    filename_bias_models = 'bias_models.cpickle'
+    filename_bias_models = os.path.join(args.output_dir,'bias_models.cpickle')
     bm=pickle.load(open(filename_bias_models))
     warnings.warn('using %s' % filename_bias_models)
 
@@ -437,7 +437,7 @@ def get_bias_model():
     # pl.style.use('supermongo')
 
     import fitsio
-    filename_table_bias = 'bias_table.fits'
+    filename_table_bias = os.path.join(args.output_dir,'bias_table.fits')
     bias_table = tktools.load(filename_table_bias)
     dx=0.05
 
@@ -603,7 +603,7 @@ def get_bias_model():
     pl.title('PSF leakage')
 
 
-    filename_bias_models = 'bias_models.cpickle'
+    filename_bias_models = os.path.join(args.output_dir,'bias_models.cpickle')
     import cPickle as pickle
     pickle_dict = {'model_m':model_arr_m_hires, 'model_a':model_arr_a_hires, 'model_snr':vec_x_hires, 'model_rgp':vec_y_hires}
     pickle.dump(pickle_dict,open(filename_bias_models,'w'),protocol=2)
