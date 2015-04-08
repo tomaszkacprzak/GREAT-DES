@@ -96,3 +96,13 @@ python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord-merged.yaml -m im3shape 
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-disc.yaml -m im3shape -a save_selection -n 100 --n_des_files 1 -v3
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-disc.yaml -m im3shape -a get_calibration -n 300 --n_des_files 1 --filename_selection nbc_selection.calibr0.weight0.cpickle
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-disc.yaml -m im3shape -a plot_distributions -n 300 --n_des_files 1 --filename_selection nbc_selection.calibr0.weight0.cpickle
+
+
+# for new folder system
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord-merged.yaml -m im3shape -a save_selection -n 600 --n_des_files 1 -o case-00-g3match
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord-merged.yaml -m im3shape -a plot_distributions -o case-00-g3match
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord-merged.yaml -m im3shape -a get_calibration -o case-00-g3match
+
+# for 002-discsim-e
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-sersics.yaml -m im3shape -a save_selection -n 100 --n_des_files 1 -o case-00-test
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-sersics.yaml -m im3shape -a get_calibration -n 100 --n_des_files 1 -o case-00-test

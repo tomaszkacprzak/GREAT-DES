@@ -215,7 +215,7 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
     n_missing=0
 
     for ig,vg in enumerate(config['shear']):
-      
+
         list_results = []
 
         id_first = args.first
@@ -295,7 +295,8 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
             try:
                 selected_res = cat_res[select][cols_res]
                 selected_tru = cat_tru[select][cols_tru]
-            except:
+            except Exception,errmsg:
+                logger.error(errmsg)
                 import pdb;pdb.set_trace()
 
             

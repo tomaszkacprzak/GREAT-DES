@@ -1,4 +1,4 @@
-import numpy as np; import pylab as pl; 
+import numpy as np; import pylab as pl; import tktools as tt;
 import  sys, logging, yaml, argparse, time, copy, itertools, tktools, warnings, os, fitsio, pyfits;
 warnings.simplefilter("once")
 sys.path.append('/home/tomek/code/tktools')
@@ -34,7 +34,8 @@ def inv_snr_basis(x):
     # X = np.concatenate( [  np.ones((n_points_x,1)), 1./x**1, 1/x**2, 1/x**3 ],axis=1 ) 
 
     # X = np.concatenate( [  1/x**1, 1/x**1.5, 1/x**2],axis=1 ) 
-    X = np.concatenate( [ 1/x**2, 1/x**4],axis=1 ) 
+    basis_list = eval(config['inv_snr_basis_m'])
+    X = np.concatenate( basis_list ,axis=1 ) 
 
     # use this one for figure
     # X = np.concatenate( [ 1./x**2,  1./x**3, 1/x**4],axis=1 ) 
@@ -47,14 +48,22 @@ def inv_snr_basis2(x):
     # X = np.concatenate( [ np.ones((n_points_x,1)), 1./x, 1./x**2, 1./x**4],axis=1 )
     # X = np.concatenate( [ np.ones((n_points_x,1)), 1./x**2 ],axis=1 )
     # X = np.concatenate( [ 1./x, 1./x**1.25, 1./x**1.5, 1./x**2],axis=1 )
-    X = np.concatenate( [ 1/x**2, 1/x**4 ],axis=1 )
+    # X = np.concatenate( [ 1/x**2, 1/x**4 ],axis=1 )
     # X = 1./x**2
+
+    basis_list = eval(config['inv_snr_basis_a'])
+    X = np.concatenate( basis_list ,axis=1 ) 
+
+    # use this one for figure
+    # X = np.concatenate( [ 1./x**2,  1./x**3, 1/x**4],axis=1 ) 
+    return X
+
 
     return X
 
 def apply_calibration_selection():
 
-    res_sim, res_tru, res_des, selection_string_model_sim, selection_string_model_des = load_selection_pickle()
+    res_sim, res_tru, res_des = load_selection()
 
 
     logger.info('applying calibration to SIM')
@@ -64,11 +73,6 @@ def apply_calibration_selection():
     logger.info('applying calibration to DES')
     res_des_cal , calib_m, calib_a=get_calibration_columns(res_des)
     res_des_cal = get_weight_column(res_des_cal)
-
-    # import cPickle as pickle
-    # pickle_dict = { 'res_sim':res_sim_cal, 'res_tru':res_tru, 'res_des':res_des_cal , 'selection_string_model_sim':selection_string_model_sim, 'selection_string_model_des':selection_string_model_des }
-    # pickle.dump(pickle_dict, open(filename_pickle_calibrated,'w'), protocol=2)
-    # logger.info('wrote %s' % (filename_pickle_calibrated))
 
     pl.figure()
     pl.hist(res_des_cal['nbc_m'],np.linspace(-0.5,1.1,100),histtype='step');
@@ -85,12 +89,11 @@ def apply_calibration_selection():
     pl.show()
 
 
-    import pdb; pdb.set_trace()
-    filename = '%s/res_sim.fits' % args.filename_selection
+    filename = '%s/res_sim.fits' % args.output_dir
     tktools.save(filename, res_sim_cal, clobber=True)
-    filename = '%s/res_tru.fits' % args.filename_selection
+    filename = '%s/res_tru.fits' % args.output_dir
     tktools.save(filename, res_tru, clobber=True)
-    filename = '%s/res_des.fits' % args.filename_selection
+    filename = '%s/res_des.fits' % args.output_dir
     tktools.save(filename, res_des_cal, clobber=True)
 
 
@@ -677,29 +680,13 @@ def get_bias_model():
     pl.show()
     import pdb; pdb.set_trace()
 
-def load_selection_pickle():
+def load_selection():
 
-    if args.filename_selection.split('.')[-1] == 'cpickle':
-        pickle_dict = tktools.load(args.filename_selection)
-        # match_weights = get_match_weights(res_sim,res_des)
-        res_sim = pickle_dict['res_sim']
-        res_tru = pickle_dict['res_tru']
-        res_des = pickle_dict['res_des']
-        logger.info('loaded DES results with following selection:')
-        logger.info(pickle_dict['selection_string_model_des'])
-        logger.info('loaded SIM results with following selection:')
-        logger.info(pickle_dict['selection_string_model_sim'])
-        return res_sim, res_tru, res_des, pickle_dict['selection_string_model_sim'], pickle_dict['selection_string_model_des']
-    else:
-        res_sim = np.array(pyfits.getdata('%s/res_sim.fits' % args.filename_selection))
-        res_des = np.array(pyfits.getdata('%s/res_des.fits' % args.filename_selection))
-        res_tru = np.array(pyfits.getdata('%s/res_tru.fits' % args.filename_selection))
-        return res_sim, res_tru, res_des, 'selection_string_model_sim', 'selection_string_model_des'
+        res_sim = tt.load( '%s/res_sim.fits' % args.output_dir)
+        res_des = tt.load( '%s/res_des.fits' % args.output_dir)
+        res_tru = tt.load( '%s/res_tru.fits' % args.output_dir)
 
-
-
-
-
+        return res_sim, res_tru, res_des
 
 def get_bias_vs_redshift():
 
@@ -715,7 +702,7 @@ def get_bias_vs_redshift():
     # res_sim,res_tru = cal_sim,cal_tru
     # res_des         = cal_des        
 
-    res_sim, res_tru, res_des, selection_string_model_sim, selection_string_model_des = load_selection_pickle()
+    res_sim, res_tru, res_des = load_selection()
 
     logger.info('calculating bias for the entire sample - using cuts from final selection')
     logger.info(selection_string_final_sim)
@@ -1184,7 +1171,7 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
         logger.error('plot 337 died %s', errmsg)
 
 
-    filename_fig = 'figs/bias.%s.png' % (filename_str)
+    filename_fig = os.path.join(args.output_dir,'figs/bias.%s.png' % (filename_str))
     pl.savefig(filename_fig)
     logger.info('saved %s',filename_fig)
     pl.close()
@@ -1206,7 +1193,7 @@ def get_mc_vs_snr():
     #     logger.info('measuring bias')
     # res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_model_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
 
-    res_sim, res_tru, res_des, selection_string_model_sim, selection_string_model_des = load_selection_pickle()
+    res_sim, res_tru, res_des, selection_string_model_sim, selection_string_model_des = load_selection()
 
     logger.info('calculating bias for the entire sample - using cuts from final selection')
     logger.info(selection_string_final_sim)
@@ -1223,7 +1210,7 @@ def get_mc_vs_snr():
     res_tru_final = res_tru[select_sim]
     res_des_final = res_des[select_des]
 
-    load_selection_pickle()
+    load_selection()
  
     list_snr_centers = plotstools.get_bins_centers(list_snr_edges)
 
@@ -1283,7 +1270,7 @@ def plot_mc_vs_snr():
     pl.xlabel('snr')
     pl.ylabel('mean m bias')
     pl.legend(framealpha=0.0,frameon=False,loc='lower right')
-    filename_fig = 'figs/plot_mc_vs_snr.m.weights%d.nbc%d.png'% (use_weights,use_calibration)
+    filename_fig = os.path.join(args.output_dir,'figs/plot_mc_vs_snr.m.weights%d.nbc%d.png'% (use_weights,use_calibration))
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
     
@@ -1299,7 +1286,7 @@ def plot_mc_vs_snr():
     pl.ylabel('mean alpha bias')
     pl.title('%s\n%s\n weights=%d calib/sens=%d' % (method,selection_string_model_sim,use_weights,use_calibration))
     pl.legend(framealpha=0.0,frameon=False,loc='lower right')
-    filename_fig = 'figs/plot_mc_vs_snr.alpha.weights%d.nbc%d.png'% (use_weights,use_calibration)
+    filename_fig = os.path.join(args.output_dir,'figs/plot_mc_vs_snr.alpha.weights%d.nbc%d.png'% (use_weights,use_calibration))
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1316,7 +1303,7 @@ def plot_mc_vs_snr():
     pl.ylabel('mean_e (applied shear subtracted)')
     pl.title('%s\n%s\n weights=%d calib/sens=%d' % (method,selection_string_model_sim,use_weights,use_calibration))
     pl.legend(framealpha=0.0,frameon=False,loc='lower right')
-    filename_fig = 'figs/plot_mc_vs_snr.meane.weights%d.nbc%d.png'% (use_weights,use_calibration)
+    filename_fig = os.path.join(args.output_dir,'figs/plot_mc_vs_snr.meane.weights%d.nbc%d.png'% (use_weights,use_calibration))
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1332,7 +1319,7 @@ def plot_mc_vs_snr():
     pl.legend(framealpha=0.0,frameon=False,loc='lower right')
     pl.xlabel('snr')
     pl.ylabel('mean m correction')
-    filename_fig = 'figs/plot_mc_vs_snr.m_applied.weights%d.nbc%d.png'% (use_weights,use_calibration)
+    filename_fig = os.path.join(args.output_dir,'figs/plot_mc_vs_snr.m_applied.weights%d.nbc%d.png'% (use_weights,use_calibration))
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1348,7 +1335,7 @@ def plot_mc_vs_snr():
     pl.legend(framealpha=0.0,frameon=False,loc='lower right')
     pl.xlabel('snr')
     pl.ylabel('mean m correction')
-    filename_fig = 'figs/plot_mc_vs_snr.c_applied.weights%d.nbc%d.png' % (use_weights,use_calibration)
+    filename_fig = os.path.join(args.output_dir,'figs/plot_mc_vs_snr.c_applied.weights%d.nbc%d.png' % (use_weights,use_calibration))
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1382,15 +1369,9 @@ def save_selection():
     logger.info('bulge_fraction SIM=%2.4f',bulge_fraction_sim)
     logger.info('bulge_fraction DES=%2.4f',bulge_fraction_des)
 
-    filename_pickle = 'nbc_selection.calibr%d.weight%d.cpickle' % (args.use_calibration,args.use_weights)
-    import cPickle as pickle
-    pickle_dict = { 'res_sim':res_sim, 'res_tru':res_tru, 'res_des':res_des , 'selection_string_model_sim':selection_string_model_sim, 'selection_string_model_des':selection_string_model_des }
-    import pdb; pdb.set_trace()
-    pyfits.writeto('pickles/res_sim.fits',res_sim,clobber=True)
-    pyfits.writeto('pickles/res_des.fits',res_des,clobber=True)
-    pyfits.writeto('pickles/res_tru.fits',res_tru,clobber=True)
-    pickle.dump(pickle_dict, open(filename_pickle,'w'), protocol=2)
-    logger.info('wrote %s' % (filename_pickle))
+    tt.save(os.path.join(args.output_dir,'res_sim.fits'),res_sim,clobber=True)
+    tt.save(os.path.join(args.output_dir,'res_des.fits'),res_des,clobber=True)
+    tt.save(os.path.join(args.output_dir,'res_tru.fits'),res_tru,clobber=True)
 
 def get_gold_cut(res_des):
 
@@ -1404,7 +1385,7 @@ def get_gold_cut(res_des):
 
 def get_radec_split():
 
-    res_sim, res_tru, res_des, _, _ = load_selection_pickle()
+    res_sim, res_tru, res_des, _, _ = load_selection()
 
     cosmos=tktools.load('/Users/tomek/data/COSMOS/COSMOS_23.5_training_sample/real_galaxy_catalog_23.5.fits')
 
@@ -1505,37 +1486,8 @@ def get_radec_split():
 
 def get_calibration():
 
-    # pickle_dict = tktools.load(args.filename_selection)
 
-    # # match_weights = get_match_weights(res_sim,res_des)
-    # res_sim = pickle_dict['res_sim']
-    # res_tru = pickle_dict['res_tru']
-    # res_des = pickle_dict['res_des']
-
-    # logger.info('loaded DES results with following selection:')
-    # logger.info(pickle_dict['selection_string_model_des'])
-    # logger.info('loaded SIM results with following selection:')
-    # logger.info(pickle_dict['selection_string_model_sim'])
-
-    res_sim, res_tru, res_des, _, _ = load_selection_pickle()
-
-    # cols_res=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','error_flag','info_flag']
-    # cols_tru=['snr','psf_e1','psf_e2','id_shear','cosmos_mag_auto','g1_true','g2_true','sf_hlr']
-    # cols_des=['coadd_objects_id','e1','e2','w','snr','mean_rgpp_rp','mean_psf_e1_sky','mean_psf_e2_sky','error_flag','info_flag']
-
-    # if args.use_calibration:
-    #     logger.info('testing calibration columns')
-    #     cols_res += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
-    #     cols_des += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
-    # else:
-    #     logger.info('will measure bias, no calibration applied')
-
-    # logger.info('loading SIM results with following selection:')
-    # logger.info(selection_string_model_sim)
-    # res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_model_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
-    # logger.info('loading DES results with following selection:')
-    # logger.info(selection_string_model_des)
-    # res_des         = nbc_v7_select.get_selection_des(selection_string_model_des,cols=cols_des,n_files=args.n_des_files,get_calibrated=args.use_calibration)
+    res_sim, res_tru, res_des = load_selection()
  
     list_snr_centers = plotstools.get_bins_centers(list_snr_edges)
     list_psf_centers = plotstools.get_bins_centers(list_psf_edges)
@@ -1635,9 +1587,9 @@ def get_calibration():
     arr_bias = tktools.arr2rec(np.array(list_bias),dtype={'names': ["ipsf","isnr","n_gals",'n_unique',"vpsf_min","vpsf_max","vsnr_min","vsnr_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","bulge_fraction"], 'formats': ['i4']*4 + ['f8']*22 })
 
     if args.use_calibration:
-        filename_table_bias = 'bias_table.calibrated.fits'
+        filename_table_bias = os.path.join(args.output_dir,'bias_table.calibrated.fits')
     else:
-        filename_table_bias = 'bias_table.fits'
+        filename_table_bias = os.path.join(args.output_dir,'bias_table.fits')
     import pyfits
     pyfits.writeto(filename_table_bias,arr_bias,clobber=True)
     logger.info('saved %s',filename_table_bias)
@@ -1796,12 +1748,7 @@ def get_subselection(res_sim,res_tru,res_des,param='snr',param_min=0,param_max=3
 
 def plot_distributions():
 
-    # pickle_dict = tktools.load(args.filename_selection)
-    # res_sim = pickle_dict['res_sim']
-    # res_tru = pickle_dict['res_tru']
-    # res_des = pickle_dict['res_des']
-
-    res_sim, res_tru, res_des, _, _ = load_selection_pickle()
+    res_sim, res_tru, res_des = load_selection()
 
     bulge_fraction_des = np.sum(res_des['bulge_flux']!=0)/float(len(res_des))
     bulge_fraction_sim = np.sum(res_sim['bulge_flux']!=0)/float(len(res_sim))
@@ -1811,7 +1758,7 @@ def plot_distributions():
     great_des_e1 = res_sim['e1'] #- cat_tru['g1_true']
     great_des_e2 = res_sim['e2'] #- cat_tru['g2_true']
 
-    fig_format = '.png'
+    fig_format = args.fig_format
 
 
     logger.info('calculating bias for the entire sample - using cuts from final selection')
@@ -1831,6 +1778,7 @@ def plot_distributions():
     # select_des = select_gold & select_des
 
     res_sim = res_sim[select_sim]
+    res_tru = res_tru[select_sim]
     res_des = res_des[select_des]
     logger.info('final selection SIM %d/%d %f',len(res_sim),len(res_sim), len(res_sim)/float(len(res_sim)))
     logger.info('final selection DES %d/%d %f',len(res_des),len(res_des), len(res_des)/float(len(res_des)))
@@ -1850,7 +1798,7 @@ def plot_distributions():
     pl.legend(framealpha=0.0,frameon=False, mode='expand',ncol=2)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
     pl.xlabel(r'$e_i$')
-    filename_fig = 'figs/dist-DES-SIM.ell%s'%fig_format
+    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.ell%s'%fig_format)
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1859,7 +1807,7 @@ def plot_distributions():
     pl.legend(framealpha=0.0,frameon=False, mode='expand',ncol=2)
     pl.xlabel(r'$e_1$')
     pl.ylabel(r'$e_2$')
-    filename_fig = 'figs/dist-DES-SIM.ell2d%s'%fig_format
+    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.ell2d%s'%fig_format)
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1873,7 +1821,18 @@ def plot_distributions():
     pl.xscale('log')
     pl.legend(framealpha=0.0,frameon=False)
     pl.xlabel('SNR')
-    filename_fig = 'figs/dist-DES-SIM.snr%s'%fig_format
+    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.snr-logscale%s'%fig_format)
+    pl.savefig(filename_fig)
+    logger.info('wrote %s' % (filename_fig))
+    
+    pl.figure()
+    hsnr_des, _ , _= pl.hist(res_des['snr'] ,bins=np.linspace(0,200,300),histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
+    hsnr_res, _ , _= pl.hist(res_sim['snr'] ,bins=np.linspace(0,200,300),histtype='step',label='SIM' , normed=True, color='r') 
+    ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
+    pl.xlim([5,200])
+    pl.legend(framealpha=0.0,frameon=False)
+    pl.xlabel('SNR')
+    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.snr%s'%fig_format)
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1883,7 +1842,7 @@ def plot_distributions():
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
     pl.xlabel(r'$R_{gpp}/R_{p}$')
-    filename_fig = 'figs/dist-DES-SIM.size%s'%fig_format
+    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.size%s'%fig_format)
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1894,7 +1853,7 @@ def plot_distributions():
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
     pl.xlabel('radius [arcmin]')
-    filename_fig = 'figs/dist-DES-SIM.radius%s'%fig_format
+    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.radius%s'%fig_format)
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1904,7 +1863,7 @@ def plot_distributions():
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
     pl.xlabel('bulge flux')
-    filename_fig = 'figs/dist-DES-SIM.bulgeflux%s'%fig_format
+    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.bulgeflux%s'%fig_format)
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1915,7 +1874,7 @@ def plot_distributions():
     pl.legend(framealpha=0.0,frameon=False)
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
     pl.xlabel('disc flux')
-    filename_fig = 'figs/dist-DES-SIM.discflux%s'%fig_format
+    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.discflux%s'%fig_format)
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1924,7 +1883,7 @@ def plot_distributions():
     pl.hist(res_des['dec_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
     pl.legend()
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
-    filename_fig = 'figs/dist-DES-SIM.dec%s'%fig_format
+    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.dec%s'%fig_format)
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1933,7 +1892,7 @@ def plot_distributions():
     pl.hist(res_des['ra_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
     pl.legend()
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
-    filename_fig = 'figs/dist-DES-SIM.ra%s'%fig_format
+    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.ra%s'%fig_format)
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1942,7 +1901,7 @@ def plot_distributions():
     pl.xlabel('sf_hlr')
     pl.legend()
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
-    filename_fig = 'figs/dist-SIM.sf_hlr%s'%fig_format
+    filename_fig = os.path.join(args.output_dir,'figs/dist-SIM.sf_hlr%s'%fig_format)
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1951,7 +1910,7 @@ def plot_distributions():
     pl.xlabel('mag_auto')
     pl.legend()
     ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
-    filename_fig = 'figs/dist-SIM.mag_auto%s'%fig_format
+    filename_fig = os.path.join(args.output_dir,'figs/dist-SIM.mag_auto%s'%fig_format)
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
@@ -1989,7 +1948,7 @@ def plot_distributions():
         ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
         pl.legend()
 
-        filename_fig = 'figs/histograms.e_vs_snr.%02d%s'% (ib,fig_format)
+        filename_fig = os.path.join(args.output_dir,'figs/histograms.e_vs_snr.%02d%s'% (ib,fig_format))
         pl.savefig(filename_fig)
         logger.info('saved %s', filename_fig)
 
@@ -2542,8 +2501,10 @@ def main():
     parser.add_argument('-a', '--actions', nargs='+' ,default=None, type=str, action='store',  help='which actions to run, available: %s' % str(valid_actions) )
     parser.add_argument('--use_calibration', default=False, action='store_true', help='if to apply calibration columns')
     parser.add_argument('--use_weights', default=False, action='store_true', help='if to apply weights')
-    parser.add_argument('--filename_selection', default='nbc_selection.calibr0.weight0.cpickle', type=str, action='store', help='selection file (for read only)')
     parser.add_argument('--n_des_files', default=460, type=int, action='store', help='number of DES files to read')
+    parser.add_argument('--fig_format', default='.png', type=str, action='store', help='format of the figure files')
+    parser.add_argument('-o','--output_dir', default='.', type=str, action='store', help='dir to store results')
+
 
 
     args = parser.parse_args()
@@ -2553,6 +2514,19 @@ def main():
 
     config = yaml.load(open(args.filename_config))
     nbc_v7_select.config=config; nbc_v7_select.args = args; 
+
+    if not os.path.isdir(args.output_dir):
+        os.makedirs(args.output_dir)
+        os.makedirs(os.path.join(args.output_dir,'figs'))
+        logger.info('created dir %s' % (args.output_dir))
+
+
+
+    import shutil
+    if os.path.abspath(args.output_dir) != os.path.abspath(os.path.dirname(args.filename_config)):
+        filename_config_copy = os.path.join(args.output_dir,os.path.basename(args.filename_config))
+        shutil.copyfile(args.filename_config,filename_config_copy)
+        logger.info('copied config to %s' % (filename_config_copy))
 
     global selection_string_model_sim;
     global selection_string_model_des;
