@@ -8,14 +8,14 @@ import matplotlib as mpl
 if 'DISPLAY' not in os.environ:
     mpl.use('agg')
     print 'using backend ' , mpl.get_backend()
-import sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, galsim, copy, galsim.des, warnings, subprocess
+import sys, logging, yaml, argparse, time, meds, pyfits, warnings, subprocess
 import pylab as pl
 import numpy as np
 from nbc_dtypes import *
 warnings.simplefilter('once')
 
 logging_level = logging.INFO
-log = logging.getLogger("nbc2_gener") 
+log = logging.getLogger("merge_bord") 
 log.setLevel(logging_level)  
 log_formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s   %(message)s", "%Y-%m-%d %H:%M:%S")
 stream_handler = logging.StreamHandler(sys.stdout)
@@ -94,8 +94,8 @@ def merge_files(bulge_files,disc_files,truth_files=None,tag='test'):
 
         truth_filename = disc_filename.replace('meds','truth').replace('results_disc','data')
 
-        cat_b = np.array(Table.read(bulge_filename))
-        cat_d = np.array(Table.read(disc_filename))
+        cat_b = np.array(pyfits.getdata(bulge_filename))
+        cat_d = np.array(pyfits.getdata(disc_filename))
         if truth_files!=None: cat_t = np.array(Table.read(truth_filename))
         print '---------', ifiles, time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
         print bulge_filename,len(cat_b)
@@ -206,9 +206,9 @@ def main():
     description = 'Get input catalogs for GREAT-DES NBC2 simulation'
     parser = argparse.ArgumentParser(description=description, add_help=True)
     parser.add_argument('-v', '--verbosity', type=int, action='store', default=2, choices=(0, 1, 2, 3 ), help='integer verbosity level: min=0, max=3 [default=2]')
-    parser.add_argument('-od', '--dir_out', type=str,    action='store',  help='directory which stores output')
-    parser.add_argument('-bd', '--files_bulge', type=str,  action='store',  help='wildcard to select bulge files ex /path/to/dir/DES*' )
-    parser.add_argument('-dd', '--files_disc', type=str,   action='store',  help='wildcard to select disc  files ex /path/to/dir/DES*' )
+    parser.add_argument('-do', '--dir_out', type=str,    action='store',  help='directory which stores output')
+    parser.add_argument('-fb', '--files_bulge', type=str,  action='store',  help='wildcard to select bulge files ex /path/to/dir/DES*' )
+    parser.add_argument('-fd', '--files_disc', type=str,   action='store',  help='wildcard to select disc  files ex /path/to/dir/DES*' )
     parser.add_argument( '--tag', type=str,   action='store',  help='not sure what this is for' )
 
     args = parser.parse_args()
@@ -225,8 +225,8 @@ def main():
     # bulge_path = '/Users/tomek/data/DES/im3shape-v9/im3shape_v9/bulge/main/DES*'
     # disc_path = '/Users/tomek/data/DES/im3shape-v9/im3shape_v9/disc/main/DES*'
     tag = 'nbc006'
-    bulge_path = args.dir_bulge
-    disc_path  = args.dir_disc
+    bulge_path = args.files_bulge
+    disc_path  = args.files_disc
 
     bulge_files,disc_files = get_filelists(bulge_path,disc_path)
     merge_files(bulge_files,disc_files,truth_files=None,tag=tag)
