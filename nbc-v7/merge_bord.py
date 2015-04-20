@@ -3,6 +3,26 @@ from astropy.table import Table, vstack, Column
 import numpy as np
 import glob, os, pyfits, time
 
+import os 
+import matplotlib as mpl
+if 'DISPLAY' not in os.environ:
+    mpl.use('agg')
+    print 'using backend ' , mpl.get_backend()
+import sys, logging, yaml, argparse, time, meds, pyfits, plotstools, tabletools, galsim, copy, galsim.des, warnings, subprocess
+import pylab as pl
+import numpy as np
+from nbc_dtypes import *
+warnings.simplefilter('once')
+
+logging_level = logging.INFO
+log = logging.getLogger("nbc2_gener") 
+log.setLevel(logging_level)  
+log_formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s   %(message)s", "%Y-%m-%d %H:%M:%S")
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setFormatter(log_formatter)
+log.addHandler(stream_handler)
+log.propagate = False
+
 
 def add_col(rec, name, arr, dtype=None):
     import numpy
@@ -183,12 +203,30 @@ def merge_files(bulge_files,disc_files,truth_files=None,tag='test'):
 
 def main():
 
+    description = 'Get input catalogs for GREAT-DES NBC2 simulation'
+    parser = argparse.ArgumentParser(description=description, add_help=True)
+    parser.add_argument('-v', '--verbosity', type=int, action='store', default=2, choices=(0, 1, 2, 3 ), help='integer verbosity level: min=0, max=3 [default=2]')
+    parser.add_argument('-od', '--dir_out', type=str,    action='store',  help='directory which stores output')
+    parser.add_argument('-bd', '--files_bulge', type=str,  action='store',  help='wildcard to select bulge files ex /path/to/dir/DES*' )
+    parser.add_argument('-dd', '--files_disc', type=str,   action='store',  help='wildcard to select disc  files ex /path/to/dir/DES*' )
+    parser.add_argument( '--tag', type=str,   action='store',  help='not sure what this is for' )
+
+    args = parser.parse_args()
+    logging_levels = { 0: logging.CRITICAL, 
+                       1: logging.WARNING,
+                       2: logging.INFO,
+                       3: logging.DEBUG }
+    logging_level = logging_levels[args.verbosity]
+    log.setLevel(logging_level)  
+    
+    log.info(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()))
+
     # tag = 'v9test'
     # bulge_path = '/Users/tomek/data/DES/im3shape-v9/im3shape_v9/bulge/main/DES*'
     # disc_path = '/Users/tomek/data/DES/im3shape-v9/im3shape_v9/disc/main/DES*'
     tag = 'nbc006'
-    bulge_path = '/Users/tomek/projects/150226_nbc_v9/003-greatdes006/results-bulge/nbc*'
-    disc_path  = '/Users/tomek/projects/150226_nbc_v9/003-greatdes006/results-bulge/nbc*'
+    bulge_path = args.dir_bulge
+    disc_path  = args.dir_disc
 
     bulge_files,disc_files = get_filelists(bulge_path,disc_path)
     merge_files(bulge_files,disc_files,truth_files=None,tag=tag)
