@@ -107,11 +107,29 @@ python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord-merged.yaml -m im3shape 
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-sersics.yaml -m im3shape -a save_selection -n 100 --n_des_files 1 -o case-00-test
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-sersics.yaml -m im3shape -a get_calibration -n 100 --n_des_files 1 -o case-00-test
 
-python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.disc.yaml -m im3shape -a save_selection -n 600 --n_des_files 1 -o case-03-singledisc
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.disc.yaml -m im3shape -a save_selection -n 600 --n_des_files 1 -o case-03-v9disc
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.disc.yaml -m im3shape -a plot_distributions -o case-03-v9disc
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.disc.yaml -m im3shape -a get_calibration -o case-03-v9disc
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.disc.yaml -m im3shape -a get_bias_model -o case-03-v9disc
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.disc.yaml -m im3shape -a apply_calibration_selection -o case-03-v9disc
 
 
 # generating data with optical PSF
 python /cluster/home02/phys/tomaszk/code/GREAT-DES/nbc-v7/nbc_v7_generate.py -c nbc-optical.yaml -f 0 -n 1 -a generate-psf -o .
+
+# ngmix analysis on disconly-003
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c disconly.ngmix.003.yaml -a save_selection -o case-00-test -n 100 --n_des_files 1  -m ngmix
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c disconly.ngmix.003.yaml -a get_calibration -o case-00-test -n 100 --n_des_files 1 -v3 -m ngmix
+
+# im3shape on disconly-003:
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c disconly.im3shape.003.yaml -a save_selection -o case-01-im3 -n 100 --n_des_files 1  -m im3shape
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c disconly.im3shape.003.yaml -a get_calibration -o case-01-im3 -n 100 --n_des_files 1  -m im3shape
+
+# selection bias calibration case-06-sbc
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord.yaml -m im3shape -a save_selection -n 600 --n_des_files 500 -o case-06-nosbc
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord.yaml -m im3shape -a get_calibration -o case-06-nosbc/
+
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord.yaml -m im3shape -a save_selection -n 600 --n_des_files 500 -o case-07-sbc
+
+# check centers of 005
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-v8.yaml -m im3shape -a save_selection -n 600 --n_des_files 500 -o case-00-test

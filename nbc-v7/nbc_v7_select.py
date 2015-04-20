@@ -1,4 +1,4 @@
-import numpy as np; import pylab as pl
+import numpy as np; import pylab as pl; import tktools as tt;
 import  sys
 sys.path.append('/Users/tomek/code/tktools')
 import logging, yaml, argparse, time, copy, itertools, tabletools, warnings
@@ -16,11 +16,24 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
         cat_res = tabletools.appendColumn(cat_res,'e1', cat_res['g'][:,0])
         cat_res = tabletools.appendColumn(cat_res,'e2', cat_res['g'][:,1])
         cat_res = tabletools.appendColumn(cat_res,'error_flag', cat_res['flags'])
-        cat_res = tabletools.appendColumn(cat_res,'info_flag', cat_res['arate'])
+        # cat_res = tabletools.appendColumn(cat_res,'info_flag', cat_res['arate'])
         cat_res = tabletools.appendColumn(cat_res,'snr', cat_res['s2n_w'])
+
+    if 'arate' in cat_res.dtype.names:
+        cat_res = tabletools.appendColumn(cat_res,'info_flag', cat_res['arate'])
+    else:
+        cat_res = tabletools.appendColumn(cat_res,'info_flag', np.ones(len(cat_res)),dtype=np.bool )
 
     if 'T' in cat_res.dtype.names:
         cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', cat_res['T'])
+    if 'T' in cat_res.dtype.names:
+        cat_res = tabletools.appendColumn(cat_res,'radius', cat_res['T'])
+
+    if 'log_T' in cat_res.dtype.names:
+        cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', cat_res['log_T'])
+    if 'log_T' in cat_res.dtype.names:
+        cat_res = tabletools.appendColumn(cat_res,'radius', cat_res['log_T'])
+
     elif 'ngmix_EXP_T' in cat_res.dtype.names:
         cat_res = tabletools.appendColumn(cat_res,'mean_rgpp_rp', cat_res['ngmix_EXP_T'])
     elif 'pars' in cat_res.dtype.names:
@@ -44,8 +57,17 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
 
     if 'ngmix_PSFREC_E_1' not in cat_res.dtype.names:
 
-        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_tru['psf_e1'])
-        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_tru['psf_e2'])
+        try:
+            cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_tru['psf_e1'])
+            cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_tru['psf_e2'])
+        except:
+
+            pass
+
+    if 'mean_psf_e1_sky'  not in cat_res.dtype.names:
+        
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_res['psf_g'][:,0])
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_res['psf_g'][:,1])
 
     if 'ngmix_EXP_E_1' in cat_res.dtype.names:
 
@@ -72,9 +94,9 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
 
         if 'g_cov' in cat_res.dtype.names:
 
-            e_cov_1_1 = cat_res['g_cov'][:,0,0]
-            e_cov_2_2 = cat_res['g_cov'][:,1,1]
-            e_cov_1_2 = cat_res['g_cov'][:,0,1]
+            e_cov_1_1 = cat_res['g_cov'][:,0]
+            e_cov_2_2 = cat_res['g_cov'][:,1]
+            e_cov_1_2 = cat_res['g_cov'][:,2]
             SN=0.32
             w = 1.0/( SN**2 + e_cov_1_1 + e_cov_2_2 + 2*e_cov_1_2 )
             cat_res = tabletools.appendColumn(cat_res,'w', w)
@@ -96,6 +118,59 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
     # cat_res = tabletools.appendColumn(cat_res,'info_flag', np.zeros(len(cat_res)))
 
     return cat_res
+
+def rename_cols_truth(cat_tru):
+
+    if 'shape_e1' in cat_tru.dtype.names:
+
+        e1,e2 = tt.distortion_to_shear(cat_tru['shape_e1'] , cat_tru['shape_e2'])
+        e = e1+1j*e2
+        e_rot = e*np.exp(2*cat_tru['rotation_angle']*1j)
+        e1_rot = e_rot.real
+        e2_rot = e_rot.imag
+
+        e1_rot_sheared , e2_rot_sheared = tt.add_shear(e1_rot,e2_rot,cat_tru['g1_true'],cat_tru['g2_true'])
+
+        # shape_e = (cat_tru['shape_e1'] + 1j*cat_tru['shape_e2'])*np.exp(1j*cat_tru['rotation_angle'])
+        # xi = np.abs( shape_e )
+        # ang  = np.angle( shape_e )
+        # q = np.sqrt( (1-xi)/(1+xi) )
+        # e = (1-q)/(1+q) * np.exp( ang * 1j)
+        # e1 = e.real
+        # e2 = e.imag
+
+        cat_tru = tabletools.appendColumn(cat_tru,'intrinsic_e1',e1_rot)
+        cat_tru = tabletools.appendColumn(cat_tru,'intrinsic_e2',e2_rot)
+        cat_tru = tabletools.appendColumn(cat_tru,'sheared_e1',e1_rot_sheared)
+        cat_tru = tabletools.appendColumn(cat_tru,'sheared_e2',e2_rot_sheared)
+
+    elif 'intrinsic_g1' in  cat_tru.dtype.names:
+        
+        warnings.warn("e1 = -cat_tru['intrinsic_g1']")
+        e1 = -cat_tru['intrinsic_g1'] 
+        e2 =  cat_tru['intrinsic_g2'] 
+
+        e = e1+1j*e2
+        e_rot = e*np.exp(2*cat_tru['rotation_angle']*1j)
+        e1_rot = e_rot.real
+        e2_rot = e_rot.imag
+
+        e1_rot_sheared , e2_rot_sheared = tt.add_shear(e1_rot,e2_rot,cat_tru['g1_true'],cat_tru['g2_true'])
+
+        # shape_e = (cat_tru['shape_e1'] + 1j*cat_tru['shape_e2'])*np.exp(1j*cat_tru['rotation_angle'])
+        # xi = np.abs( shape_e )
+        # ang  = np.angle( shape_e )
+        # q = np.sqrt( (1-xi)/(1+xi) )
+        # e = (1-q)/(1+q) * np.exp( ang * 1j)
+        # e1 = e.real
+        # e2 = e.imag
+
+        cat_tru = tabletools.appendColumn(cat_tru,'sheared_e1',e1_rot_sheared)
+        cat_tru = tabletools.appendColumn(cat_tru,'sheared_e2',e2_rot_sheared)
+
+
+    return cat_tru
+
 
 def rename_im3shape_cols(cat_res,cat_tru=None):
 
@@ -157,7 +232,12 @@ def get_selection_des(selection_string,cols,n_files=30,get_calibrated=False):
     n_files_loaded = 0
     n_gals_selected = 0
     for filename_des in filelist_i[:n_files]:
-        cat_res=tabletools.loadTable(filename_des,log=0,remember=False)
+        try:
+            cat_res=tt.load(filename_des,logger=0,remember=False)
+        except Exception,errmsg:
+            logger.error('file not loaded: %s, error: %s' % (filename_des,errmsg))
+            continue
+
         if args.method == 'ngmix':
             cat_res = rename_ngmix_cols(cat_res)
         elif args.method == 'im3shape':
@@ -237,9 +317,6 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
                 logger.error('file %s : %s' % (filename_tru,errmsg) )
                 continue
 
-            for col in cols_tru:
-                if col not in cat_tru.dtype.names:
-                    raise Exception('column %s not found in truth catalog %s' % (col,filename_tru))
 
             try:
                     cat_res_all = tabletools.loadTable(filename_res,log=1,remember=False)
@@ -266,7 +343,12 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
                 cat_res = rename_ngmix_cols(cat_res,cat_tru)
             elif args.method == 'im3shape':
                 cat_res = rename_im3shape_cols(cat_res)
+            
+            cat_tru = rename_cols_truth(cat_tru)
 
+            for col in cols_tru:
+                if col not in cat_tru.dtype.names:
+                    raise Exception('column %s not found in truth catalog %s' % (col,filename_tru))
             for col in cols_res:
                 if col not in cat_res.dtype.names:
                     raise Exception('column %s not found in results catalog %s' % (col,filename_res))
