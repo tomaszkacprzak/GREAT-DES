@@ -1,0 +1,78 @@
+pixel_scale        : &pixel_scale          0.27
+n_exposures        : &n_exposures          1
+cutout_size        : &cutout_size          48
+n_gals_per_file    : &n_gals_per_file      1000  # this is total number of galaxies, each will have a 90 deg rotated pair
+shear : [ [0.05, 0.0], [0.0, 0.05] , [-0.05, 0.0], [0.0, -0.05], [0.03536, 0.03536], [0.03536, -0.03536], [-0.03536, -0.03536], [-0.03536, 0.03536] ]
+padding : 4
+upsampling : 3
+des_scale_pixels :  86.52302493
+des_pixel_noise_sigma : 16.7552909851
+n_im3shape_results_files: 2
+actions: ['prepare' ,'generate-truth' , 'generate-noiseless' , 'update-truth' , 'generate-noisy']
+skip2: False
+
+
+# --------- galsim config starts here ---------
+
+
+input :
+    real_catalog :
+        # dir : /home/tomek/code/GalSim//rgc
+        # image_dir: /home/tomek/code/GalSim//rgc
+        # file_name : real_galaxy_catalog.fits
+        dir : /home/tomek/data/GREAT3/COSMOS_23.5_training_sample_sub/
+        image_dir: /home/tomek/data/GREAT3/COSMOS_23.5_training_sample_sub
+        file_name : real_galaxy_catalog_23.5_sub.fits
+        preload : False   # This usually makes a big improvement in speed
+
+    catalog : 
+        # this will be overwritten by python
+        file_name : 99
+
+output:
+    type : des_meds
+    nstamps_per_object : *n_exposures
+
+    # get the number of galaxies in a file
+    # this will be determined by nbc2_generate_catalogs.py script
+    nobjects : *n_gals_per_file
+    # this will be overwritten by python
+    file_name : 99  
+    nproc : -1
+
+gal:
+    type: RealGalaxy   
+    index: { type : Catalog , col : id_cosmos }  
+    rotate :
+        type: Radians
+        theta : {type: Catalog, col : rotation_angle} 
+
+    shear : 
+        type : G1G2
+        g1 : {type: Catalog, col : g1_true}
+        g2 : {type: Catalog, col : g2_true}
+    
+    # A random shift within a 1 pixel circle.
+    shift : 
+        type : RandomCircle
+        radius : *pixel_scale
+    whiten: True
+
+psf:
+    type: Kolmogorov
+    fwhm: {type: Catalog, col : psf_fwhm}
+    ellip: 
+        type: G1G2
+        g1: {type: Catalog, col : psf_e1} 
+        g2: {type: Catalog, col : psf_e2} 
+
+image:
+    pixel_scale: *pixel_scale
+    # This doesn't matter much, since we set the S/N above.  It just sets an overall scale for 
+    # the pixel values to something reasonable.  
+    noise : {  type: Gaussian, sigma:  0.18492188  }  
+    size: *cutout_size
+    
+
+
+

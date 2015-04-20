@@ -1,8 +1,9 @@
-import meds
+import meds 
 import galsim
 import numpy
 import galsim.des
 import copy
+import pyfits
 
 DES_PIXEL_SCALE = 0.27
 UNIT_PIXEL_SCALE = 1.
@@ -254,10 +255,11 @@ class TestGal(object):
             gsobj.draw(img,dx= UNIT_PIXEL_SCALE)
         elif coordinate_origin == 'bottom left':
             # offset = -img.bounds.trueCenter() + (-1,-1)
-            x0 = - float(n_pix)/2.
-            y0 = - float(n_pix)/2.
+            x0 = - (float(n_pix)/2. + 0.5)
+            y0 = - (float(n_pix)/2. + 0.5)
             # gsobj.draw(img,dx= UNIT_PIXEL_SCALE,offset=(-img.bounds.trueCenter()))
             gsobj.draw(img,dx= UNIT_PIXEL_SCALE,offset=galsim.PositionD(x0,y0))
+            # gsobj.draw(img,dx= UNIT_PIXEL_SCALE)
             # print img.bounds.trueCenter()
         else:
             raise ValueError('coordinate_origin should be {center,bottom left}')
@@ -400,7 +402,13 @@ def get_multiexp_object():
         # save the image to fits file
         filename_fits = 'SE-%03d.fits' % itr
         img.write(filename_fits)
-        
+        logger.info('saved %s' % filename_fits)
+
+        # add to lists
+        list_wcstrans += [wcstr]
+        list_images   += [img]
+        list_test_gal += [test_gal_copy]
+
         # coaddvew - get image of how they would like in the coadd coordinate system (see des_image_coords_convention.png)
         logger.info('---------------------- coaddview, no PSF ----------------------')
         # copy test_gal
@@ -416,11 +424,7 @@ def get_multiexp_object():
         # save file
         filename_fits = 'SE-coaddview-%03d.fits' % itr
         img.write(filename_fits)
-
-        # add to lists
-        list_wcstrans += [wcstr]
-        list_images   += [img]
-        list_test_gal += [test_gal_copy]
+        logger.info('saved %s' % filename_fits)
 
         logger.info('------------------------------------- inv -------------------------------------')
         # now get the inverse transform, to get back to (u,v) -- sanity check
@@ -470,6 +474,26 @@ def get_multiexp_object():
     galsim.des.write_meds(args.filename_output,[meo])
     logger.info('saved %s ' % args.filename_output)
     return list_images,list_wcstrans,list_test_gal
+
+def consistency_check():
+
+    m=meds.MEDS(args.filename_output)
+    logger.info('opened %s with %d exposures' % (args.filename_output,m.get_cat()['ncutout'][0]))
+
+    import pylab as pl
+
+    for ie in range(1,m.get_cat()['ncutout'][0]):
+
+        filename_fits = 'SE-%03d.fits' % (ie-1)
+
+        img_fits = pyfits.getdata(filename_fits)
+        img_fits2 = galsim.fits.read(filename_fits)
+        img_meds = m.get_cutout(0,ie)
+
+        logger.info('exposure %d filename %s' % (ie, filename_fits))
+        numpy.testing.assert_array_almost_equal(img_fits,img_meds)
+
+    logger.info('all asserts successful')
 
 
 def save_psf_images():
@@ -601,6 +625,7 @@ def main():
 
     get_multiexp_object()
     save_psf_images()
+    consistency_check()
 
 
 main()

@@ -1,7 +1,7 @@
 # coordinates used:
 # v --> dec
 # u --> ra * cos(dec)
-# col --> first coordinate of the image in C style, x axis in DS9
+# row --> first coordinate of the image in C style, y axis in DS9
 # col --> second coordinate in image in C style, x axis in DS9
 #
 # (u) = ( dudrow , dudcol) (row)
@@ -11,8 +11,8 @@
 # row0 , col0 - position of the u,v point in stamp pixel coordinates
 
 truth:
-    'gal_g1' :  0.3
-    'gal_g2' :  0.05
+    'gal_g1' :  0.
+    'gal_g2' :  0.
     'gal_x' : 0
     'gal_y' : 0
     'gal_r' : 6
@@ -22,8 +22,8 @@ truth:
 
 # transformations of the image on the coadd x,y coordinate system
 transforms:
-    # 0 no shift, no rotation, no shear, scale
-    - { dudcol : 0.5, dudrow : 0.0 , dvdcol : 0.0, dvdrow : 0.5, row0 : 64. , col0 : 64. }
+    # 0 no scale, no shear, typical des
+    - { dudcol : 0, dudrow : -0.27 , dvdcol : -0.27, dvdrow : 0, row0 : 64. , col0 : 64. }
     # 1 shift in x direction
     - { dudcol : 1, dudrow : 0.0 , dvdcol : 0.0, dvdrow : 1, row0 : 64. , col0 : 84. }
     # 2 shift in y direction
@@ -44,5 +44,5 @@ transforms:
     # 0.6495   -0.3750
     # 0.3750    0.6495
     - { dudcol : 0.6495, dudrow : -0.3750 , dvdcol : 0.3750, dvdrow : 0.6495, row0 : 84. , col0 : 84. }
-    # 8 des chip 
+    # 8 des chip - real
     - { dudcol : -0.0030,  dudrow : -0.2626 , dvdcol : -0.2633, dvdrow : 0.00284, row0 :  62.1324 , col0 : 62.9160 }

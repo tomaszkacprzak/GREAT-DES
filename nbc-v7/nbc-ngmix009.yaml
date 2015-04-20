@@ -1,0 +1,123 @@
+pixel_scale        : &pixel_scale          0.27
+n_exposures        : &n_exposures          1
+cutout_size        : &cutout_size          64
+n_gals_per_file    : &n_gals_per_file      10000  # this is total number of galaxies, each will have a 90 deg rotated pair
+shear : [ [0.05, 0.0], [0.0, 0.05] , [-0.05, 0.0], [0.0, -0.05], [0.03536, 0.03536], [0.03536, -0.03536], [-0.03536, -0.03536], [-0.03536, 0.03536] ]
+padding : 4
+upsampling : 5
+des_scale_pixels :  86.52302493
+des_pixel_noise_sigma : 16.7552909851
+n_im3shape_results_files: -1
+filename_truth: /Users/tomek/projects/140618_ngmix_greatdes/data/nbc2.truth.%03d.g%02d.fits
+real_catalog_image_dir: /home/ucabtok/data/COSMOS_23.5_training_sample/
+real_catalog_file_name: real_galaxy_catalog_23.5.fits 
+filelist_des : filelist-ngmix009.txt
+filelist_des_calibrated : filelist-ngmix009.txt
+
+selection_string_sim : "select =  (cat_res['flags']==0) & (cat_res['arate']>0.3) & (cat_res['arate']<0.6)  & (cat_tru['cosmos_mag_auto']<23.25) & (cat_tru['sf_hlr']>0.2)" 
+selection_string_des : "select =  (cat_res['flags']==0) & (cat_res['arate']>0.3) & (cat_res['arate']<0.6)"
+
+grid_fwhm:
+    min: 0.8
+    max: 1.3
+    n_grid: 6
+grid_ell:
+    min: -0.02
+    max:  0.02
+    n_grid: 4
+population_source : des # flat or auto, default des
+
+
+methods: 
+    im3shape:
+        name: im3shape
+        filename_results: /Users/tomek/projects/141016_nbc_v7/main_cats/nbc2.meds.%03d.g%02d.fits
+        filename_calibrated: /Users/tomek/projects/141016_nbc_v7/main_cats_nbc/nbc2.meds.%03d.g%02d.fits
+        cols: ['e1','e2', 'rgpp_rp', 'snr', 'flag']
+        flip_g1: -1.
+        flip_g2: 1.
+    hsm:
+        name: hsm
+        filename_results: data/nbc2.truth.%03d.g%02d.fits
+        cols: ['hsm_cor_g1','hsm_cor_g2', 'hsm_obs_sigma', 'hsm_mom_amp']
+        flip_g1: 1.
+        flip_g2: 1.
+
+    ngmix: 
+        name: ngmix
+        filename_results: /Users/tomek/projects/140618_ngmix_greatdes/results/nfit-02-%03d-g%02d.fits
+        filename_calibrated: /Users/tomek/projects/140618_ngmix_greatdes/results/nfit-02-%03d-g%02d.fits
+        cols: ['g', 'g_sens', 'flags', 's2n_w', 'arate' , 'g_cov']
+        flip_g1: 1.
+        flip_g2: 1.
+
+
+
+# --------- galsim config starts here ---------
+
+
+input :
+    real_catalog :
+        dir : /home/ucabtok/data/COSMOS_23.5_training_sample/
+        image_dir: /home/ucabtok/data/COSMOS_23.5_training_sample/
+        file_name : real_galaxy_catalog_23.5.fits 
+        # dir : /home/kacprzak/data/GREAT3/COSMOS_23.5_training_sample/
+        # image_dir : /home/kacprzak/data/GREAT3/COSMOS_23.5_training_sample/
+        # file_name : real_galaxy_catalog_23.5.fits
+        preload : False   # This usually makes a big improvement in speed
+
+    catalog : 
+        # this will be overwritten by python
+        file_name : 99
+
+output:
+    type : des_meds
+    nstamps_per_object : *n_exposures
+
+    # get the number of galaxies in a file
+    # this will be determined by nbc2_generate_catalogs.py script
+    nobjects : *n_gals_per_file
+    # this will be overwritten by python
+    file_name : 99  
+    nproc : -1
+
+gal:
+    type: RealGalaxy   
+    index: { type : Catalog , col : id_cosmos }  
+    rotate :
+        type: Radians
+        theta : {type: Catalog, col : rotation_angle} 
+
+    shear : 
+        type : G1G2
+        g1 : {type: Catalog, col : g1_true}
+        g2 : {type: Catalog, col : g2_true}
+    
+    # A random shift within a 1 pixel circle.
+    shift : 
+        type : RandomCircle
+        radius : *pixel_scale
+    whiten: True
+
+psf:
+    type: Kolmogorov
+    fwhm: {type: Catalog, col : psf_fwhm}
+    ellip: 
+        type: G1G2
+        g1: {type: Catalog, col : psf_e1} 
+        g2: {type: Catalog, col : psf_e2} 
+
+pix:
+    xw: *pixel_scale
+
+image:
+    pixel_scale: *pixel_scale
+    # This doesn't matter much, since we set the S/N above.  It just sets an overall scale for 
+    # the pixel values to something reasonable.  
+    noise : {  type: Gaussian, sigma:  0.18492188  }  
+    size: *cutout_size
+    
+
+
+
+
