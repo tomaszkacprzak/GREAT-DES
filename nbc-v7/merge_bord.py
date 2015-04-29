@@ -8,7 +8,7 @@ import matplotlib as mpl
 if 'DISPLAY' not in os.environ:
     mpl.use('agg')
     print 'using backend ' , mpl.get_backend()
-import sys, logging, yaml, argparse, time, meds, pyfits, warnings, subprocess
+import sys, logging, yaml, argparse, time, pyfits, warnings, subprocess
 import pylab as pl
 import numpy as np
 from nbc_dtypes import *
