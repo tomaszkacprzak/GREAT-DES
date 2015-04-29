@@ -68,7 +68,7 @@ def get_filelists(b_path,d_path):
 
     return b_files_out, d_files_out
 
-def merge_files(bulge_files,disc_files,truth_files=None,tag='test'):
+def merge_files(bulge_files,disc_files,truth_files=None,tag='test',greatdes=False):
 
     n_total_sva1 = 0
     n_b_sva1 = 0
@@ -90,7 +90,13 @@ def merge_files(bulge_files,disc_files,truth_files=None,tag='test'):
     for bulge_filename, disc_filename in zip(bulge_files, disc_files):
 
         if not os.path.split(disc_filename)[1]==os.path.split(bulge_filename)[1]:
-        	import pdb; pdb.set_trace()
+            import pdb; pdb.set_trace()
+
+        filename_new = os.path.join(args.dir_out,os.path.basename(bulge_filename))
+        if os.path.isfile(filename_new) and (args.clobber.lower()=='skip'):
+            print('File exists, skipping: %s' % filename_new)
+            continue
+
 
         truth_filename = disc_filename.replace('meds','truth').replace('results_disc','data')
 
@@ -119,19 +125,24 @@ def merge_files(bulge_files,disc_files,truth_files=None,tag='test'):
         print 'len intersect b=',len(cat_b),'len intersect d=',len(cat_d),'ndiscard_disc d=',ndiscard_disc, 'ndiscard_b=', ndiscard_bulge
         
         if not (cat_b['coadd_objects_id'] == cat_d['coadd_objects_id']).all():
-        	import pdb; pdb.set_trace()
+            import pdb; pdb.set_trace()
 
 
-        # bulge_good = (cat_b['info_flag']&(~16)&(~16384)==0) & (cat_b['error_flag']==0)
-        # disc_good = (cat_d['info_flag']&(~16)&(~16384)==0) & (cat_d['error_flag']==0)
         bulge_good = (cat_b['info_flag']==0) & (cat_b['error_flag']==0)
         disc_good = (cat_d['info_flag']==0) & (cat_d['error_flag']==0)
+    
         bulge_bad = ~bulge_good
         disc_bad = ~disc_good
 
         bulge_better = (cat_b['likelihood']-cat_d['likelihood']) > 0
         disc_better = (cat_b['likelihood']-cat_d['likelihood']) < 0
         
+        cat_final = cat_d.copy()
+
+        # do a pre-assignment
+        cat_final[bulge_better] = cat_b[bulge_better]
+        cat_final[disc_better]  = cat_d[disc_better]
+
         
         # SO in this bit we allow the info_flag to override
         # the likelihood in deciding which is better?
@@ -140,19 +151,14 @@ def merge_files(bulge_files,disc_files,truth_files=None,tag='test'):
         select_b = (bulge_good&disc_bad) | (bulge_good&disc_good&bulge_better)
         select_d = (disc_good&bulge_bad) | (bulge_good&disc_good&disc_better)
         
-        cat_final = cat_d.copy()
-
-        cat_final[select_b] = cat_b[select_b]
-        cat_final[select_d] = cat_d[select_d]
-        
-        # cat_final = vstack([cat_b[select_b], cat_d[select_d]])
-        # cat_final.sort('coadd_objects_id')
+        # cat_final[select_b] = cat_b[select_b]
+        # cat_final[select_d] = cat_d[select_d]
 
         # cat_final.add_column(Column(name='is_bulge', data=select_b.astype(int)))
         # cat_final.add_col(Column(name='is_disc', data=select_d.astype(int)))
     
-        cat_final = add_col(cat_final,'is_bulge', select_b,dtype=np.bool)
-        cat_final = add_col(cat_final,'is_disc', select_d,dtype=np.bool)
+        cat_final = add_col(cat_final,'is_bulge', bulge_better,dtype=np.bool)
+        cat_final = add_col(cat_final,'is_disc', disc_better,dtype=np.bool)
 
         if truth_files!=None: 
             for ct in cols_tru: 
@@ -160,9 +166,8 @@ def merge_files(bulge_files,disc_files,truth_files=None,tag='test'):
 
 
         # finally apply the info and error flags 
-        # select_flags = (cat_b['info_flag']&(~16)&(~16384)==0)&(cat_final['error_flag']==0)
-        select_flags = (cat_b['info_flag']==0)&(cat_final['error_flag']==0)
-        cat_final = cat_final[select_flags]
+        # select_flags = (cat_b['info_flag']==0)&(cat_final['error_flag']==0)
+        # cat_final = cat_final[select_flags]
 
         
         n_total = len(cat_final)
@@ -175,9 +180,14 @@ def merge_files(bulge_files,disc_files,truth_files=None,tag='test'):
         
         print 'n_total =%d n_common =%d n_common_b =%d n_common_d =%d n_only_b =%d n_only_d=%d n_check=%d' % (n_total,n_common,n_common_b,n_common_d,n_only_b,n_only_d,n_check)
                 
-        filename_new = bulge_filename.replace('bulge','bord')
-        pyfits.writeto(filename_new,cat_final, clobber=True)
-        print 'wrote',filename_new
+        # filename_new = bulge_filename.replace('bulge','bord')
+        if (args.clobber.lower()=='true') or ( (~os.path.isfile(filename_new)) and (args.clobber.lower()=='skip')) or ( (~os.path.isfile(filename_new)) and (args.clobber.lower()=='false')):
+            pyfits.writeto(filename_new,cat_final, clobber=True)
+            print 'wrote',filename_new
+        elif os.path.isfile(filename_new) and (args.clobber.lower()=='false'):
+            raise('File exists: %s' % filename_new)
+        elif os.path.isfile(filename_new) and (args.clobber.lower()=='skip'):
+            print('File exists, skipping: %s' % filename_new)
         
         n_total_sva1 += n_total
         n_b_sva1 += n_common_b+n_only_b
@@ -194,14 +204,19 @@ def merge_files(bulge_files,disc_files,truth_files=None,tag='test'):
 
     print 'n_total_sva1=%d n_b_sva1=%d n_d_sva1=%d' % (n_total_sva1,n_b_sva1,n_d_sva1)
 
-    cat_final_conc = np.concatenate(list_cats)
-    print len(cat_final_conc)
-    filename_full = '%sbord.fits' % tag
-    pyfits.writeto(filename_full, cat_final_conc, clobber=True)
-    print 'wrote',filename_full
+    # cat_final_conc = np.concatenate(list_cats)
+    # print len(cat_final_conc)
+    # filename_full = '%sbord.fits' % tag
+
+    # import pdb; pdb.set_trace()
+        
+
+
 
 
 def main():
+
+    global args
 
     description = 'Get input catalogs for GREAT-DES NBC2 simulation'
     parser = argparse.ArgumentParser(description=description, add_help=True)
@@ -210,6 +225,8 @@ def main():
     parser.add_argument('-fb', '--files_bulge', type=str,  action='store',  help='wildcard to select bulge files ex /path/to/dir/DES*' )
     parser.add_argument('-fd', '--files_disc', type=str,   action='store',  help='wildcard to select disc  files ex /path/to/dir/DES*' )
     parser.add_argument( '--tag', type=str,   action='store',  help='not sure what this is for' )
+    parser.add_argument( '--greatdes', action='store_true',  help='GREAT-DES mode (not using some bits in info flags' )
+    parser.add_argument( '--clobber', action='store', default='False', type=str, help='GREAT-DES mode (not using some bits in info flags' )
 
     args = parser.parse_args()
     logging_levels = { 0: logging.CRITICAL, 
@@ -229,6 +246,6 @@ def main():
     disc_path  = args.files_disc
 
     bulge_files,disc_files = get_filelists(bulge_path,disc_path)
-    merge_files(bulge_files,disc_files,truth_files=None,tag=tag)
+    merge_files(bulge_files,disc_files,truth_files=None,tag=tag,greatdes=args.greatdes)
 
 main()
