@@ -121,9 +121,28 @@ def apply_calibration_selection():
 
 
 
+def apply_calibration_to_file():
 
+    res_sim=tt.load(args.filename_to_calibrate)
+    logger.info('applying calibration to %s',args.filename_to_calibrate)
+    res_sim_cal, calib_m, calib_a=get_calibration_columns(res_sim)
+    res_sim_cal = get_weight_column(res_sim_cal)
+    filename_out = args.filename_to_calibrate.replace('.fits','.nbc.fits')
+    tktools.save(filename_out, res_sim_cal, clobber='skip')
 
-
+    pl.figure()
+    pl.hist(res_sim_cal['nbc_m'],np.linspace(-0.5,1.1,100),histtype='step');
+    pl.xlabel('nbc_m')
+    pl.figure()
+    pl.hist(res_sim_cal['nbc_c1'],np.linspace(-0.01,0.01,100),histtype='step');
+    pl.xlabel('nbc_c1')
+    pl.figure()
+    pl.hist(res_sim_cal['nbc_c2'],np.linspace(-0.01,0.01,100),histtype='step');
+    pl.xlabel('nbc_c2')
+    pl.figure()
+    pl.hist(res_sim_cal['nbc_alpha'],np.linspace(-0.5,0.5,100),histtype='step');
+    pl.xlabel('nbc_alpha')
+    pl.show()
 
 def apply_calibration_des():
     
@@ -3168,7 +3187,7 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
 
 def main():
 
-    valid_actions = ['get_params_covariance','get_selection_bias','plot_selection_bias','get_radec_split','apply_calibration_selection','save_selection','get_mc_vs_snr','plot_mc_vs_snr','plot_meane_vs_snr','get_meane_vs_snr','get_histograms','get_distributions','plot_distributions','get_PSF_leakage','get_calibration','get_bias_model','apply_calibration_sim','apply_calibration_des','plot_bias_vs_redshift','plot_face_fig','get_bias_vs_redshift','get_jacknife_regions','get_meane_vs_size','test_shape_noise']
+    valid_actions = ['apply_calibration_to_file','get_params_covariance','get_selection_bias','plot_selection_bias','get_radec_split','apply_calibration_selection','save_selection','get_mc_vs_snr','plot_mc_vs_snr','plot_meane_vs_snr','get_meane_vs_snr','get_histograms','get_distributions','plot_distributions','get_PSF_leakage','get_calibration','get_bias_model','apply_calibration_sim','apply_calibration_des','plot_bias_vs_redshift','plot_face_fig','get_bias_vs_redshift','get_jacknife_regions','get_meane_vs_size','test_shape_noise']
 
     global logger , config , args
 
@@ -3185,6 +3204,7 @@ def main():
     parser.add_argument('--n_des_files', default=460, type=int, action='store', help='number of DES files to read')
     parser.add_argument('--fig_format', default='.png', type=str, action='store', help='format of the figure files')
     parser.add_argument('-o','--output_dir', default='.', type=str, action='store', help='dir to store results')
+    parser.add_argument('--filename_to_calibrate', default='res_sim.fits', type=str, action='store', help='used with apply_calibration_to_file, filename to be calibrated')
 
 
 
