@@ -130,19 +130,19 @@ def apply_calibration_to_file():
     filename_out = args.filename_to_calibrate.replace('.fits','.nbc.fits')
     tktools.save(filename_out, res_sim_cal, clobber='skip')
 
-    pl.figure()
-    pl.hist(res_sim_cal['nbc_m'],np.linspace(-0.5,1.1,100),histtype='step');
-    pl.xlabel('nbc_m')
-    pl.figure()
-    pl.hist(res_sim_cal['nbc_c1'],np.linspace(-0.01,0.01,100),histtype='step');
-    pl.xlabel('nbc_c1')
-    pl.figure()
-    pl.hist(res_sim_cal['nbc_c2'],np.linspace(-0.01,0.01,100),histtype='step');
-    pl.xlabel('nbc_c2')
-    pl.figure()
-    pl.hist(res_sim_cal['nbc_alpha'],np.linspace(-0.5,0.5,100),histtype='step');
-    pl.xlabel('nbc_alpha')
-    pl.show()
+    # pl.figure()
+    # pl.hist(res_sim_cal['nbc_m'],np.linspace(-0.5,1.1,100),histtype='step');
+    # pl.xlabel('nbc_m')
+    # pl.figure()
+    # pl.hist(res_sim_cal['nbc_c1'],np.linspace(-0.01,0.01,100),histtype='step');
+    # pl.xlabel('nbc_c1')
+    # pl.figure()
+    # pl.hist(res_sim_cal['nbc_c2'],np.linspace(-0.01,0.01,100),histtype='step');
+    # pl.xlabel('nbc_c2')
+    # pl.figure()
+    # pl.hist(res_sim_cal['nbc_alpha'],np.linspace(-0.5,0.5,100),histtype='step');
+    # pl.xlabel('nbc_alpha')
+    # pl.show()
 
 def apply_calibration_des():
     
