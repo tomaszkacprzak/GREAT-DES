@@ -132,4 +132,12 @@ python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord.yaml -m im3shape -a get_
 python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord.yaml -m im3shape -a save_selection -n 600 --n_des_files 500 -o case-07-sbc
 
 # check centers of 005
-python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc-v8.yaml -m im3shape -a save_selection -n 600 --n_des_files 500 -o case-00-test
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c nbc.v9.bord.yaml -m im3shape -a save_selection -n 600 --n_des_files 500 -o case-00-test
+
+
+# ngmix c01
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c case-01-snrw/nbc-ngmix-c01-004.yaml -m ngmix -a get_calibration -n 600 --n_des_files 500 -o case-01-snrw/ --use_calibration
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c case-02-snrr/nbc-ngmix-c01-004.yaml -m ngmix -a get_calibration -n 600 --n_des_files 500 -o case-02-snrr/ --use_calibration
+
+# newparams
+python ~/code/GREAT-DES/nbc-v7/nbc_v7.py -c case-04-newparams/nbc.v9.bord.yaml -m im3shape -a save_selection -n 500 --n_des_files 500 -o case-04-newparams/ --use_calibration

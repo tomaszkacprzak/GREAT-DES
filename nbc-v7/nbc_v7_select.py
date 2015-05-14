@@ -9,6 +9,11 @@ log_formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s   %(messag
 stream_handler = logging.StreamHandler(sys.stdout); stream_handler.setFormatter(log_formatter)
 if logger.handlers == [] : logger.addHandler(stream_handler); logger.propagate = False
 
+global means_snr
+means_snr = None
+global means_rgp
+means_rgp = None
+
 def rename_ngmix_cols(cat_res,cat_tru=None):
 
     if 'g' in cat_res.dtype.names:
@@ -17,7 +22,7 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
         cat_res = tabletools.appendColumn(cat_res,'e2', cat_res['g'][:,1])
         cat_res = tabletools.appendColumn(cat_res,'error_flag', cat_res['flags'])
         # cat_res = tabletools.appendColumn(cat_res,'info_flag', cat_res['arate'])
-        cat_res = tabletools.appendColumn(cat_res,'snr', cat_res['s2n_w'])
+        cat_res = tabletools.appendColumn(cat_res,'snr', cat_res['s2n_r'])
 
     if 'arate' in cat_res.dtype.names:
         cat_res = tabletools.appendColumn(cat_res,'info_flag', cat_res['arate'])
@@ -55,19 +60,22 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
         cat_res = tabletools.appendColumn(cat_res,'nbc_m1', (col_m - 1) )
         cat_res = tabletools.appendColumn(cat_res,'nbc_m2', (col_m - 1) )
 
-    if 'ngmix_PSFREC_E_1' not in cat_res.dtype.names:
+    # if 'ngmix_PSFREC_E_1' not in cat_res.dtype.names:
 
-        try:
-            cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_tru['psf_e1'])
-            cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_tru['psf_e2'])
-        except:
+    #     try:
+    #         cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_tru['psf_e1'])
+    #         cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_tru['psf_e2'])
+    #     except:
 
-            pass
+    #         pass
+
 
     if 'mean_psf_e1_sky'  not in cat_res.dtype.names:
         
         cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_res['psf_g'][:,0])
         cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_res['psf_g'][:,1])
+        cat_res = tabletools.appendColumn(cat_res,'mean_psf_fwhm', cat_res['psf_T'])
+
 
     if 'ngmix_EXP_E_1' in cat_res.dtype.names:
 
@@ -114,8 +122,8 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
              
 
     cat_res = tabletools.appendColumn(cat_res,'coadd_objects_id', np.arange(len(cat_res)))
-    # cat_res = tabletools.appendColumn(cat_res,'error_flag', np.zeros(len(cat_res)))
-    # cat_res = tabletools.appendColumn(cat_res,'info_flag', np.zeros(len(cat_res)))
+    cat_res = tabletools.appendColumn(cat_res,'ra_as' , cat_res['pars'][:,0])
+    cat_res = tabletools.appendColumn(cat_res,'dec_as', cat_res['pars'][:,1])
 
     return cat_res
 
@@ -123,11 +131,17 @@ def rename_cols_truth(cat_tru):
 
     if 'shape_e1' in cat_tru.dtype.names:
 
+        warnings.warn('adding true shape')
+
         e1,e2 = tt.distortion_to_shear(cat_tru['shape_e1'] , cat_tru['shape_e2'])
         e = e1+1j*e2
         e_rot = e*np.exp(2*cat_tru['rotation_angle']*1j)
         e1_rot = e_rot.real
         e2_rot = e_rot.imag
+
+
+        warnings.warn('multiplying e1 intrinsic sign by %d' % config['methods'][args.method]['flip_g1'])
+        e1_rot *= config['methods'][args.method]['flip_g1']
 
         e1_rot_sheared , e2_rot_sheared = tt.add_shear(e1_rot,e2_rot,cat_tru['g1_true'],cat_tru['g2_true'])
 
@@ -172,7 +186,18 @@ def rename_cols_truth(cat_tru):
     return cat_tru
 
 
-def rename_im3shape_cols(cat_res,cat_tru=None):
+def rename_im3shape_cols(cat_res,cat_tru=None,sim=None):
+
+    global means_snr, means_rgp
+
+    if means_snr==None:
+
+        import cPickle as pickle
+        filename_pickle = 'means_snr_rgp.cpickle'   
+        pickle_dict = pickle.load(open(filename_pickle))
+        means_num = pickle_dict['means_num']
+        means_rgp = pickle_dict['means_rgp']/means_num
+        means_snr = pickle_dict['means_snr']/means_num
 
     if 'im3shape_r_e1' in cat_res.dtype.names:
 
@@ -210,11 +235,28 @@ def rename_im3shape_cols(cat_res,cat_tru=None):
         cat_res = tabletools.appendColumn(cat_res,'w', np.ones(len(cat_res)))
         warnings.warn('added weight column - all ones')
 
+    # if cat_tru!=None:
+    #     warnings.warn('using true psf e1 for mean_psf_e1_sky')
+    #     if 'mean_psf_e1_sky' in cat_res.dtype.names:
+    #         cat_res['mean_psf_e1_sky'] = cat_tru['psf_e1']
+    #         cat_res['mean_psf_e2_sky'] = cat_tru['psf_e2']
+
+    if 'nbc_m1' not in cat_res.dtype.names:
+        cat_res = tabletools.appendColumn(cat_res,'nbc_c1', np.zeros(len(cat_res)))
+        cat_res = tabletools.appendColumn(cat_res,'nbc_c2', np.zeros(len(cat_res)))
+        cat_res = tabletools.appendColumn(cat_res,'nbc_m1', np.zeros(len(cat_res)))
+        cat_res = tabletools.appendColumn(cat_res,'nbc_m2', np.zeros(len(cat_res)))
+
+
     if cat_tru!=None:
-        warnings.warn('using true psf e1 for mean_psf_e1_sky')
-        if 'mean_psf_e1_sky' in cat_res.dtype.names:
-            cat_res['mean_psf_e1_sky'] = cat_tru['psf_e1']
-            cat_res['mean_psf_e2_sky'] = cat_tru['psf_e2']
+        if 'snr_avg' in config['cols_res']:
+
+            col_snr = means_snr[cat_tru['id_cosmos'],cat_tru['id_psf']]
+            col_rgp = means_rgp[cat_tru['id_cosmos'],cat_tru['id_psf']]
+            cat_res = tabletools.appendColumn(cat_res,'snr_avg', col_snr)
+            cat_res = tabletools.appendColumn(cat_res,'rgpp_rp_avg', col_rgp)
+
+
 
     return cat_res
 
@@ -256,6 +298,24 @@ def get_selection_des(selection_string,cols,n_files=30,get_calibrated=False):
 
     results = np.concatenate(list_results)
     logger.info('selected DES galaxies %d/%d %2.2f' , len(results),n_all,len(results)/float(n_all))
+
+    if ('filepath_round_snr' in config) & ('round_snr' in cols):
+        logger.info('adding round SNR')
+        round_snr=tt.load(config['filepath_round_snr'])
+        logger.info('running intersect')
+        common_ids = np.intersect1d(round_snr['coadd_objects_id'],results['coadd_objects_id'])
+        logger.info('running in1d')
+        select_rsnr = np.in1d(common_ids,round_snr['coadd_objects_id'])
+        logger.info('running in1d')
+        select_results  = np.in1d(common_ids,results['coadd_objects_id'])
+        logger.info('selectiong intersection')
+        results = results[select_results]
+        round_snr = round_snr[select_rsnr]
+        logger.info('sorting')
+        results.sort(order='coadd_objects_id')
+        round_snr.sort(order='coadd_objects_id')
+        logger.info('adding col')
+        results = tt.add_col(results,'round_snr',round_snr['round_snr'])
 
     return results
 
@@ -342,7 +402,7 @@ def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=Fals
             if args.method == 'ngmix':
                 cat_res = rename_ngmix_cols(cat_res,cat_tru)
             elif args.method == 'im3shape':
-                cat_res = rename_im3shape_cols(cat_res)
+                cat_res = rename_im3shape_cols(cat_res,cat_tru)
             
             cat_tru = rename_cols_truth(cat_tru)
 
