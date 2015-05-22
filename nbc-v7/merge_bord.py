@@ -151,8 +151,8 @@ def merge_files(bulge_files,disc_files,truth_files=None,tag='test',greatdes=Fals
         select_b = (bulge_good&disc_bad) | (bulge_good&disc_good&bulge_better)
         select_d = (disc_good&bulge_bad) | (bulge_good&disc_good&disc_better)
         
-        # cat_final[select_b] = cat_b[select_b]
-        # cat_final[select_d] = cat_d[select_d]
+        cat_final[select_b] = cat_b[select_b]
+        cat_final[select_d] = cat_d[select_d]
 
         # cat_final.add_column(Column(name='is_bulge', data=select_b.astype(int)))
         # cat_final.add_col(Column(name='is_disc', data=select_d.astype(int)))
