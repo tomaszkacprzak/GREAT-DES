@@ -40,6 +40,16 @@ def plot_add_requirements(level=0.01,target=1.0,mult=1.):
     pl.gca().add_patch(pl.Rectangle(  (corner, target-mult*level), length , 2*mult*level , facecolor = '0.6' , edgecolor='none', alpha=0.5 ))
 
 
+def polynomial_basis(x):
+
+    xx = 1-x+0.05
+    X = np.concatenate( [ 1/(xx)**0,1/(xx)**1,1./(xx)**2,1./(xx)**3] ,axis=1 ) 
+    # X = np.concatenate( [ np.log(xx+0.1)*np.exp(-xx**2) ] ,axis=1 ) 
+
+    return X
+
+
+
 def inv_snr_basis(x):
 
     n_points_x = x.shape[0]
@@ -84,17 +94,58 @@ def apply_calibration_selection():
     res_sim, res_tru, res_des = load_selection()
 
 
-    logger.info('applying calibration to SIM')
-    res_sim_cal, calib_m, calib_a=get_calibration_columns(res_sim)
-    res_sim_cal = get_weight_column(res_sim_cal)
-
-    logger.info('done! mean(m) = % 2.4f mean(a) = % 2.4f' % (np.mean(calib_m),np.mean(calib_a)))
-
     logger.info('applying calibration to DES')
     res_des_cal , calib_m, calib_a=get_calibration_columns(res_des)
-    res_des_cal = get_weight_column(res_des_cal)
+    logger.info('done! mean(m) = % 2.4f mean(a) = % 2.4f n(m=0)=%d / %d %2.2f'  % (np.mean(calib_m),np.mean(calib_a),np.sum(calib_m==0),len(calib_m),np.sum(calib_m==0)/float(len(calib_m)) ))
 
-    logger.info('done! mean(m) = % 2.4f mean(a) = % 2.4f' % (np.mean(calib_m),np.mean(calib_a)))
+    # entire sample
+    logger.info('calculating bias for the entire sample - using cuts from final selection')
+    logger.info(selection_string_final_des)
+    cat_res = res_des
+    exec selection_string_final_des
+    select_des = select.copy()
+
+    select_des = select_des & (~np.isnan(res_des['nbc_c1'])) & (~np.isnan(res_des['nbc_c2']))
+    res_des_select = res_des_cal[select_des]
+    logger.info('raw mean_e1 = %2.5f +/- %2.5f' % ( np.mean(res_des_select['e1']) , np.std( res_des_select['e1']) / np.sqrt(len(res_des_select)) ) )
+    logger.info('raw mean_e2 = %2.5f +/- %2.5f' % ( np.mean(res_des_select['e2']) , np.std( res_des_select['e2']) / np.sqrt(len(res_des_select)) ) )
+
+    logger.info('nbc mean_e1 = %2.5f +/- %2.5f' % ( np.mean(res_des_select['e1']-res_des_select['nbc_c1']) , np.std( res_des_select['e1']-res_des_select['nbc_c1']) / np.sqrt(len(res_des_select)) ) )
+    logger.info('nbc mean_e2 = %2.5f +/- %2.5f' % ( np.mean(res_des_select['e2']-res_des_select['nbc_c2']) , np.std( res_des_select['e2']-res_des_select['nbc_c2']) / np.sqrt(len(res_des_select)) ) )
+    logger.info('mean nbc_m  = %2.5f ' % ( np.mean( res_des_select['nbc_m'] ) ) )
+    logger.info('mean nbc_a  = %2.5f ' % ( np.mean( res_des_select['nbc_alpha'] ) ) ) 
+    logger.info('mean nbc_c1 = %2.5f ' % ( np.mean( res_des_select['nbc_c1'] ) ) )
+    logger.info('mean nbc_c2 = %2.5f ' % ( np.mean( res_des_select['nbc_c2'] ) ) )
+
+    import pdb; pdb.set_trace()
+    logger.info('getting weights for DES')
+    res_des_cal = get_weight_column(res_des_cal)
+    logger.info('done! mean sigma = %2.3f' % (np.median(np.sqrt(1./res_des_cal['w']))))
+
+    logger.info('applying calibration to SIM')
+    res_sim_cal, calib_m, calib_a=get_calibration_columns(res_sim)
+    logger.info('done! mean(m) = % 2.4f mean(a) = % 2.4f n(m=0)=%d / %d %2.2f'  % (np.mean(calib_m),np.mean(calib_a),np.sum(calib_m==0),len(calib_m),np.sum(calib_m==0)/float(len(calib_m))))
+
+    z_bins = [ 0.3, 0.644, 0.901, 1.3 ]
+    select = (res_tru['zphot'] > 0.3) & ((res_tru['zphot'] < 0.644)) & ((res_sim['snr'] > 15)) & ((res_sim['mean_rgpp_rp'] > 1.15))
+    logger.info('zbin=1 mean nbc_a=%2.3f' % np.mean(res_sim_cal[select]['nbc_alpha']))
+    select = (res_tru['zphot'] > 0.644) & ((res_tru['zphot'] < 0.901)) & ((res_sim['snr'] > 15)) & ((res_sim['mean_rgpp_rp'] > 1.15))
+    logger.info('zbin=2 mean nbc_a=%2.3f' % np.mean(res_sim_cal[select]['nbc_alpha']))
+    select = (res_tru['zphot'] > 0.901) & ((res_tru['zphot'] < 1.3)) & ((res_sim['snr'] > 15)) & ((res_sim['mean_rgpp_rp'] > 1.15))
+    logger.info('zbin=3 mean nbc_a=%2.3f' % np.mean(res_sim_cal[select]['nbc_alpha']))
+
+    logger.info('getting weights for SIM')
+    res_sim_cal = get_weight_column(res_sim_cal)
+    logger.info('done! mean sigma = %2.3f' % (np.median(np.sqrt(1./res_sim_cal['w']))))
+
+    filename = '%s/res_sim.fits' % args.output_dir
+    tktools.save(filename, res_sim_cal, clobber=True)
+    filename = '%s/res_tru.fits' % args.output_dir
+    tktools.save(filename, res_tru, clobber=True)
+    filename = '%s/res_des.fits' % args.output_dir
+    tktools.save(filename, res_des_cal, clobber=True)
+
+
 
     pl.figure()
     pl.hist(res_des_cal['nbc_m'],np.linspace(-0.5,1.1,100),histtype='step');
@@ -108,15 +159,16 @@ def apply_calibration_selection():
     pl.figure()
     pl.hist(res_des_cal['nbc_alpha'],np.linspace(-0.5,0.5,100),histtype='step');
     pl.xlabel('nbc_alpha')
-
-    filename = '%s/res_sim.fits' % args.output_dir
-    tktools.save(filename, res_sim_cal, clobber=True)
-    filename = '%s/res_tru.fits' % args.output_dir
-    tktools.save(filename, res_tru, clobber=True)
-    filename = '%s/res_des.fits' % args.output_dir
-    tktools.save(filename, res_des_cal, clobber=True)
-
+    pl.figure()
+    pl.hist2d(res_des_cal['snr'],res_des_cal['nbc_m'],[np.linspace(0,100,100),np.linspace(-0.4,0.1,100)]);
+    pl.xlabel('snr')
+    pl.xlabel('nbc_m')
+    pl.figure()
+    pl.hist2d(res_des_cal['snr'],res_des_cal['nbc_alpha'],[np.linspace(0,100,100),np.linspace(-0.4,0.1,100)]);
+    pl.xlabel('snr')
+    pl.xlabel('nbc_alpha')
     pl.show()
+
 
 
 
@@ -295,28 +347,32 @@ def add_col(rec, name, arr, dtype=None):
 def get_weight_column(cat):
 
     logger.info('applying weights ')
-    filename_table = 'weights_interpolation_table.cpickle'
+    filename_table = 'weights_interpolation_table.v2.cpickle'
     file_pickle = open(filename_table)
     import cPickle as pickle
     sigma_e, sigma_e_max, list_snr_edges, list_rgp_edges , vec_snr_hires, vec_rgp_hires, sigma_e_hires, n_gal, stdd0_e = pickle.load(file_pickle)
+    logger.info('loaded %s'%filename_table)
 
     # set the noisy values to one high snr value
     # sigma_e[sigma_e<sigma_e_max] = sigma_e_max
     sigma_greater = sigma_e.copy()
     sigma_greater[stdd0_e>sigma_e]=stdd0_e[stdd0_e>sigma_e]
     sigma_e_max = min(sigma_greater.flatten())
+    logger.info('sigma_e_max=%2.4f'%sigma_e_max)
 
     vec_snr = get_bins_centers(list_snr_edges)
     vec_rgp = get_bins_centers(list_rgp_edges)
-    vec_snr_hires = np.linspace(vec_snr.min(),vec_snr.max(),500)
-    vec_rgp_hires = np.linspace(vec_rgp.min(),vec_rgp.max(),500)
+    # vec_snr_hires = np.linspace(vec_snr.min(),vec_snr.max(),100)
+    # vec_rgp_hires = np.linspace(vec_rgp.min(),vec_rgp.max(),100)
+
 
     import scipy.interpolate
     X1,X2 = np.meshgrid(vec_snr_hires,vec_rgp_hires)
 
     logger.debug('hires')
     import scipy.interpolate
-    func_interp = scipy.interpolate.interp2d(vec_snr,vec_rgp,sigma_greater.T, kind='cubic')
+    interp_method = 'linear'
+    func_interp = scipy.interpolate.interp2d(vec_snr,vec_rgp,sigma_greater.T, kind=interp_method)
     sigma_e_hires = func_interp(vec_snr_hires,vec_rgp_hires)
 
     if 'snr'  in cat.dtype.names: 
@@ -329,7 +385,7 @@ def get_weight_column(cat):
     cat[snr_col][~np.isfinite(cat[snr_col])]=0
     cat[size_col][~np.isfinite(cat[size_col])]=0
 
-    col_sig = scipy.interpolate.griddata((X1.flatten(),X2.flatten()),sigma_e_hires.flatten(),(cat[snr_col],cat[size_col]),method='nearest',rescale=True)
+    col_sig = scipy.interpolate.griddata((X1.flatten(),X2.flatten()),sigma_e_hires.flatten(),(cat[snr_col],cat[size_col]),method='linear',rescale=True,fill_value=0)
 
     col_sig[cat[snr_col]>list_snr_edges.max()] = sigma_e_max
     col_sig[cat[size_col]>list_rgp_edges.max()] = sigma_e_max
@@ -369,12 +425,14 @@ def get_calibration_columns(res_des):
     else:
         param_size = 'mean_rgpp_rp' ; param_snr = 'snr'
 
+    if (param_snr == 'round_snr') & (param_snr not in res_des.dtype.names):
+        warnings.warn('workaround when there is no round_snr in DES results')
+        param_snr = 'snr'
 
     import cPickle as pickle
     filename_bias_models = os.path.join(args.output_dir,'bias_models.cpickle')
     bm=pickle.load(open(filename_bias_models))
     warnings.warn('using %s' % filename_bias_models)
-
 
 
     X1,X2 = np.meshgrid(bm['model_snr'],bm['model_rgp'])
@@ -383,29 +441,48 @@ def get_calibration_columns(res_des):
     q1=np.array(res_des[param_snr])
     q2=np.array(res_des[param_size])
 
-    griddata_method = 'linear'
+    # griddata_method = 'linear'
+    # import scipy.interpolate
+    # m = scipy.interpolate.griddata((x1,x2),y1,(q1,q2),method=griddata_method,fill_value=0)
+    # a = scipy.interpolate.griddata((x1,x2),y2,(q1,q2),method=griddata_method,fill_value=0)
 
-    import scipy.interpolate
-    m = scipy.interpolate.griddata((x1,x2),y1,(q1,q2),method=griddata_method,fill_value=0)
-    a = scipy.interpolate.griddata((x1,x2),y2,(q1,q2),method=griddata_method,fill_value=0)
- 
+    logger.info('getting model predictions') 
+    import model_alpha
+    import model_multiplicative
+    filename_table_bias = os.path.join(args.output_dir,'bias_table.fits')
+    a = model_alpha.get_model_prediction(filename_table_bias,q1.flatten(),q2.flatten())
+    m = model_multiplicative.get_model_prediction(filename_table_bias,q1.flatten(),q2.flatten())
 
     c1 = res_des['mean_psf_e1_sky']*a
     c2 = res_des['mean_psf_e2_sky']*a
 
     import tabletools
-    res_des=tabletools.ensureColumn(res_des,'nbc_m' ,arr=m, dtype='f4')
-    res_des=tabletools.ensureColumn(res_des,'nbc_c1',arr=c1,dtype='f4')
-    res_des=tabletools.ensureColumn(res_des,'nbc_c2',arr=c2,dtype='f4')
-    res_des=tabletools.ensureColumn(res_des,'nbc_alpha',arr=a,dtype='f4')
-    # res_des=tabletools.ensureColumn(res_des,'w',arr=,dtype='f4')  
+
+    logger.info('adding columns')
+    # res_des=tabletools.ensureColumn(res_des,'nbc_m' ,arr=m, dtype='f4')
+    # res_des=tabletools.ensureColumn(res_des,'nbc_c1',arr=c1,dtype='f4')
+    # res_des=tabletools.ensureColumn(res_des,'nbc_c2',arr=c2,dtype='f4')
+    # res_des=tabletools.ensureColumn(res_des,'nbc_alpha',arr=a,dtype='f4')
+
+    res_des['nbc_m']==m
+    res_des['nbc_c1']=c1
+    res_des['nbc_c2']=c2
+    res_des['nbc_alpha']=a
+
+    logger.info('changing all calibration values outside the range to 0')
+    select = (res_des['snr']<10) | (res_des['mean_rgpp_rp']<10)
+    res_des[select]['nbc_m'] = 0
+    res_des[select]['nbc_c1']= 0
+    res_des[select]['nbc_c2']= 0
+    res_des[select]['nbc_alpha']= 0
+
 
     plots = False
     if plots:
 
         import pylab as pl
         pl.figure()
-        pl.scatter(q1,q2,s=20,c=m,lw=0)
+        pl.scatter(q1[:10000],q2[:10000],s=20,c=m[:10000],lw=0)
         pl.xlim([0,bm['model_snr'].max()*2 ])
         pl.ylim([0,bm['model_rgp'].max()*2 ])
         pl.colorbar()
@@ -415,10 +492,11 @@ def get_calibration_columns(res_des):
 
         pl.figure()
         pl.pcolormesh(bm['model_snr'],bm['model_rgp'],bm['model_m'])
+        pl.xscale('log')
         pl.axis('tight')
 
         pl.figure()
-        pl.scatter(q1,q2,s=20,c=a,lw=0)
+        pl.scatter(q1[:10000],q2[:10000],s=20,c=a[:10000],lw=0)
         pl.xlim([0,bm['model_snr'].max()*2 ])
         pl.ylim([0,bm['model_rgp'].max()*2 ])
         pl.colorbar()
@@ -430,6 +508,7 @@ def get_calibration_columns(res_des):
         pl.pcolormesh(bm['model_snr'],bm['model_rgp'],bm['model_a'])
         pl.xlabel(param_snr)
         pl.ylabel(param_size)
+        pl.xscale('log')
         pl.axis('tight')
 
         pl.show(); import pdb; pdb.set_trace()
@@ -484,17 +563,19 @@ def get_bias_model():
     # pl.style.use('supermongo')
 
     import fitsio
-    if args.use_calibration:
-        filename_table_bias = os.path.join(args.output_dir,'bias_table.calibrated.fits')
-    else:
-        filename_table_bias = os.path.join(args.output_dir,'bias_table.fits')
+    filename_table_bias = os.path.join(args.output_dir,'bias_table.fits')
 
+    eps_m = 1e-5
+    eps_a = 1e-2
 
     bias_table = tktools.load(filename_table_bias)
     dx=0.005
 
+    interp_method = 'linear'
+
     n_psf_bins = len(np.unique(bias_table['ipsf']))
     colorscale=plotstools.get_colorscale(n_psf_bins,cmap_name='rainbow')
+    # colorscale=plotstools.get_colorscale(n_psf_bins,cmap_name='gist_rainbow')
 
     list_model_m = []
     list_arr_x = []
@@ -519,7 +600,45 @@ def get_bias_model():
         sep = np.array(sep)
         return sep
 
+    def get_optimal_w(snr_mid, m, s, basis, n_gals=1):
 
+        list_chi2 = []
+        list_res_sig = []
+        list_w = []
+        list_w_cov = []
+        eps_grid=np.linspace(-15,15,1000)
+        for eps in eps_grid:
+            w, w_cov =fitting.fit(snr_mid, m, s,expand=basis,eps=10**eps)
+            p_mid, sigma = fitting.predict(snr_mid,w,w_cov,expand=basis)
+
+            # chi2 =  np.sum( n_gals* (((m-p_mid)**2)/(s**2)) ) / np.sum(n_gals)
+            # chi2 =  np.mean( (((m-p_mid)**2)/(s**2)) ) 
+            # chi2 =  np.sum( (((m-p_mid)**2)/(s**2)) ) / float( len(snr_mid) - basis(snr_mid[:,None]).shape[1] - 1  )
+            # chi2 =  np.sum( n_gals*(m-p_mid) ) / np.sum(n_gals)
+            # chi2 =  np.mean( (((m-p_mid)**2)/(s**2)) )  - np.sum( n_gals*(m-p_mid) )/ float(np.sum(n_gals))
+            chi2 =  np.mean( (((m-p_mid)**2)/(s**2)) ) 
+            res_sig = np.sum( n_gals*(m-p_mid) )/ float(np.sum(n_gals))
+            logger.debug('optimal w: eps=%2.2e chi2=%2.2e mean_res/sig=%2.4e' % (10**(eps),chi2,res_sig))
+            list_chi2.append(chi2)
+            list_w.append(w)
+            list_w_cov.append(w_cov)
+            list_res_sig.append(res_sig)
+
+        arr_chi2 = np.array(list_chi2)
+
+        select = np.argmin(np.abs(arr_chi2-1))
+
+        w = list_w[select]
+        w_cov = list_w_cov[select]
+        eps = eps_grid[select]
+        chi2 = list_chi2[select]
+        res_sig = list_res_sig[select]
+
+        logger.info('final optimal w: eps=%2.2e chi2=%2.2e res_sig=%2.5f w=%s' % (10**(eps),chi2,res_sig,np.array_str(w,precision=2)))
+
+        return w, w_cov
+
+    list_chi2 = []
     for ipsf in np.unique(bias_table['ipsf']):
 
         select = bias_table['ipsf'] == ipsf
@@ -532,15 +651,24 @@ def get_bias_model():
         rgp_mid = bt1['vpsf_mid']
         logger.debug('rgp_mid = %2.4f' % rgp_mid[0])
 
+        if rgp_mid[0]<1.15:
+            logger.warning('skipping bin 1<1.15 -- not including in pltos')
+            continue
+
+        import model_multiplicative
         pl.figure(1)
         pl.xlabel(param_snr)
         pl.ylabel('m')
         pl.errorbar(snr_mid,bt1['m']-1,yerr=bt1['std_m'],label=label,fmt='o',c=colorscale[ipsf-1])
         try:
             snr_pred =  np.linspace(snr_mid.min(),max_snr,n_upsample)
-            w, w_cov =fitting.fit(snr_mid, bt1['m']-1, s=bt1['std_m'],expand=inv_snr_basis)       
-            p, s = fitting.predict(snr_pred,w,w_cov,expand=inv_snr_basis)
-            pl.plot(snr_pred,p,c=colorscale[ipsf-1],lw=np.sum(bt1['n_gals'])/1e6)
+            # w, w_cov = get_optimal_w(snr_mid=snr_mid, m=bt1['m']-1, s=bt1['std_m'], basis=inv_snr_basis, n_gals=bt1['n_gals'])
+            # w, w_cov =fitting.fit(snr_mid, bt1['m']-1, s=bt1['std_m'],expand=inv_snr_basis,eps=0.01*np.max(bt1['std_m'])**2)       
+            # w, w_cov =fitting.fit(snr_mid, bt1['m']-1, s=bt1['std_m'],expand=inv_snr_basis,eps=eps_m)       
+            p = model_multiplicative.get_model_prediction(filename_table_bias,snr_pred,np.ones_like(snr_pred)*np.mean(rgp_mid),plots=False)
+            # p, s = fitting.predict(snr_pred,w,w_cov,expand=inv_snr_basis)
+            pl.plot(snr_pred,p,c=colorscale[ipsf-1])
+            # pl.plot(snr_pred,p,c=colorscale[ipsf-1],lw=np.sum(bt1['n_gals'])/1e6)
             list_model_m.append(p)
             list_arr_x.append(snr_pred)
             list_arr_y.append(np.ones_like(snr_pred)*rgp_mid[0])
@@ -551,11 +679,19 @@ def get_bias_model():
         pl.figure(2)
         try:
             snr_mid_sep = log_separate(x=snr_mid,dx=dx,n_sep=n_psf_bins)
-            p_mid, s = fitting.predict(snr_mid,w,w_cov,expand=inv_snr_basis)
+            p_mid = model_multiplicative.get_model_prediction(filename_table_bias,snr_mid,np.ones_like(snr_mid)*np.mean(rgp_mid),plots=False)
+            # p_mid, s = fitting.predict(snr_mid,w,w_cov,expand=inv_snr_basis)
             pl.errorbar(snr_mid_sep[:,ipsf-1],(bt1['m']-1)-p_mid,yerr=bt1['std_m'],label=label,fmt='o',c=colorscale[ipsf-1])
+
+            # chi2 = np.sum(   bt1['n_gals']*((((bt1['m']-1)-p_mid)**2)/(bt1['std_m']**2))   ) / np.sum( bt1['n_gals'] ) 
+            chi2 = np.mean(  (((bt1['m']-1)-p_mid)**2)/(bt1['std_m']**2))  
+            list_chi2.append(chi2)
+            logger.info('%f %f' % ( ipsf,chi2))
+
         except Exception,errmsg:
             logger.error(errmsg)
 
+    logger.info('chi2 m %f' , np.mean(np.array(list_chi2)))
 
     pl.figure(1)
     # pl.title(selection_string_des,fontsize=10)
@@ -568,8 +704,8 @@ def get_bias_model():
     pl.ylim([-0.2,0.05])
     pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
     pl.xlim([9,200])
-    plot_add_requirements(level=0.03,target=0)
-    plot_add_requirements(level=0.01,target=0)
+    # plot_add_requirements(level=0.03,target=0)
+    # plot_add_requirements(level=0.01,target=0)
     # pl.tick_params(axis='both', which='major', labelsize=10)
 
     pl.figure(2)
@@ -583,8 +719,9 @@ def get_bias_model():
     pl.ylim([-0.2,0.05])
     pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
     pl.xlim([9,200])
-    plot_add_requirements(level=0.03,target=0)
-    plot_add_requirements(level=0.01,target=0)
+    pl.ylabel('data - model')
+    # plot_add_requirements(level=0.03,target=0)
+    # plot_add_requirements(level=0.01,target=0)
 
     # -----------------------------------
 
@@ -598,7 +735,7 @@ def get_bias_model():
         vec_x_hires = np.linspace(vec_x.min(),vec_x.max(),n_upsample)
         vec_y_hires = np.linspace(vec_y.min(),vec_y.max(),n_upsample)
         import scipy.interpolate    
-        func_interp=scipy.interpolate.interp2d(vec_x,vec_y,model_arr_m,kind='linear')
+        func_interp=scipy.interpolate.interp2d(vec_x,vec_y,model_arr_m,kind=interp_method)
         model_arr_m_hires=func_interp(vec_x_hires,vec_y_hires)
 
 
@@ -615,13 +752,40 @@ def get_bias_model():
         pl.figure()
         pl.pcolormesh(vec_x_hires,vec_y_hires,model_arr_m_hires)
         pl.colorbar()
-        cs=pl.contour(vec_x_hires,vec_y_hires,model_arr_m_hires,[0,-0.05,0.10,-0.13])
-        pl.clabel(cs, fontsize=9, inline=1)
+        # cs=pl.contour(vec_x_hires,vec_y_hires,model_arr_m_hires,[0,-0.05,0.10,-0.13])
+        # pl.clabel(cs, fontsize=9, inline=1)
         pl.xscale('log')
+        pl.xticks(list_snr_edges)
+        pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
+        pl.yticks(list_psf_edges)
         pl.xlabel(param_snr)
         pl.ylabel(param_size)
-        pl.axis('tight')
+        pl.xlim([12,100])
+        pl.ylim([1.15,2])
+        # pl.axis('tight')
         pl.title('multiplicative shear bias')
+
+        # # now use the 2d model
+
+        vec_x_2d = np.logspace(1,2,100)
+        vec_y_2d = np.logspace(0.06,0.6,100)
+        X,Y=np.meshgrid(vec_x_2d,vec_y_2d)
+        import model_multiplicative
+        model2d_vec_a_hires = model_multiplicative.get_model_prediction(filename_table_bias,X.flatten(),Y.flatten(),plots=True)
+        model2d_arr_a_hires = np.reshape(model2d_vec_a_hires,[100,100])
+
+        pl.figure()
+        pl.pcolormesh(vec_x_2d,vec_y_2d,model2d_arr_a_hires)
+        pl.axis('tight')
+        pl.xlabel(param_snr)
+        pl.ylabel('Rgp/Rp')
+        pl.axis('tight')
+        pl.title('multiplicaive - 2d model')
+        pl.xscale('log')
+        pl.ylim([1.1,3])
+        pl.xlim([0,100])
+        # pl.clim([-0.1,0.75])
+        pl.colorbar()
 
     except Exception,errmsg:
         logger.error(errmsg)
@@ -632,13 +796,24 @@ def get_bias_model():
     list_arr_x = []
     list_arr_y = []
     pl.figure()
+    list_chi2 = []
+
+   
     for ipsf in np.unique(bias_table['ipsf']):
 
+        pl.figure(20)
         select = bias_table['ipsf'] == ipsf
         bt1=bias_table[select]
         label = '%s=%2.2f-%2.2f'%(param_size,bt1['vpsf_min'][0],bt1['vpsf_max'][0])
-        snr_mid = (bt1['vsnr_min']+bt1['vsnr_max'])/2.
-        rgp_mid = (bt1['vpsf_min']+bt1['vpsf_max'])/2.
+        snr_mid = bt1['vsnr_mid']
+        rgp_mid = bt1['vpsf_mid']
+
+        if rgp_mid[0]<1.15:
+            logger.warning('skipping bin 1<1.15 -- not including in pltos')
+            continue
+
+        # snr_mid = (bt1['vsnr_min']+bt1['vsnr_max'])/2.
+        # rgp_mid = (bt1['vpsf_min']+bt1['vpsf_max'])/2.
 
         # warnings.warn('setting highest SNR bin to no bias')
         # bt1['m'][-1] = 0
@@ -648,72 +823,140 @@ def get_bias_model():
         warnings.warn('setting highest SNR bin to no bias')
         pl.errorbar(snr_mid+dx*ipsf,bt1['pmm'],yerr=bt1['std_pmm'],label=label,fmt='.',c=colorscale[ipsf-1])
 
-        w, w_cov =fitting.fit(snr_mid, bt1['pmm'], s=bt1['std_pmm'],expand=inv_snr_basis2)
+
+        # w, w_cov = get_optimal_w(snr_mid=snr_mid, m=bt1['pmm'], s=bt1['std_pmm'],basis=inv_snr_basis2,n_gals=bt1['n_gals'])
+        # w, w_cov =fitting.fit(snr_mid, bt1['pmm'], s=bt1['std_pmm'],expand=inv_snr_basis2,eps=np.max(bt1['std_pmm'])**2)
+        # w, w_cov =fitting.fit(snr_mid, bt1['pmm'], s=bt1['std_pmm'],expand=inv_snr_basis2,eps=eps_a)
+
         
         snr_pred =  np.linspace(snr_mid.min(),max_snr,n_upsample)
 
-        p, s = fitting.predict(snr_pred,w,w_cov,expand=inv_snr_basis2)
+        import model_alpha
+        # p, s = fitting.predict(snr_pred,w,w_cov,expand=inv_snr_basis2)
+        p = model_alpha.get_model_prediction(filename_table_bias,snr_pred,np.ones_like(snr_pred)*np.mean(rgp_mid),plots=False)
         pl.plot(snr_pred,p,c=colorscale[ipsf-1])
         list_model_a.append(p)
         list_arr_x.append(snr_pred)
         list_arr_y.append(np.ones_like(snr_pred)*rgp_mid[0])
 
+        pl.figure(21)
+        try:
+            snr_mid_sep = log_separate(x=snr_mid,dx=dx,n_sep=n_psf_bins)
+            # p_mid, s = fitting.predict(snr_mid,w,w_cov,expand=inv_snr_basis2)
+            p = model_alpha.get_model_prediction(filename_table_bias,snr_mid,np.ones_like(snr_mid)*np.mean(rgp_mid),plots=False)
+            pl.errorbar(snr_mid_sep[:,ipsf-1],(bt1['pmm'])-p_mid,yerr=bt1['std_pmm'],label=label,fmt='o',c=colorscale[ipsf-1])
 
+            # chi2 = np.mean((((bt1['pmm'])-p_mid)**2)/(bt1['std_pmm']**2))
+            chi2 = np.sum( bt1['n_gals']*(((bt1['pmm'])-p_mid)**2)/(bt1['std_pmm']**2) ) / np.sum(bt1['n_gals'])
+            list_chi2.append(chi2)
+            logger.info('%d rgp_mid=%2.2f %f' % ( ipsf,rgp_mid[0],chi2))
+        except Exception,errmsg:
+            logger.error(errmsg)
+
+    logger.info('chi2 alpha %f' , np.mean(np.array(list_chi2)))
+
+    pl.figure(20)
     # pl.title('noise bias: PSF leakage - im3shape %s' % filename_table_bias)
     # pl.legend(framealpha=0.0,frameon=False,loc='lower right',fontsize=14,mode='expand',ncol=2)
     pl.xscale('log')
     ylim=list(pl.ylim()); ylim[1]*=1.; pl.ylim(ylim)
     pl.axhline(0,c='k')
-    # pl.legend(framealpha=0.0,frameon=False,loc='lower right',mode='expand',ncol=2)
+    pl.legend(framealpha=0.0,frameon=False,loc='upper right')
     pl.xlabel(param_snr)
     pl.ylabel(r'leakage $\alpha$')
-    pl.xticks(list_snr_edges[::2])
+    pl.xticks(list_snr_edges)
     pl.xlim([9,200])
     pl.ylim([-1,1])
-    # pl.grid()
+    pl.grid()
+    # plot_add_requirements(level=0.05,target=0)
     pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
 
     
     # pl.imshow(model_arr_a,aspect='auto',interpolation='nearest'); pl.show()
 
-    model_arr_a = np.array(list_model_a)
-    model_arr_x = np.array(list_arr_x)
-    model_arr_y = np.array(list_arr_y)
-    vec_x = model_arr_x[0,:]
-    vec_y = model_arr_y[:,0]
-    vec_x_hires = np.linspace(vec_x.min(),vec_x.max(),n_upsample)
-    vec_y_hires = np.linspace(vec_y.min(),vec_y.max(),n_upsample)
-    import scipy.interpolate    
-    func_interp=scipy.interpolate.interp2d(vec_x,vec_y,model_arr_a,kind='linear')
-    model_arr_a_hires=func_interp(vec_x_hires,vec_y_hires)
-
-    pl.figure()
-    pl.pcolormesh(model_arr_x,model_arr_y,model_arr_a)
-    pl.xticks(vec_x)
-    pl.yticks(vec_y)
-    pl.xlabel(param_snr)
-    pl.ylabel('Rgp/Rp')
-    pl.axis('tight')
-    pl.title('PSF leakage')
-
-    # lin scale
-    pl.figure()
-    pl.pcolormesh(vec_x_hires,vec_y_hires,model_arr_a_hires)
-    pl.colorbar()
-    cs=pl.contour(vec_x_hires,vec_y_hires,model_arr_a_hires,[0,0.05,0.10,0.15,0.20])
-    pl.clabel(cs, fontsize=9, inline=1)
-    pl.axis('tight')
-    pl.xlabel(param_snr)
-    pl.ylabel('Rgp/Rp')
-    pl.axis('tight')
-    pl.title('PSF leakage')
+    pl.figure(21)
+    # pl.title(selection_string_des,fontsize=10)
+    pl.xscale('log')
+    # pl.title('noise bias: multiplicative - im3shape - %s' % filename_table_bias)
+    pl.axhline(0,c='k')
+    pl.xticks(list_snr_edges)
+    pl.grid()
+    pl.legend(framealpha=0.0,frameon=False,loc='lower right',fontsize=14)
+    # pl.ylim([-0.2,0.05])
+    pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
+    pl.xlim([9,200])
+    pl.ylabel('data - model')
+    # plot_add_requirements(level=0.03,target=0)
+    # plot_add_requirements(level=0.01,target=0)
 
 
-    filename_bias_models = os.path.join(args.output_dir,'bias_models.cpickle')
-    import cPickle as pickle
-    pickle_dict = {'model_m':model_arr_m_hires, 'model_a':model_arr_a_hires, 'model_snr':vec_x_hires, 'model_rgp':vec_y_hires}
-    pickle.dump(pickle_dict,open(filename_bias_models,'w'),protocol=2)
-    logger.info('wrote %s' % (filename_bias_models))
+    try:
+
+        model_arr_a = np.array(list_model_a)
+        model_arr_x = np.array(list_arr_x)
+        model_arr_y = np.array(list_arr_y)
+        
+        vec_x = model_arr_x[0,:]
+        vec_y = model_arr_y[:,0]
+        vec_x_hires = np.linspace(vec_x.min(),vec_x.max(),n_upsample)
+        vec_y_hires = np.linspace(vec_y.min(),vec_y.max(),n_upsample)
+        import scipy.interpolate    
+        func_interp=scipy.interpolate.interp2d(vec_x,vec_y,model_arr_a,kind=interp_method)
+        model_arr_a_hires=func_interp(vec_x_hires,vec_y_hires)
+
+        pl.figure()
+        pl.pcolormesh(model_arr_x,model_arr_y,model_arr_a)
+        pl.xticks(vec_x)
+        pl.yticks(vec_y)
+        pl.xlabel(param_snr)
+        pl.ylabel('Rgp/Rp')
+        pl.axis('tight')
+        pl.title('PSF leakage')
+        pl.xscale('log')
+        pl.colorbar()
+
+
+        # lin scale
+        pl.figure()
+        pl.pcolormesh(vec_x_hires,vec_y_hires,model_arr_a_hires)
+        pl.colorbar()
+        cs=pl.contour(vec_x_hires,vec_y_hires,model_arr_a_hires,[0,0.05,0.10,0.15,0.20])
+        pl.clabel(cs, fontsize=9, inline=1)
+        pl.axis('tight')
+        pl.xlabel(param_snr)
+        pl.ylabel('Rgp/Rp')
+        pl.axis('tight')
+        pl.title('PSF leakage')
+        pl.xscale('log')
+
+        # # now use the 2d model
+
+
+        vec_x_2d = np.logspace(0,2,100)
+        vec_y_2d = np.logspace(0,0.3,100)
+        X,Y=np.meshgrid(vec_x_2d,vec_y_2d)
+        import model_alpha
+        model2d_vec_a_hires = model_alpha.get_alpha_model_prediction(filename_table_bias,X.flatten(),Y.flatten(),plots=False)
+        model2d_arr_a_hires = np.reshape(model2d_vec_a_hires,[100,100])
+
+        pl.figure()
+        pl.pcolormesh(vec_x_2d,vec_y_2d,model2d_arr_a_hires)
+        pl.axis('tight')
+        pl.xlabel(param_snr)
+        pl.ylabel('Rgp/Rp')
+        pl.axis('tight')
+        pl.title('PSF leakage - 2d model')
+        pl.xscale('log')
+        pl.ylim([1.1,3])
+        pl.xlim([0,100])
+        # pl.clim([-0.1,0.75])
+        pl.colorbar()
+
+
+
+
+    except Exception,errmsg:
+        logger.error(errmsg)
 
     # n_unique
 
@@ -741,7 +984,7 @@ def get_bias_model():
     pl.xscale('log')
     # pl.title('noise bias: multiplicative - im3shape - %s' % filename_table_bias)
     pl.axhline(0,c='k')
-    pl.xticks(list_snr_edges[::2])
+    pl.xticks(list_snr_edges)
     # pl.grid()
     pl.legend(framealpha=0.0,frameon=False,loc='lower right',fontsize=14)
     # pl.xlim([9,200])
@@ -775,7 +1018,7 @@ def get_bias_model():
     pl.xscale('log')
     # pl.title('noise bias: multiplicative - im3shape - %s' % filename_table_bias)
     pl.axhline(0,c='k')
-    pl.xticks(list_snr_edges[::2])
+    pl.xticks(list_snr_edges)
     # pl.grid()
     pl.legend(framealpha=0.0,frameon=False,loc='lower right',fontsize=14)
     # pl.xlim([9,200])
@@ -812,7 +1055,7 @@ def get_bias_model():
     pl.xscale('log')
     # pl.title('noise bias: multiplicative - im3shape - %s' % filename_table_bias)
     pl.axhline(0,c='k')
-    pl.xticks(list_snr_edges[::2])
+    pl.xticks(list_snr_edges)
     # pl.grid()
     pl.legend(framealpha=0.0,frameon=False,loc='lower right',fontsize=14)
     # pl.xlim([9,200])
@@ -849,7 +1092,7 @@ def get_bias_model():
     pl.xscale('log')
     # pl.title('noise bias: multiplicative - im3shape - %s' % filename_table_bias)
     pl.axhline(0,c='k')
-    pl.xticks(list_snr_edges[::2])
+    pl.xticks(list_snr_edges)
     # pl.grid()
     pl.legend(framealpha=0.0,frameon=False,loc='lower right',fontsize=14)
     pl.xlim([9,200])
@@ -890,7 +1133,7 @@ def get_bias_model():
     pl.xscale('log')
     # pl.title('noise bias: multiplicative - im3shape - %s' % filename_table_bias)
     pl.axhline(0,c='k')
-    pl.xticks(list_snr_edges[::2])
+    pl.xticks(list_snr_edges)
     # pl.grid()
     pl.legend(framealpha=0.0,frameon=False,loc='lower right',fontsize=14)
     pl.ylim([-0.05,0.05])
@@ -902,7 +1145,16 @@ def get_bias_model():
     # pl.tick_params(axis='both', which='major', labelsize=10)
 
     # -----------------------------------
+
+
     pl.show()
+
+    filename_bias_models = os.path.join(args.output_dir,'bias_models.cpickle')
+    import cPickle as pickle
+    pickle_dict = {'model_m':model_arr_m_hires, 'model_a':model_arr_a_hires, 'model_snr':vec_x_hires, 'model_rgp':vec_y_hires}
+    pickle.dump(pickle_dict,open(filename_bias_models,'w'),protocol=2)
+    logger.info('wrote %s' % (filename_bias_models))
+
 
 
 
@@ -1067,7 +1319,7 @@ def get_bias_vs_redshift():
 
 def plot_bias_vs_redshift():
 
-    # pl.style.use('supermongo')
+    pl.style.use('supermongo')
 
     import cPickle as pickle
     if args.use_weights == True:
@@ -1092,7 +1344,10 @@ def plot_bias_vs_redshift():
     pl.axhline(1,c='k')
     pl.legend(ncol=2, mode='expand', loc='lower center',framealpha=0.0,frameon=False)
     plot_add_requirements(level=0.03,target=1)
-    plot_add_requirements(level=0.01,target=1)
+    # plot_add_requirements(level=0.01,target=1)
+    filename_fig = os.path.join(args.output_dir,('m_vs_z.weights%d.%s' % (args.use_weights,args.fig_format)).replace('..','.'))
+    pl.savefig(filename_fig)
+    logger.info('wrote %s' % (filename_fig))
     # pl.title(title)
 
     pl.figure()
@@ -1107,7 +1362,10 @@ def plot_bias_vs_redshift():
     pl.axhline(0,c='k')
     pl.legend(ncol=2, mode='expand', loc='lower center',framealpha=0.0,frameon=False)
     pl.ylim([-0.1,0.2])
-    plot_add_requirements(level=0.025,target=0)
+    plot_add_requirements(level=0.05,target=0)
+    filename_fig = os.path.join(args.output_dir,('a_vs_z.weights%d.%s' % (args.use_weights,args.fig_format)).replace('..','.'))
+    pl.savefig(filename_fig)
+    logger.info('wrote %s' % (filename_fig))
     # pl.title(title)
 
 
@@ -1125,6 +1383,9 @@ def plot_bias_vs_redshift():
     # pl.ylim([-0.1,0.3])
     plot_add_requirements(level=0.0005,target=0)
     pl.title(title)
+    filename_fig = os.path.join(args.output_dir,('meane_vs_z.weights%d.%s' % (args.use_weights,args.fig_format)).replace('..','.'))
+    pl.savefig(filename_fig)
+    logger.info('wrote %s' % (filename_fig))
 
     pl.figure() 
     pl.errorbar( (arr_bias['z_min']+arr_bias['z_max'])/2 , arr_bias['mms'], yerr=arr_bias['std_mms'], fmt='r.', label=r'true sheared shape')
@@ -1138,6 +1399,11 @@ def plot_bias_vs_redshift():
     # pl.ylim([-0.1,0.3])
     plot_add_requirements(level=0.0005,target=0)
     pl.title(title)
+    filename_fig = os.path.join(args.output_dir,('ms_vs_z.weights%d.%s'% (args.use_weights,args.fig_format)).replace('..','.'))
+    pl.savefig(filename_fig)
+    logger.info('wrote %s' % (filename_fig))
+
+    pl.show()
 
     res_sim, res_tru, res_des = load_selection()
 
@@ -1193,29 +1459,45 @@ def plot_bias_vs_redshift():
         pl.figure(201)
         pl.hist(cal_sim_select['radius'],bins=np.linspace(0,3,100),histtype='step',label='z=[%2.2f - %2.2f]'%(vbin[0],vbin[1]),color=tt.get_colorscale(len(z_bins))[ibin],normed=True)
         pl.xlabel('radius')
-        if 'round_snr' in cal_sim_select.dtype.names:
-            pl.figure(401)
-            pl.hist(cal_sim_select['round_snr'],bins=np.logspace(0,2,100),histtype='step',label='z=[%2.2f - %2.2f]'%(vbin[0],vbin[1]),color=tt.get_colorscale(len(z_bins))[ibin],normed=True)
-            pl.xlabel('round_snr')
+        pl.figure(202)
+        pl.hist(cal_sim_select['mean_rgpp_rp'],bins=np.linspace(1,3,100),histtype='step',label='z=[%2.2f - %2.2f]'%(vbin[0],vbin[1]),color=tt.get_colorscale(len(z_bins))[ibin],normed=True)
+
 
     pl.figure(101)
     pl.hist(res_sim_final['snr'],bins=np.logspace(0,2,100),histtype='step',label='z=all',color='k',normed=True)
     pl.legend(framealpha=0.0,frameon=False)
     pl.ylim([0,0.15])
+    filename_fig = os.path.join(args.output_dir,('hist.snr_vs_z.weights%d.%s' % (args.use_weights,args.fig_format)).replace('..','.'))
+    pl.savefig(filename_fig)
+    logger.info('wrote %s' % (filename_fig))
+
     pl.figure(201)
     pl.hist(res_sim_final['radius'],bins=np.linspace(0,3,100),histtype='step',label='z=all',color='k',normed=True)
     pl.legend(framealpha=0.0,frameon=False)
-    if 'round_snr' in cal_sim_select.dtype.names:
-        pl.figure(401)
-        pl.hist(res_sim_final['round_snr'],bins=np.logspace(0,2,100),histtype='step',label='z=all',color='k',normed=True)
-        pl.legend(framealpha=0.0,frameon=False)
+    filename_fig = os.path.join(args.output_dir,('hist.radius_vs_z.weights%d.%s' % (args.use_weights,args.fig_format)).replace('..','.'))
+    pl.savefig(filename_fig)
+    logger.info('wrote %s' % (filename_fig))
+    
+
+    pl.figure(202)
+    pl.hist(res_sim_final['mean_rgpp_rp'],bins=np.linspace(1,3,100),histtype='step',label='z=all',color='k',normed=True)
+    pl.legend(framealpha=0.0,frameon=False)
+    filename_fig = os.path.join(args.output_dir,('hist.meanrgpprp_vs_z.weights%d.%s' % (args.use_weights,args.fig_format)).replace('..','.'))
+    pl.savefig(filename_fig)
+    logger.info('wrote %s' % (filename_fig))
 
     pl.figure(301)
     pl.hist(res_tru_final['zphot'],bins=np.linspace(0,1.5,100),histtype='step',normed=True)
+    filename_fig = os.path.join(args.output_dir,('hist.z_phot.weights%d.%s' % (args.use_weights,args.fig_format)).replace('..','.'))
+    pl.savefig(filename_fig)
+    logger.info('wrote %s' % (filename_fig))
 
     pl.figure(31)
     arr_bulge_fraction = np.array(list_bulge_fraction)
     pl.plot(arr_bulge_fraction[:,1])
+    filename_fig = os.path.join(args.output_dir,('hist.bulge_fraction_vs_z.weights%d.%s' % (args.use_weights,args.fig_format)).replace('..','.'))
+    pl.savefig(filename_fig)
+    logger.info('wrote %s' % (filename_fig))
 
     pl.show()
 
@@ -1274,11 +1556,23 @@ def get_shear_estimator(res,use_calibration=False,use_weights=False):
     mean_m1 = np.mean(nbc_m1)
     mean_m2 = np.mean(nbc_m2)
 
+    logger.debug('get_shear_estimator: mean_e = %2.4f %2.4f' % (mean_e1,mean_e2))
+
     return mean_e1, stdv_e1, stdm_e1, mean_e2, stdv_e2, stdm_e2, mean_m1, mean_m2
 
 
 
 def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=False,use_weights=False,resample_errors=False,correct_selection_bias=False):
+
+    necessary_cols_res = ['mean_psf_e1_sky','mean_psf_e2_sky','w','nbc_m','nbc_c1','nbc_c2','nbc_alpha','e1','e2','mean_rgpp_rp','snr']
+    necessary_cols_tru = ['sheared_e1','sheared_e2','intrinsic_e1','intrinsic_e2','id_shear','g1_true','g2_true','sf_hlr']
+
+    logger.debug('getting necessary columns')
+    res_sim = res_sim[necessary_cols_res].copy()
+    res_tru = res_tru[necessary_cols_tru].copy()
+    if res_des!=None: res_des = res_des[necessary_cols_res].copy()
+    logger.debug('done!')
+
 
     n_jack = 1
     mean_e1 = []; stdv_e1 = []; stdm_e1 = []; mean_e2 = []; stdv_e2 = []; stdm_e2 = []; true_e1 = []; true_e2 = []; mean_mm = []; mean_ei1 = []; mean_ei2 = []; stdm_ei1 = []; stdm_ei2 = []; mean_es1 = []; mean_es2 = []; stdm_es1 = []; stdm_es2 = []; stdm_es1eo1 = []; stdm_es2eo2 = [];
@@ -1288,9 +1582,16 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
     res_she['e1'] = res_tru['sheared_e1']
     res_she['e2'] = res_tru['sheared_e2']
 
-    res_int = res_sim.copy()
-    res_int['e1'] = res_tru['intrinsic_e1']
-    res_int['e2'] = res_tru['intrinsic_e2']
+    if correct_selection_bias:
+        res_int = res_sim.copy()
+        res_int['e1'] = res_tru['intrinsic_e1']
+        res_int['e2'] = res_tru['intrinsic_e2']
+
+    n_gals = len(res_sim)
+
+    mean_e1_entire_sample, stdv_e1_entire_sample, stdm_e1_entire_sample, mean_e2_entire_sample, stdv_e2_entire_sample, stdm_e2_entire_sample, _, _ = get_shear_estimator(res_sim,use_calibration=use_calibration,use_weights=use_weights)
+    # mean_e1i_entire_sample, stdv_e1i_entire_sample, stdm_e1i_entire_sample, mean_e2i_entire_sample, stdv_e2i_entire_sample, stdm_e2i_entire_sample, _, _ = get_shear_estimator(res_int,use_calibration=use_calibration,use_weights=use_weights)
+
     
     for ig,vg in enumerate(config['shear']):
 
@@ -1298,12 +1599,14 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
     
         res_sim_select = res_sim[select]
         tru_sim_select = res_tru[select]
-        res_int_select = res_int[select]
+        if correct_selection_bias:
+            res_int_select = res_int[select]
         res_she_select = res_she[select]
 
         n_select = len(res_sim_select)
         e1o_mean, e1o_stdv, e1o_stdm, e2o_mean, e2o_stdv, e2o_stdm, m1o_mean, m2o_mean = get_shear_estimator(res_sim_select,use_calibration=use_calibration,use_weights=use_weights)
-        e1i_mean, e1i_stdv, e1i_stdm, e2i_mean, e2i_stdv, e2i_stdm, m1i_mean, m2i_mean = get_shear_estimator(res_int_select,use_calibration=False,use_weights=False)
+        if correct_selection_bias:
+            e1i_mean, e1i_stdv, e1i_stdm, e2i_mean, e2i_stdv, e2i_stdm, m1i_mean, m2i_mean = get_shear_estimator(res_int_select,use_calibration=False,use_weights=False)
         e1s_mean, e1s_stdv, e1s_stdm, e2s_mean, e2s_stdv, e2s_stdm, m1s_mean, m2s_mean = get_shear_estimator(res_she_select,use_calibration=False,use_weights=False)
 
         true_e1 += [ np.mean(tru_sim_select['g1_true']) ]
@@ -1314,10 +1617,6 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
         mean_e2  += [ e2o_mean ]
         stdv_e2  += [ e2o_stdv ]
         stdm_e2  += [ e2o_stdm ]
-        mean_ei1 += [ e1i_mean ]
-        mean_ei2 += [ e2i_mean ]
-        stdm_ei1 += [ e1i_stdm ]
-        stdm_ei2 += [ e2i_stdm ]
         mean_es1 += [ e1s_mean ]
         mean_es2 += [ e2s_mean ]
         stdm_es1 += [ e1s_stdm ]
@@ -1325,6 +1624,10 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
         mean_mm  += [ m1o_mean ]
 
         if correct_selection_bias:
+            mean_ei1 += [ e1i_mean ]
+            mean_ei2 += [ e2i_mean ]
+            stdm_ei1 += [ e1i_stdm ]
+            stdm_ei2 += [ e2i_stdm ]
             covmat1 = np.cov(res_sim_select['e1'],tru_sim_select['intrinsic_e1'])
             covmat2 = np.cov(res_sim_select['e2'],tru_sim_select['intrinsic_e2'])
             stdm_es1eo1 += [ np.sqrt(covmat1[0,0]+covmat1[1,1]-2*covmat1[0,1])/np.sqrt(len(res_sim_select)) ]
@@ -1419,15 +1722,17 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
     # print out 
 
     logger.info('noise_bias_calibration=%d weights=%d correct_selection_bias=%d', use_calibration, use_weights, correct_selection_bias)
-    logger.info( "--- SIM n_gals = %d", len(res_sim) )        
-    logger.info( "--- SIM mean_e1 = %2.5f +/- %2.5f" % (e1i_mean, e1i_stdm) )        
-    logger.info( "--- SIM mean_e2 = %2.5f +/- %2.5f" % (e2i_mean, e2i_stdm) )        
-    logger.info( "--- SIM m1 = % 2.5f +/- % 2.5f"    % (mm1,std_mm1)        )               
-    logger.info( "--- SIM m2 = % 2.5f +/- % 2.5f"    % (mm2,std_mm2)        )               
-    logger.info( "--- SIM c1 = % 2.5f +/- % 2.5f"    % (cc1,std_cc1)        )               
-    logger.info( "--- SIM c2 = % 2.5f +/- % 2.5f"    % (cc2,std_cc2)        )               
-    logger.info( "--- SIM m  = % 2.5f +/- % 2.5f"    % (mm,std_mm)          )             
-    logger.info( "--- SIM c  = % 2.5f +/- % 2.5f"    % (cc,std_cc)          )             
+    logger.info( "--- SIM n_gals = %d", n_gals )        
+    logger.info( "--- SIM mean_e1_all  = %2.5f +/- %2.5f" % (mean_e1_entire_sample, stdm_e1_entire_sample) )        
+    logger.info( "--- SIM mean_e2_all  = %2.5f +/- %2.5f" % (mean_e2_entire_sample, stdm_e2_entire_sample) )        
+    # logger.info( "--- SIM mean_e1i_all = %2.5f +/- %2.5f" % (mean_e1i_entire_sample, stdm_e1i_entire_sample) )        
+    # logger.info( "--- SIM mean_e2i_all = %2.5f +/- %2.5f" % (mean_e2i_entire_sample, stdm_e2i_entire_sample) )        
+    logger.info( "--- SIM m1  = % 2.5f +/- % 2.5f"   % (mm1,std_mm1)        )               
+    logger.info( "--- SIM m2  = % 2.5f +/- % 2.5f"   % (mm2,std_mm2)        )               
+    logger.info( "--- SIM c1  = % 2.5f +/- % 2.5f"   % (cc1,std_cc1)        )               
+    logger.info( "--- SIM c2  = % 2.5f +/- % 2.5f"   % (cc2,std_cc2)        )               
+    logger.info( "--- SIM m   = % 2.5f +/- % 2.5f"   % (mm,std_mm)          )             
+    logger.info( "--- SIM c   = % 2.5f +/- % 2.5f"   % (cc,std_cc)          )             
     logger.info( "--- SIM m12 = % 2.5f +/- % 2.5f"   % (mm12,std_mm12)      )                  
     logger.info( "--- SIM m21 = % 2.5f +/- % 2.5f"   % (mm21,std_mm21)      )                  
     logger.info( "--- SIM m1s = % 2.5f +/- % 2.5f"   % (mm1s,std_mm1s)        )               
@@ -1436,136 +1741,148 @@ def get_mc(res_sim,res_tru,res_des=None,filename_str='default',use_calibration=F
     if 'nbc_m' in res_sim.dtype.names:     logger.info( "--- SIM (this may be old) nbc_m = % 2.5f"            % (np.mean(res_sim['nbc_m'])  ))               
     if 'nbc_alpha' in res_sim.dtype.names: logger.info( "--- SIM (this may be old) nbc_a = % 2.5f"            % (np.mean(res_sim['nbc_alpha'])  ))               
     logger.info( "--- SIM c2s = % 2.5f +/- % 2.5f"   % (cc2s,std_cc2s)        )               
-    logger.info( "--- SIM pm1  = % 2.5f +/- % 2.5f"  % (pmm1,std_pmm1)      )                   
-    logger.info( "--- SIM pm2  = % 2.5f +/- % 2.5f"  % (pmm2,std_pmm2)      )                   
-    logger.info( "--- SIM pc1  = % 2.5f +/- % 2.5f"  % (pcc1,std_pcc1)      )                   
-    logger.info( "--- SIM pc2  = % 2.5f +/- % 2.5f"  % (pcc2,std_pcc2)      )                   
+    logger.info( "--- SIM pm1 = % 2.5f +/- % 2.5f"  % (pmm1,std_pmm1)      )                   
+    logger.info( "--- SIM pm2 = % 2.5f +/- % 2.5f"  % (pmm2,std_pmm2)      )                   
+    logger.info( "--- SIM pc1 = % 2.5f +/- % 2.5f"  % (pcc1,std_pcc1)      )                   
+    logger.info( "--- SIM pc2 = % 2.5f +/- % 2.5f"  % (pcc2,std_pcc2)      )                   
     if 'ra_as' in  res_sim.dtype.names: logger.info( "--- SIM x1 = % 2.4f +/- %2.4f" % ( np.mean(res_sim['ra_as']), np.std(res_sim['ra_as'],ddof=1)/np.sqrt(len(res_sim)) ) )
     if 'dec_as' in res_sim.dtype.names: logger.info( "--- SIM x2 = % 2.4f +/- %2.4f" % ( np.mean(res_sim['dec_as']), np.std(res_sim['dec_as'],ddof=1)/np.sqrt(len(res_sim)) ) )
     if res_des!=None: logger.info( "--- DES n_gals  = %d" % len(res_des) )
-    if res_des!=None: logger.info( "--- DES pm1  = % 2.5f +/- % 2.5f" % (dmm1,std_dmm1) )
-    if res_des!=None: logger.info( "--- DES pm2  = % 2.5f +/- % 2.5f" % (dmm2,std_dmm2) )
-    if res_des!=None: logger.info( "--- DES pc1  = % 2.5f +/- % 2.5f" % (dcc1,std_dcc1) )
-    if res_des!=None: logger.info( "--- DES pc2  = % 2.5f +/- % 2.5f" % (dcc2,std_dcc2) )
+    if res_des!=None: logger.info( "--- DES pm1     = % 2.5f +/- % 2.5f" % (dmm1,std_dmm1) )
+    if res_des!=None: logger.info( "--- DES pm2     = % 2.5f +/- % 2.5f" % (dmm2,std_dmm2) )
+    if res_des!=None: logger.info( "--- DES pc1     = % 2.5f +/- % 2.5f" % (dcc1,std_dcc1) )
+    if res_des!=None: logger.info( "--- DES pc2     = % 2.5f +/- % 2.5f" % (dcc2,std_dcc2) )
+    if args.use_calibration:
+        if res_des!=None: logger.info( "--- DES mean_e1 = % 2.5f +/- % 2.5f" % (np.mean(res_des['e1']-res_des['nbc_c1']),np.std(res_des['e1']-res_des['nbc_c1'],ddof=1)/np.sqrt(len(res_des))) )
+        if res_des!=None: logger.info( "--- DES mean_e2 = % 2.5f +/- % 2.5f" % (np.mean(res_des['e2']-res_des['nbc_c2']),np.std(res_des['e2']-res_des['nbc_c2'],ddof=1)/np.sqrt(len(res_des))) )
+    else:
+        if res_des!=None: logger.info( "--- DES mean_e1 = % 2.5f +/- % 2.5f" % (np.mean(res_des['e1']),np.std(res_des['e1'],ddof=1)/np.sqrt(len(res_des))) )
+        if res_des!=None: logger.info( "--- DES mean_e2 = % 2.5f +/- % 2.5f" % (np.mean(res_des['e2']),np.std(res_des['e2'],ddof=1)/np.sqrt(len(res_des))) )
 
+    plots=False
+    if plots:
+        pl.figure(figsize=(20,15))
 
-
-    pl.figure(figsize=(20,15))
-
-    pl.subplot(3,3,1)
-    pl.errorbar(true_e1,mean_e1-true_e1,yerr=stdm_e1,fmt='r.')
-    pl.errorbar(true_e2,mean_e2-true_e2,yerr=stdm_e2,fmt='m.')
-    pl.errorbar(true_e1,mean_ei1,yerr=stdm_ei1,fmt='b.')
-    pl.errorbar(true_e2,mean_ei2,yerr=stdm_ei2,fmt='c.')
-    pl.plot(true_e1,true_e1*0,'-k')
-    pl.plot(true_e1,(mm1-1)*true_e1+cc1,    'r-',label=r'<e1> vs e1t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm1,std_mm1,cc1,std_cc1))
-    pl.plot(true_e2,(mm2-1)*true_e2+cc2,    'm-',label=r'<e2> vs e2t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm2,std_mm2,cc2,std_cc2))
-    pl.plot(true_e1,(mm1s-1)*true_e1+cc1s,  'b-',label=r'<e1> vs e1t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm1s,std_mm1s,cc1s,std_cc1s))
-    pl.plot(true_e2,(mm2s-1)*true_e2+cc2s,  'c-',label=r'<e2> vs e2t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm2s,std_mm2s,cc2s,std_cc2s))
-    pl.xlabel('g_true')
-    pl.ylabel('<e> - g_true')
-    ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
-    pl.legend(mode='expand',fontsize=8,framealpha=0.0,frameon=False)
-
-    pl.subplot(3,3,2)
-    pl.errorbar(true_e2,mean_e1-true_e1,yerr=stdm_e1,fmt='r.')
-    pl.errorbar(true_e1,mean_e2-true_e2,yerr=stdm_e2,fmt='m.')
-    pl.plot(true_e1,true_e1*0,'-k')
-    pl.plot(true_e2,(mm12)*true_e2+cc12,'r-',label=r'<e1> vs e2t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm12,std_mm12,cc12,std_cc12))
-    pl.plot(true_e1,(mm21)*true_e1+cc21,'m-',label=r'<e2> vs e1t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm21,std_mm21,cc21,std_cc21))
-    pl.xlabel('g_true')
-    pl.ylabel('<e> - g_true')
-    ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
-    pl.legend(mode='expand',fontsize=8,framealpha=0.0,frameon=False)
-
-    pl.subplot(3,3,3)
-    pl.errorbar(bins_psf_centers,pmean_e1-pmean_g1,yerr=pstdm_e1,fmt='rd') # ,label='e1 vs PSF e1'
-    pl.errorbar(bins_psf_centers,pmean_e2-pmean_g2,yerr=pstdm_e2,fmt='md') # ,label='e2 vs PSF e2'
-    pl.plot(bins_psf_centers,bins_psf_centers*pmm1+pcc1,'r-',label=r'sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm %2.4f$' % (pmm1,std_pmm1,pcc1,std_pcc1))
-    pl.plot(bins_psf_centers,bins_psf_centers*pmm2+pcc2,'m-',label=r'sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm %2.4f$' % (pmm2,std_pmm2,pcc2,std_pcc2))
-    pl.legend(mode='expand',fontsize=8,framealpha=0.0,frameon=False)
-    pl.axhline(0,c='k')
-    pl.xlabel('PSF e')
-    pl.ylabel('<e>')
-    pl.suptitle( filename_str )
-    ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
-    pl.xlim([-0.03,0.03])
-
-    # pl.ylim([-0.005,0.01])
-
-    try:
-        pl.subplot(3,3,4)
-        pl.hist(res_sim['e1'],bins=np.linspace(-1,1,100),color='r',histtype='step',normed=True,label='SIM')
-        pl.hist(res_sim['e2'],bins=np.linspace(-1,1,100),color='m',histtype='step',normed=True)
-        if res_des!= None: pl.hist(res_des['e1'],bins=np.linspace(-1,1,100),color='b',histtype='step',normed=True,label='DES')
-        if res_des!= None: pl.hist(res_des['e2'],bins=np.linspace(-1,1,100),color='c',histtype='step',normed=True)       
+        pl.subplot(3,3,1)
+        pl.errorbar(true_e1,mean_e1-true_e1,yerr=stdm_e1,fmt='r.')
+        pl.errorbar(true_e2,mean_e2-true_e2,yerr=stdm_e2,fmt='m.')
+        pl.errorbar(true_e1,mean_ei1,yerr=stdm_ei1,fmt='b.')
+        pl.errorbar(true_e2,mean_ei2,yerr=stdm_ei2,fmt='c.')
+        pl.plot(true_e1,true_e1*0,'-k')
+        pl.plot(true_e1,(mm1-1)*true_e1+cc1,    'r-',label=r'<e1> vs e1t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm1,std_mm1,cc1,std_cc1))
+        pl.plot(true_e2,(mm2-1)*true_e2+cc2,    'm-',label=r'<e2> vs e2t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm2,std_mm2,cc2,std_cc2))
+        pl.plot(true_e1,(mm1s-1)*true_e1+cc1s,  'b-',label=r'<e1> vs e1t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm1s,std_mm1s,cc1s,std_cc1s))
+        pl.plot(true_e2,(mm2s-1)*true_e2+cc2s,  'c-',label=r'<e2> vs e2t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm2s,std_mm2s,cc2s,std_cc2s))
+        pl.xlabel('g_true')
+        pl.ylabel('<e> - g_true')
+        ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
         pl.legend(mode='expand',fontsize=8,framealpha=0.0,frameon=False)
-        pl.xlabel('e')
-        # ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
-    except Exception, errmsg:
-        logger.error('plot 334 died %s', errmsg)
 
-    try:
-        pl.subplot(3,3,5)
-        pl.hist(res_sim['snr'],bins=np.linspace(0,100,200),color='r',histtype='step',normed=True,label='SIM')
-        if res_des!=None: pl.hist(res_des['snr'],bins=np.linspace(0,100,100),color='b',histtype='step',normed=True,label='DES')
+        pl.subplot(3,3,2)
+        pl.errorbar(true_e2,mean_e1-true_e1,yerr=stdm_e1,fmt='r.')
+        pl.errorbar(true_e1,mean_e2-true_e2,yerr=stdm_e2,fmt='m.')
+        pl.plot(true_e1,true_e1*0,'-k')
+        pl.plot(true_e2,(mm12)*true_e2+cc12,'r-',label=r'<e1> vs e2t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm12,std_mm12,cc12,std_cc12))
+        pl.plot(true_e1,(mm21)*true_e1+cc21,'m-',label=r'<e2> vs e1t sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm % 2.4f$' % (mm21,std_mm21,cc21,std_cc21))
+        pl.xlabel('g_true')
+        pl.ylabel('<e> - g_true')
+        ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
         pl.legend(mode='expand',fontsize=8,framealpha=0.0,frameon=False)
-        pl.xlabel('SNR')
-        # ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
-    except Exception, errmsg:
-        logger.error('plot 335 died %s', errmsg)
 
-    try:
-        pl.subplot(3,3,6)
-        pl.hist(res_sim['mean_rgpp_rp'],bins=np.linspace(1,3,200),color='r',histtype='step',normed=True,label='SIM')
-        if res_des!=None: pl.hist(res_des['mean_rgpp_rp'],bins=np.linspace(1,3),color='b',histtype='step',normed=True,label='DES')
+        pl.subplot(3,3,3)
+        pl.errorbar(bins_psf_centers,pmean_e1-pmean_g1,yerr=pstdm_e1,fmt='rd') # ,label='e1 vs PSF e1'
+        pl.errorbar(bins_psf_centers,pmean_e2-pmean_g2,yerr=pstdm_e2,fmt='md') # ,label='e2 vs PSF e2'
+        pl.plot(bins_psf_centers,bins_psf_centers*pmm1+pcc1,'r-',label=r'sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm %2.4f$' % (pmm1,std_pmm1,pcc1,std_pcc1))
+        pl.plot(bins_psf_centers,bins_psf_centers*pmm2+pcc2,'m-',label=r'sl=$% 2.4f \pm %2.4f$ int=$% 2.4f \pm %2.4f$' % (pmm2,std_pmm2,pcc2,std_pcc2))
         pl.legend(mode='expand',fontsize=8,framealpha=0.0,frameon=False)
-        pl.xlabel('Rgp/Rp')
-        # ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
-    except Exception, errmsg:
-        logger.error('plot 336 died, %s', errmsg)
+        pl.axhline(0,c='k')
+        pl.xlabel('PSF e')
+        pl.ylabel('<e>')
+        pl.suptitle( filename_str )
+        ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+        pl.xlim([-0.03,0.03])
 
-    try:
-        pl.subplot(3,3,7)
-        pl.hist(res_sim['radius'],bins=np.linspace(0,3,200),color='r',histtype='step',normed=True,label='SIM')
-        pl.hist(res_tru['sf_hlr'],bins=np.linspace(0,3,200),color='b',histtype='step',normed=True,label='TRU')
-        if res_des!=None: pl.hist(res_des['radius'],bins=np.linspace(0,3,200),color='b',histtype='step',normed=True,label='DES')
-        pl.legend(mode='expand',fontsize=8,framealpha=0.0,frameon=False)
-        pl.xlabel('radius')
-        # ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
-    except Exception, errmsg:
-        logger.error('plot 337 died %s', errmsg)
-
-    try:
-        pl.subplot(3,3,8)
-        pl.hist(res_sim['ra_as'],1000,color='r',histtype='step',normed=True,label='SIM')
-        pl.hist(res_sim['dec_as'],1000,color='b',histtype='step',normed=True,label='SIM')
-        title = " x1 = % 2.4f +/- %2.4f" % ( np.mean(res_sim['ra_as']), np.std(res_sim['ra_as'],ddof=1)/np.sqrt(len(res_sim)) ) 
-        title += "\n x2 = % 2.4f +/- %2.4f" % ( np.mean(res_sim['dec_as']), np.std(res_sim['dec_as'],ddof=1)/np.sqrt(len(res_sim)) ) 
-        pl.title(title)
-        pl.xlabel('ra_as/dec_as')
-        # ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
-    except Exception, errmsg:
-        logger.error('plot 338 died %s', errmsg)
+        # pl.ylim([-0.005,0.01])
 
 
-    try:
-        filename_fig = os.path.join(args.output_dir,'figs/bias.%s.png' % (filename_str))
-    except:
-        filename_fig = os.path.join('.','figs/bias.%s.png' % (filename_str))
-        
-    pl.savefig(filename_fig)
-    logger.info('saved %s',filename_fig)
-    pl.close()
+
+        try:
+            pl.subplot(3,3,4)
+            pl.hist(res_sim['e1'],bins=np.linspace(-1,1,100),color='r',histtype='step',normed=True,label='SIM')
+            pl.hist(res_sim['e2'],bins=np.linspace(-1,1,100),color='m',histtype='step',normed=True)
+            if res_des!= None: pl.hist(res_des['e1'],bins=np.linspace(-1,1,100),color='b',histtype='step',normed=True,label='DES')
+            if res_des!= None: pl.hist(res_des['e2'],bins=np.linspace(-1,1,100),color='c',histtype='step',normed=True)       
+            pl.legend(mode='expand',fontsize=8,framealpha=0.0,frameon=False)
+            pl.xlabel('e')
+            # ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+        except Exception, errmsg:
+            logger.error('plot 334 died %s', errmsg)
+
+        try:
+            pl.subplot(3,3,5)
+            pl.hist(res_sim['snr'],bins=np.linspace(0,100,200),color='r',histtype='step',normed=True,label='SIM')
+            if res_des!=None: pl.hist(res_des['snr'],bins=np.linspace(0,100,100),color='b',histtype='step',normed=True,label='DES')
+            pl.legend(mode='expand',fontsize=8,framealpha=0.0,frameon=False)
+            pl.xlabel('SNR')
+            # ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
+        except Exception, errmsg:
+            logger.error('plot 335 died %s', errmsg)
+
+        try:
+            pl.subplot(3,3,6)
+            pl.hist(res_sim['mean_rgpp_rp'],bins=np.linspace(1,3,200),color='r',histtype='step',normed=True,label='SIM')
+            if res_des!=None: pl.hist(res_des['mean_rgpp_rp'],bins=np.linspace(1,3),color='b',histtype='step',normed=True,label='DES')
+            pl.legend(mode='expand',fontsize=8,framealpha=0.0,frameon=False)
+            pl.xlabel('Rgp/Rp')
+            # ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+        except Exception, errmsg:
+            logger.error('plot 336 died, %s', errmsg)
+
+        try:
+            pl.subplot(3,3,7)
+            pl.hist(res_sim['radius'],bins=np.linspace(0,3,200),color='r',histtype='step',normed=True,label='SIM')
+            pl.hist(res_tru['sf_hlr'],bins=np.linspace(0,3,200),color='b',histtype='step',normed=True,label='TRU')
+            if res_des!=None: pl.hist(res_des['radius'],bins=np.linspace(0,3,200),color='b',histtype='step',normed=True,label='DES')
+            pl.legend(mode='expand',fontsize=8,framealpha=0.0,frameon=False)
+            pl.xlabel('radius')
+            # ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+        except Exception, errmsg:
+            logger.error('plot 337 died %s', errmsg)
+
+        try:
+            pl.subplot(3,3,8)
+            pl.hist(res_sim['ra_as'],1000,color='r',histtype='step',normed=True,label='SIM')
+            pl.hist(res_sim['dec_as'],1000,color='b',histtype='step',normed=True,label='SIM')
+            title = " x1 = % 2.4f +/- %2.4f" % ( np.mean(res_sim['ra_as']), np.std(res_sim['ra_as'],ddof=1)/np.sqrt(len(res_sim)) ) 
+            title += "\n x2 = % 2.4f +/- %2.4f" % ( np.mean(res_sim['dec_as']), np.std(res_sim['dec_as'],ddof=1)/np.sqrt(len(res_sim)) ) 
+            pl.title(title)
+            pl.xlabel('ra_as/dec_as')
+            # ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+        except Exception, errmsg:
+            logger.error('plot 338 died %s', errmsg)
+
+
+        try:
+            filename_fig = os.path.join(args.output_dir,'figs/bias.%s.png' % (filename_str))
+        except:
+            filename_fig = os.path.join('.','figs/bias.%s.png' % (filename_str))
+            
+        pl.savefig(filename_fig)
+        logger.info('saved %s',filename_fig)
+        pl.close()
 
     #TODO: make resampled error-bars
 
-    result_list = (mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,e1i_mean,e2i_mean,e1i_stdm,e2i_stdm,mms,std_mms,ccs,std_ccs,mm1s,std_mm1s,cc1s,std_cc1s,mm2s,std_mm2s,cc2s,std_cc2s)
+    result_list = (mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1_entire_sample,mean_e2_entire_sample,stdm_e1_entire_sample,stdm_e2_entire_sample,mms,std_mms,ccs,std_ccs,mm1s,std_mm1s,cc1s,std_cc1s,mm2s,std_mm2s,cc2s,std_cc2s)
     # result_str =  ['mm','std_mm','cc','std_cc','mm1','std_mm1','mm2','std_mm2','cc1','std_cc1','cc1','std_cc2','pmm','std_pmm','pcc','std_pcc','pmm1','std_pmm1','pmm2','std_pmm2','e1i_mean','e2i_mean','e1i_stdm','e2i_stdm','mms','std_mms','ccs','std_ccs','mm1s','std_mm1s','cc1s','std_cc1s','mm2s','std_mm2s','cc2s','std_cc2s']
     # result_dict = dict(zip(result_str,result_list))
     # return mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,e1i_mean,e2i_mean,e1i_stdm,e2i_stdm,mms,std_mms,ccs,std_ccs,
 
     return result_list
+
+
+
+
 
 def get_mc_vs_snr():
 
@@ -1736,20 +2053,17 @@ def save_selection():
     cols_tru=config['cols_tru']
     cols_des=config['cols_des']
 
-    if args.use_calibration:
-        logger.info('testing calibration columns')
-        cols_res += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
-        cols_des += ['nbc_m1', 'nbc_m2', 'nbc_c1', 'nbc_c2']
-    else:
-        logger.info('will measure bias, no calibration applied')
+    logger.info('testing calibration columns')
+    cols_res += ['nbc_m', 'nbc_alpha', 'nbc_c1', 'nbc_c2']
+    cols_des += ['nbc_m', 'nbc_alpha', 'nbc_c1', 'nbc_c2']
 
     logger.info('loading SIM results with following selection:')
-    logger.info(selection_string_model_sim)
-    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_model_sim,cols_res=cols_res,cols_tru=cols_tru,get_calibrated=args.use_calibration)
+    logger.info(selection_string_store_sim)
+    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_store_sim,cols_res=cols_res,cols_tru=cols_tru)
     logger.info('loading DES results with following selection:')
-    logger.info(selection_string_model_des)
+    logger.info(selection_string_store_des)
 
-    res_des = nbc_v7_select.get_selection_des(selection_string_model_des,cols=cols_des,n_files=args.n_des_files,get_calibrated=args.use_calibration)
+    res_des = nbc_v7_select.get_selection_des(selection_string_store_des,cols=cols_des,n_files=args.n_des_files)
 
     if 'bulge_flux' in res_sim.dtype.names: 
         bulge_fraction_sim = np.sum(res_sim['bulge_flux']!=0)/float(len(res_sim))
@@ -1758,8 +2072,9 @@ def save_selection():
         logger.info('bulge_fraction DES=%2.4f',bulge_fraction_des)
 
     tt.save(os.path.join(args.output_dir,'res_sim.fits'),res_sim,clobber=True)
-    tt.save(os.path.join(args.output_dir,'res_des.fits'),res_des,clobber=True)
     tt.save(os.path.join(args.output_dir,'res_tru.fits'),res_tru,clobber=True)
+    tt.save(os.path.join(args.output_dir,'res_des.fits'),res_des,clobber=True)
+    
 
 def get_gold_cut(res_des):
 
@@ -1974,39 +2289,42 @@ def get_selection_bias():
     res_tru = res_tru[select]
 
     # entire sample
-    # logger.info('calculating bias for the entire sample - using cuts from final selection')
-    # logger.info(selection_string_final_sim)
-    # logger.info(selection_string_final_des)
-    # cat_res = res_sim
-    # cat_tru = res_tru
-    # exec selection_string_final_sim
-    # select_sim = select.copy()
-    # cat_res = res_des
-    # exec selection_string_final_des
-    # select_des = select.copy()
-    # filename_str = 'all.%s' % args.method
-    # res_sim = res_sim[select_sim]
-    # res_tru = res_tru[select_sim]
-    # res_des = res_des[select_des]
+    logger.info('calculating bias for the entire sample - using cuts from model selection')
+    logger.info(selection_string_model_sim)
+    logger.info(selection_string_model_des)
+    cat_res = res_sim
+    cat_tru = res_tru
+    exec selection_string_model_sim
+    select_sim = select.copy()
+    cat_res = res_des
+    exec selection_string_model_des
+    select_des = select.copy()
+    filename_str = 'all.%s' % args.method
+    res_sim = res_sim[select_sim]
+    res_tru = res_tru[select_sim]
+    res_des = res_des[select_des]
 
-    res_sim = res_sim[::10]
-    res_tru = res_tru[::10]
-    res_sim['e1'] = res_tru['sheared_e1']
-    res_sim['e2'] = res_tru['sheared_e2']
-    res_sim['mean_psf_e1_sky'] = res_tru['psf_e1']
-    res_sim['mean_psf_e2_sky'] = res_tru['psf_e2']
+    # res_sim = res_sim[::10]
+    # res_tru = res_tru[::10]
+    # res_sim['e1'] = res_tru['sheared_e1']
+    # res_sim['e2'] = res_tru['sheared_e2']
+    # res_sim['mean_psf_e1_sky'] = res_tru['psf_e1']
+    # res_sim['mean_psf_e2_sky'] = res_tru['psf_e2']
 
-    snr_cuts = np.linspace(0,30,3)
-    rgp_cuts = np.linspace(0.,1.2,6)
-    hlr_cuts = np.linspace(0.1,1.1,3)
+    snr_cuts = np.linspace(10,30,6)
+    rgp_cuts = np.linspace(1.15,1.3,6)
+    hlr_cuts = np.linspace(0.1,1.1,2)
 
     list_snr_mms = []
     list_rgp_mms = []
     list_hlr_mms = []
 
+    default_min_rgpprp = 1.15
+    default_min_snr = 1.15
+
     for i1,v1 in enumerate(snr_cuts):
 
-            select = (res_sim['round_snr']>v1) 
+            select = (res_sim['snr']>v1) & (res_sim['mean_rgpp_rp']>default_min_rgpprp) 
             res_sim_final = res_sim[select]
             res_tru_final = res_tru[select]
             
@@ -2018,11 +2336,11 @@ def get_selection_bias():
 
     for i1,v1 in enumerate(rgp_cuts):
 
-            select = (res_sim['radius']>v1) 
+            select = (res_sim['mean_rgpp_rp']>v1) & (res_sim['mean_rgpp_rp']>default_min_snr) 
             res_sim_final = res_sim[select]
             res_tru_final = res_tru[select]
 
-            filename_str = 'selection_bias.radius>%2.2f' % v1
+            filename_str = 'selection_bias.mean_rgpp_rp>%2.2f' % v1
             mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2,mms,std_mms,ccs,std_ccs,mm1s,std_mm1s,cc1s,std_cc1s,mm2s,std_mm2s,cc2s,std_cc2s=get_mc(res_sim_final,res_tru_final,res_des,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str,correct_selection_bias=False)
 
             list_rgp_mms.append([v1,mms,std_mms,mm1s,std_mm1s,mm2s,std_mm2s])
@@ -2047,7 +2365,7 @@ def get_selection_bias():
     pickle_dict = {'mms_snr':snr_mms, 'mms_rgp':rgp_mms, 'mms_hlr':hlr_mms}
 
     import cPickle as pickle
-    filename_pickle = os.path.join(args.output_dir,'selection_bias_vs_cuts_table.cpickle')
+    filename_pickle = os.path.join(args.output_dir,'selection_bias_vs_cuts_table.nbc%d.weights%d.cpickle' % (args.use_calibration, args.use_weights))
     pickle.dump(pickle_dict,open(filename_pickle,'w'),protocol=2)
     logger.info('wrote %s' % (filename_pickle))
     
@@ -2056,7 +2374,7 @@ def get_selection_bias():
 
 def plot_selection_bias():
 
-    filename_pickle = os.path.join(args.output_dir,'selection_bias_vs_cuts_table.cpickle')
+    filename_pickle = os.path.join(args.output_dir,'selection_bias_vs_cuts_table.nbc%d.weights%d.cpickle' % (args.use_calibration, args.use_weights))
     import cPickle as pickle
     pickle_dict = pickle.load(open(filename_pickle))
     logger.info('loaded %s', filename_pickle)
@@ -2114,16 +2432,263 @@ def plot_selection_bias():
 
     pass
 
+def plot_mc_vs_true_params():
+
+       # pl.style.use('supermongo')
+
+    import fitsio
+    if args.use_calibration:
+        filename_table_bias = os.path.join(args.output_dir,'get_mc_vs_true_params.calibrated.fits')
+    else:
+        filename_table_bias = os.path.join(args.output_dir,'get_mc_vs_true_params.fits')
+
+
+    bias_table = tktools.load(filename_table_bias)
+
+    n_psf_bins = len(np.unique(bias_table['ipsf']))
+    colorscale=plotstools.get_colorscale(n_psf_bins,cmap_name='rainbow')
+
+    param_snr = 'cosmos_mag_auto'
+    param_size = 'sf_hlr'
+
+    n_upsample = 200
+
+    for ipsf in np.unique(bias_table['ipsf']):
+
+        select = bias_table['ipsf'] == ipsf
+        bt1=bias_table[select]
+        label = '%s=%2.2f-%2.2f'%(param_size,bt1['vpsf_min'][0],bt1['vpsf_max'][0])
+        snr_mid = bt1['vsnr_mid']
+        rgp_mid = bt1['vpsf_mid']
+        logger.debug('rgp_mid = %2.4f' % rgp_mid[0])
+
+        pl.figure(1)
+        pl.xlabel(param_snr)
+        pl.ylabel('m')
+        pl.errorbar(snr_mid,bt1['m']-1,yerr=bt1['std_m'],label=label,fmt='o',c=colorscale[ipsf-1])
+        
+        # snr_pred =  np.linspace(bt1['vsnr_min'].min(),bt1['vsnr_max'].max(),n_upsample)
+        # fitdata =fitting.fit2(snr_mid, bt1['m']-1, s=bt1['std_m'],expand=polynomial_basis)       
+        # p, s = fitting.predict2(snr_pred,fitdata)
+        # # pl.plot(snr_pred,p,c=colorscale[ipsf-1],lw=np.sum(bt1['n_gals'])/1e6)
+        # pl.plot(snr_pred,p,c=colorscale[ipsf-1])
+
+    pl.figure(1)
+    pl.axhline(0,c='k')
+    pl.grid()
+    pl.legend(framealpha=0.0,frameon=False,loc='lower right',fontsize=14)
+    pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
+    plot_add_requirements(level=0.03,target=0)
+    plot_add_requirements(level=0.01,target=0)
+
+    pl.show()
+
+    import pdb; pdb.set_trace()
+    
+
+def get_mc_vs_psf_size():
+
+    res_sim, res_tru, res_des = load_selection()
+
+    list_psf_edges = [ 2.,  3.245,  3.605,  3.965,  4.335,  4.695,  6]
+
+    param1 = 'snr'
+    param2 = 'mean_psf_fwhm'
+
+    # model
+    logger.info('calculating bias for the model - using cuts from model selection')
+    logger.info(selection_string_final_sim)
+    cat_res = res_sim; cat_tru = res_tru
+    exec selection_string_final_sim
+    select_final_sim = select.copy()
+
+    filename_str = 'all.%s' % args.method
+    logger.info('final selection SIM %d/%d %f',len(res_sim[select_final_sim]),len(res_sim), len(res_sim[select_final_sim])/float(len(res_sim)))
+    res_sim_model = res_sim[select_final_sim]
+    res_tru_model = res_tru[select_final_sim]
+
+    list_bias = []
+
+    correct_selection_bias = False
+     
+    warnings.warn('using %s and %s' % (param1,param2) )
+
+    isnr=0
+    for ipsf in range(1,len(list_psf_edges)):
+
+            select = ( res_tru_model['psf_fwhm'] < list_psf_edges[ipsf] ) & ( res_tru_model['psf_fwhm'] > list_psf_edges[ipsf-1] )
+            n_gals_sim = len(np.nonzero(select)[0])
+            if n_gals_sim < 100:
+                import pdb; pdb.set_trace()
+            res_sim_select = res_sim_model[select]
+
+            vpsf_mid = np.median(res_sim_select[param2])
+            vsnr_mid = np.median(res_sim_select[param1])
+            vpsf_min = list_psf_edges[ipsf-1]
+            vsnr_min = 0
+            vpsf_max = list_psf_edges[ipsf]
+            vsnr_max = 10000
+
+            n_unique = len(np.unique(res_sim_select['id_cosmos'].astype(np.float)))
+            if 'disc_flux' in res_sim_select.dtype.names: 
+                bulge_fraction = np.sum(res_sim_select['disc_flux']==0)/float(len(res_sim_select))
+            else:
+                bulge_fraction = 0
+
+
+            if ('ra_as'  in res_sim_select) & ('dec_as' in res_sim_select): 
+                x1 = np.mean(res_sim_select['ra_as']);
+                x2 = np.mean(res_sim_select['dec_as']);
+                std_x1 = np.std(res_sim_select['ra_as'],ddof=1)/np.sqrt(len(res_sim_select));
+                std_x2 = np.std(res_sim_select['dec_as'],ddof=1)/np.sqrt(len(res_sim_select));
+                desx1 = np.mean(res_des_select['ra_as']);
+                desx2 = np.mean(res_des_select['dec_as']);
+                std_desx1 = np.std(res_des_select['ra_as'],ddof=1)/np.sqrt(len(res_des_select));
+                std_desx2 = np.std(res_des_select['dec_as'],ddof=1)/np.sqrt(len(res_des_select));
+            else:
+                x1 = np.random.randn()
+                x2 = np.random.randn()
+                std_x1 = np.random.randn()
+                std_x2 = np.random.randn()
+                desx1 = np.random.randn()
+                desx2 = np.random.randn()
+                std_desx1 = np.random.randn()
+                std_desx2 = np.random.randn()
+
+            logger.info('ipsf=%2d isnr=%2d snr_mid=%2.2f size_mid=%2.2f mag=[%2.2f %2.2f] hlr=[%2.2f %2.2f] n_gals_sim=%d n_unique=%d bulge_fraction=%2.2f' % (ipsf,isnr,vsnr_mid,vpsf_mid,vsnr_min,vsnr_max,vpsf_min,vpsf_max,n_gals_sim,n_unique,bulge_fraction))
+
+            logger.info(selection_string_final_sim)
+            filename_str = 'snr=[%2.2f,%2.2f].psf=[%2.2f,%2.2f]' % (vsnr_min,vsnr_max,vpsf_min,vpsf_max)
+            mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2,mms,std_mms,ccs,std_ccs,mm1s,std_mm1s,cc1s,std_cc1s,mm2s,std_mm2s,cc2s,std_cc2s=get_mc(res_sim_select,res_sim_select,None,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str,correct_selection_bias=correct_selection_bias)
+
+            std_e = np.std(res_sim_select['e1'],ddof=1)
+            list_bias.append( [ipsf,isnr,n_gals_sim,n_unique,vpsf_mid,vsnr_mid,vpsf_min,vpsf_max,vsnr_min,vsnr_max,std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,bulge_fraction,x1,std_x1,x2,std_x2,desx1,std_desx1,desx2,std_desx2,mms,std_mms,ccs,std_ccs,mm1s,std_mm1s,cc1s,std_cc1s,mm2s,std_mm2s,cc2s,std_cc2s] )
+
+
+    arr_bias = tktools.arr2rec(np.array(list_bias),dtype={'names': ["ipsf","isnr","n_gals",'n_unique',"vpsf_mid","vsnr_mid","vpsf_min","vpsf_max","vsnr_min","vsnr_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","bulge_fraction","x1","std_x1","x2","std_x2","desx1","std_desx1","desx2","std_desx2",'mms','std_mms','ccs','std_ccs','mm1s','std_mm1s','cc1s','std_cc1s','mm2s','std_mm2s','cc2s','std_cc2s'], 'formats': ['i4']*4 + ['f8']*44 })
+
+    filename_table_bias = os.path.join(args.output_dir,'get_mc_vs_psf_size.nbc%d.weights%d.fits' % (args.use_calibration,args.use_weights))
+    import pyfits
+    pyfits.writeto(filename_table_bias,arr_bias,clobber=True)
+    logger.info('saved %s',filename_table_bias)
+
+    import pdb; pdb.set_trace()
+
+
+
+def get_mc_vs_true_params():
+
+    res_sim, res_tru, res_des = load_selection()  
+    
+    list_hlr_edges = [0,3]
+    list_mag_edges = [17,19,21,21.5,21.75,22,22.1,22.2,22.3,22.4,22.5,22.6,22.7,22.8,22.9,23,24]
+
+    param_snr = 'cosmos_mag_auto'
+    param_size = 'sf_hlr'
+
+    # model
+    logger.info('calculating bias for the model - using cuts from model selection')
+    logger.info(selection_string_final_sim)
+    cat_res = res_sim
+    cat_tru = res_tru
+    exec selection_string_final_sim
+    select_final_sim = select.copy()
+
+    filename_str = 'all.%s' % args.method
+    logger.info('final selection SIM %d/%d %f',len(res_sim[select_final_sim]),len(res_sim), len(res_sim[select_final_sim])/float(len(res_sim)))
+    # res_sim_model = res_sim[select_final_sim]
+    # res_tru_model = res_tru[select_final_sim]
+    res_sim_model = res_sim
+    res_tru_model = res_tru
+
+    list_bias = []
+
+    correct_selection_bias = False
+     
+    warnings.warn('using %s and %s' % (param_snr,param_size) )
+
+    for ipsf in range(1,len(list_hlr_edges)):
+        for isnr in range(1,len(list_mag_edges)):
+
+            select = (res_tru_model[param_snr] > list_mag_edges[isnr-1]) & (res_tru_model[param_snr] < list_mag_edges[isnr]) & (res_tru_model[param_size] > list_hlr_edges[ipsf-1]) & (res_tru_model[param_size] < list_hlr_edges[ipsf])
+            n_gals_sim = len(np.nonzero(select)[0])
+            if n_gals_sim < 100:
+                import pdb; pdb.set_trace()
+            res_sim_select = res_sim_model[select]
+            res_tru_select = res_tru_model[select]
+
+            vpsf_mid = np.median(res_tru_select[param_size])
+            vsnr_mid = np.median(res_tru_select[param_snr])
+            vpsf_min = list_hlr_edges[ipsf-1]
+            vsnr_min = list_mag_edges[isnr-1]
+            vpsf_max = list_hlr_edges[ipsf]
+            vsnr_max = list_mag_edges[isnr]
+
+            n_unique = len(np.unique(res_tru_select['id_cosmos'].astype(np.float)))
+            if 'disc_flux' in res_sim_select.dtype.names: 
+                bulge_fraction = np.sum(res_sim_select['disc_flux']==0)/float(len(res_sim_select))
+            else:
+                bulge_fraction = 0
+
+
+            if ('ra_as'  in res_sim_select) & ('dec_as' in res_sim_select): 
+                x1 = np.mean(res_sim_select['ra_as']);
+                x2 = np.mean(res_sim_select['dec_as']);
+                std_x1 = np.std(res_sim_select['ra_as'],ddof=1)/np.sqrt(len(res_sim_select));
+                std_x2 = np.std(res_sim_select['dec_as'],ddof=1)/np.sqrt(len(res_sim_select));
+                desx1 = np.mean(res_des_select['ra_as']);
+                desx2 = np.mean(res_des_select['dec_as']);
+                std_desx1 = np.std(res_des_select['ra_as'],ddof=1)/np.sqrt(len(res_des_select));
+                std_desx2 = np.std(res_des_select['dec_as'],ddof=1)/np.sqrt(len(res_des_select));
+            else:
+                x1 = np.random.randn()
+                x2 = np.random.randn()
+                std_x1 = np.random.randn()
+                std_x2 = np.random.randn()
+                desx1 = np.random.randn()
+                desx2 = np.random.randn()
+                std_desx1 = np.random.randn()
+                std_desx2 = np.random.randn()
+
+            logger.info('ipsf=%2d isnr=%2d snr_mid=%2.2f size_mid=%2.2f mag=[%2.2f %2.2f] hlr=[%2.2f %2.2f] n_gals_sim=%d n_unique=%d bulge_fraction=%2.2f' % (ipsf,isnr,vsnr_mid,vpsf_mid,vsnr_min,vsnr_max,vpsf_min,vpsf_max,n_gals_sim,n_unique,bulge_fraction))
+
+            logger.info(selection_string_final_sim)
+            filename_str = 'mag=[%2.2f,%2.2f].hlr=[%2.2f,%2.2f]' % (vsnr_min,vsnr_max,vpsf_min,vpsf_max)
+            mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2,mms,std_mms,ccs,std_ccs,mm1s,std_mm1s,cc1s,std_cc1s,mm2s,std_mm2s,cc2s,std_cc2s=get_mc(res_sim_select,res_tru_select,None,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str,correct_selection_bias=correct_selection_bias)
+
+            std_e = np.std(res_sim_select['e1'],ddof=1)
+            list_bias.append( [ipsf,isnr,n_gals_sim,n_unique,vpsf_mid,vsnr_mid,vpsf_min,vpsf_max,vsnr_min,vsnr_max,std_e,mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,bulge_fraction,x1,std_x1,x2,std_x2,desx1,std_desx1,desx2,std_desx2,mms,std_mms,ccs,std_ccs,mm1s,std_mm1s,cc1s,std_cc1s,mm2s,std_mm2s,cc2s,std_cc2s] )
+
+
+    arr_bias = tktools.arr2rec(np.array(list_bias),dtype={'names': ["ipsf","isnr","n_gals",'n_unique',"vpsf_mid","vsnr_mid","vpsf_min","vpsf_max","vsnr_min","vsnr_max","std_e","m","std_m","c","std_c","m1","std_m1","m2","std_m2","c1","std_c1","c2","std_c2","pmm","std_pmm","pcc","std_pcc","bulge_fraction","x1","std_x1","x2","std_x2","desx1","std_desx1","desx2","std_desx2",'mms','std_mms','ccs','std_ccs','mm1s','std_mm1s','cc1s','std_cc1s','mm2s','std_mm2s','cc2s','std_cc2s'], 'formats': ['i4']*4 + ['f8']*44 })
+
+    if args.use_calibration:
+        filename_table_bias = os.path.join(args.output_dir,'get_mc_vs_true_params.calibrated.fits')
+    else:
+        filename_table_bias = os.path.join(args.output_dir,'get_mc_vs_true_params.fits')
+    import pyfits
+    pyfits.writeto(filename_table_bias,arr_bias,clobber=True)
+    logger.info('saved %s',filename_table_bias)
+
+    import pdb; pdb.set_trace()
+
 
 def get_calibration():
 
 
     res_sim, res_tru, res_des = load_selection()
 
+
     if 'param_split1' in config:
-        param_snr  = config['param_split1'] ; 
+        param_snr  = config['param_split1'] 
         param_size = config['param_split2']
+
+        if (param_snr not in res_sim.dtype.names) and (param_snr in res_tru.dtype.names):
+            logger.info('found %s in truth catalog, adding to results catalog' % param_snr)
+            res_sim = add_col(res_sim,param_size,res_tru[param_size])
+
         if (param_size not in res_sim.dtype.names) and (param_size in res_tru.dtype.names):
+            logger.info('found %s in truth catalog, adding to results catalog' % param_size)
             res_sim = res_sim[config['cols_res']]
             res_des = res_des[config['cols_des']]
             res_tru = res_tru[config['cols_tru']]
@@ -2133,7 +2698,6 @@ def get_calibration():
             res_des = add_col(res_des,param_size,np.random.uniform(low=list_psf_edges[0],high=list_psf_edges[-1],size=len(res_des)))
             res_des['e1'] = np.random.uniform(low=-1,high=1,size=len(res_des))
             res_des['e2'] = np.random.uniform(low=-1,high=1,size=len(res_des))
-
 
         if (param_snr not in res_des.dtype.names):
             res_des = add_col(res_des,param_snr,np.random.uniform(low=list_snr_edges[0],high=list_snr_edges[-1],size=len(res_des)))
@@ -2183,25 +2747,7 @@ def get_calibration():
 
     logger.info('final selection SIM %d/%d %f',len(res_sim[select_sim]),len(res_sim), len(res_sim[select_sim])/float(len(res_sim)))
     logger.info('final selection DES %d/%d %f',len(res_des[select_des]),len(res_des), len(res_des[select_des])/float(len(res_des)))
-
-    # model
-    # logger.info('calculating bias for the model - using cuts from model selection')
-    # logger.info(selection_string_model_sim)
-    # logger.info(selection_string_model_des)
-    # cat_res = res_sim
-    # cat_tru = res_tru
-    # exec selection_string_model_sim
-    # select_sim = select.copy()
-    # cat_res = res_des
-    # exec selection_string_model_des
-    # select_des = select.copy()
-    # filename_str = 'all.%s' % args.method
-    # logger.info('model selection SIM %d/%d %f',len(res_sim[select_sim]),len(res_sim), len(res_sim[select_sim])/float(len(res_sim)))
-    # logger.info('model selection DES %d/%d %f',len(res_des[select_des]),len(res_des), len(res_des[select_des])/float(len(res_des)))
-    res_sim_model = res_sim
-    res_tru_model = res_tru
-    res_des_model = res_des
-   
+  
     # select_sim = get_subselection(res_sim_final,res_tru_final,res_des)
     # res_sim_final = res_sim_final[select_sim]
     # res_tru_final = res_tru_final[select_sim]
@@ -2209,7 +2755,27 @@ def get_calibration():
     mm,std_mm,cc,std_cc,mm1,std_mm1,mm2,std_mm2,cc1,std_cc1,cc1,std_cc2,pmm,std_pmm,pcc,std_pcc,pmm1,std_pmm1,pmm2,std_pmm2,mean_e1,mean_e2,stdm_e1,stdm_e2,mms,std_mms,ccs,std_ccs,mm1s,std_mm1s,cc1s,std_cc1s,mm2s,std_mm2s,cc2s,std_cc2s=get_mc(res_sim_final,res_tru_final,res_des_final,use_calibration=args.use_calibration,use_weights=args.use_weights,filename_str=filename_str,correct_selection_bias=config['correct_selection_bias'])
     final_mm = mms
 
+    del(res_sim_final)
+    del(res_tru_final)
+    del(res_des_final)
 
+    # model
+    logger.info('calculating bias for the model - using cuts from model selection')
+    logger.info(selection_string_model_sim)
+    logger.info(selection_string_model_des)
+    cat_res = res_sim
+    cat_tru = res_tru
+    exec selection_string_model_sim
+    select_model_sim = select.copy()
+    cat_res = res_des
+    exec selection_string_model_des
+    select_model_des = select.copy()
+    filename_str = 'all.%s' % args.method
+    logger.info('model selection SIM %d/%d %f',len(res_sim[select_model_sim]),len(res_sim), len(res_sim[select_model_sim])/float(len(res_sim)))
+    logger.info('model selection DES %d/%d %f',len(res_des[select_model_des]),len(res_des), len(res_des[select_model_des])/float(len(res_des)))
+    res_sim_model = res_sim[select_model_sim]
+    res_tru_model = res_tru[select_model_sim]
+    res_des_model = res_des[select_model_des]
 
 
     warnings.warn('using %s and %s' % (param_snr,param_size) )
@@ -2269,8 +2835,8 @@ def get_calibration():
                 std_desx2 = np.random.randn()
 
             # print res_tru_select['psf_e1'].max(),res_tru_select['psf_e2'].max(),res_tru_select['psf_e1'].min(),res_tru_select['psf_e2'].min()
-
-            logger.info('ipsf=%2d isnr=%2d snr_mid=%2.2f size_mid=%2.2f snr=[%2.2f %2.2f] rgprp=[%2.2f %2.2f] n_gals_sim=%d n_gals_des=%d n_unique=%d bulge_fraction=%2.2f' % (ipsf,isnr,vsnr_mid,vpsf_mid,vsnr_min,vsnr_max,vpsf_min,vpsf_max,n_gals_sim,n_gals_des,n_unique,bulge_fraction))
+            logger.info('-------------------------------------')
+            logger.info('ipsf=%2d isnr=%2d %s=%2.2f %s=%2.2f snr=[%2.2f %2.2f] rgprp=[%2.2f %2.2f] n_gals_sim=%d n_gals_des=%d n_unique=%d bulge_fraction=%2.2f' % (ipsf,isnr,param_snr,vsnr_mid,param_size,vpsf_mid,vsnr_min,vsnr_max,vpsf_min,vpsf_max,n_gals_sim,n_gals_des,n_unique,bulge_fraction))
 
             logger.info(selection_string_model_sim)
             filename_str = 'snr=[%2.2f,%2.2f].psf=[%2.2f,%2.2f]' % (vsnr_min,vsnr_max,vpsf_min,vpsf_max)
@@ -2448,15 +3014,28 @@ def get_subselection(res_sim,res_tru,res_des,param='snr',param_min=0,param_max=3
 
 def plot_distributions():
 
+    if args.method=='im3shape':
+
+        col_snr = 'snr'
+        col_size = 'mean_rgpp_rp'
+
+    elif args.method=='ngmix':
+        col_snr = 's2n_r'
+        col_size = 'T_r'
+
+    else:
+        raise Exception('unknown method %s',args.method)
+
+
+    # pl.style.use('supermongo')
+
+    lagel_great_des = 'GREAT-DES'
+
     res_sim, res_tru, res_des = load_selection()
 
-    bulge_fraction_des = np.sum(res_des['bulge_flux']!=0)/float(len(res_des))
-    bulge_fraction_sim = np.sum(res_sim['bulge_flux']!=0)/float(len(res_sim))
-    logger.info('bulge_fraction SIM=%2.4f',bulge_fraction_sim)
-    logger.info('bulge_fraction DES=%2.4f',bulge_fraction_des)
 
-    great_des_e1 = res_sim['e1'] #- cat_tru['g1_true']
-    great_des_e2 = res_sim['e2'] #- cat_tru['g2_true']
+    great_des_e1 = res_sim['e1'] - res_tru['g1_true']
+    great_des_e2 = res_sim['e2'] - res_tru['g2_true']
 
     fig_format = args.fig_format
 
@@ -2474,6 +3053,15 @@ def plot_distributions():
     select_des = select.copy()
     filename_str = 'all.%s' % args.method
 
+    try:
+        bulge_fraction_des = np.sum(res_des['bulge_flux']!=0)/float(len(res_des))
+        bulge_fraction_sim = np.sum(res_sim['bulge_flux']!=0)/float(len(res_sim))
+        logger.info('bulge_fraction SIM=%2.4f',bulge_fraction_sim)
+        logger.info('bulge_fraction DES=%2.4f',bulge_fraction_des)
+    except Exception,errmsg:
+        logger.error(errmsg)
+
+
     # select_gold = get_gold_cut(res_des)
     # select_des = select_gold & select_des
 
@@ -2483,20 +3071,23 @@ def plot_distributions():
     logger.info('final selection SIM %d/%d %f',len(res_sim),len(select_sim), len(res_sim)/float(len(select_sim)))
     logger.info('final selection DES %d/%d %f',len(res_des),len(select_des), len(res_des)/float(len(select_des)))
 
-    bulge_fraction_sim = np.sum(res_sim['bulge_flux']!=0)/float(len(res_sim))
-    bulge_fraction_des = np.sum(res_des['bulge_flux']!=0)/float(len(res_des))
-    logger.info('bulge_fraction SIM=%2.4f',bulge_fraction_sim)
-    logger.info('bulge_fraction DES=%2.4f',bulge_fraction_des)
+    try:
+        bulge_fraction_sim = np.sum(res_sim['bulge_flux']!=0)/float(len(res_sim))
+        bulge_fraction_des = np.sum(res_des['bulge_flux']!=0)/float(len(res_des))
+        logger.info('bulge_fraction SIM=%2.4f',bulge_fraction_sim)
+        logger.info('bulge_fraction DES=%2.4f',bulge_fraction_des)
+    except Exception,errmsg:
+        logger.error(errmsg)
 
 
     # res_sim,res_tru,res_des = get_subselection(res_sim,res_tru,res_des,param='radius',param_min=0,param_max=1)
     pl.figure()
-    pl.hist(great_des_e1, bins=np.linspace(-1,1,100), histtype='step',normed=True , label=r'SIM $e_1$'      , color='r')
-    pl.hist(great_des_e2, bins=np.linspace(-1,1,100), histtype='step',normed=True , label=r'SIM $e_2$'      , color='m')
+    pl.hist(great_des_e1, bins=np.linspace(-1,1,100), histtype='step',normed=True , label=r'%s $e_1$' % lagel_great_des, color='r')
+    pl.hist(great_des_e2, bins=np.linspace(-1,1,100), histtype='step',normed=True , label=r'%s $e_2$' % lagel_great_des, color='m')
     pl.hist(res_des['e1'], bins=np.linspace(-1,1,100),histtype='step',normed=True , label=r'%s $e_1$' % config['methods'][args.method]['label'] , color='b')
     pl.hist(res_des['e2'], bins=np.linspace(-1,1,100),histtype='step',normed=True , label=r'%s $e_2$' % config['methods'][args.method]['label'] , color='c')
     pl.legend(framealpha=0.0,frameon=False, mode='expand',ncol=2)
-    ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
+    # ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
     pl.xlabel(r'$e_i$')
     filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.ell%s'%fig_format)
     pl.savefig(filename_fig)
@@ -2514,9 +3105,9 @@ def plot_distributions():
     pl.figure()
     # hsnr_res, _ , _= pl.hist(res_sim['snr'] ,bins=np.linspace(5,300,300),histtype='step',label='SIM snr'      , normed=True, color='r') 
     # hsnr_des, _ , _= pl.hist(res_des['snr'] ,bins=np.linspace(5,300,300),histtype='step',label='%s snr' % config['methods'][args.method]['label'] , normed=True, color='b') 
-    hsnr_des, _ , _= pl.hist(res_des['snr'] ,bins=np.logspace(0,3,300),histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
-    hsnr_res, _ , _= pl.hist(res_sim['snr'] ,bins=np.logspace(0,3,300),histtype='step',label='SIM' , normed=True, color='r') 
-    ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
+    hsnr_des, _ , _= pl.hist(res_des[col_snr] ,bins=np.logspace(0,3,100),histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
+    hsnr_res, _ , _= pl.hist(res_sim[col_snr] ,bins=np.logspace(0,3,100),histtype='step',label='%s' % lagel_great_des , normed=True, color='r') 
+    # ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
     pl.xlim([5,1200])
     pl.xscale('log')
     pl.legend(framealpha=0.0,frameon=False)
@@ -2526,10 +3117,10 @@ def plot_distributions():
     logger.info('wrote %s' % (filename_fig))
     
     pl.figure()
-    hsnr_des, _ , _= pl.hist(res_des['snr'] ,bins=np.linspace(0,200,300),histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
-    hsnr_res, _ , _= pl.hist(res_sim['snr'] ,bins=np.linspace(0,200,300),histtype='step',label='SIM' , normed=True, color='r') 
-    ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
-    pl.xlim([5,200])
+    hsnr_des, _ , _= pl.hist(res_des[col_snr] ,bins=np.linspace(0,100,300),histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
+    hsnr_res, _ , _= pl.hist(res_sim[col_snr] ,bins=np.linspace(0,100,300),histtype='step',label='%s' % lagel_great_des , normed=True, color='r') 
+    # ylim=list(pl.ylim()); ylim[1]*=2; pl.ylim(ylim)
+    pl.xlim([5,100])
     pl.legend(framealpha=0.0,frameon=False)
     pl.xlabel('SNR')
     filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.snr%s'%fig_format)
@@ -2537,120 +3128,162 @@ def plot_distributions():
     logger.info('wrote %s' % (filename_fig))
 
     pl.figure()
-    pl.hist( ( res_sim['mean_rgpp_rp']) ,bins=np.linspace(1,3,200),histtype='step',label='SIM'      , normed=True, color='r') 
-    pl.hist( ( res_des['mean_rgpp_rp']) ,bins=np.linspace(1,3,200),histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
+    # pl.hist( ( res_sim[col_size]) ,bins=np.linspace(1,2.5,200),histtype='step',label='%s' % lagel_great_des      , normed=True, color='r') 
+    # pl.hist( ( res_des[col_size]) ,bins=np.linspace(1,2.5,200),histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
+    pl.hist( ( res_sim[col_size]) ,bins=200,histtype='step',label='%s' % lagel_great_des      , normed=True, color='r') 
+    pl.hist( ( res_des[col_size]) ,bins=200,histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
     pl.legend(framealpha=0.0,frameon=False)
-    ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
+    # ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
     pl.xlabel(r'$R_{gpp}/R_{p}$')
     filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.size%s'%fig_format)
     pl.savefig(filename_fig)
     logger.info('wrote %s' % (filename_fig))
 
     pl.figure()
-    pl.hist(res_sim['radius'] ,bins=np.linspace(0,6,200),histtype='step',label='SIM'     , normed=True, color='r') 
-    pl.hist(res_des['radius'] ,bins=np.linspace(0,6,200),histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
-    pl.hist(res_tru['sf_hlr']*0.7, bins=np.linspace(0,6,200),histtype='step',normed=True , label='TRU'      , color='c')
-    pl.legend(framealpha=0.0,frameon=False)
-    ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
-    pl.xlabel('radius [arcmin]')
-    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.radius%s'%fig_format)
-    pl.savefig(filename_fig)
-    logger.info('wrote %s' % (filename_fig))
+    pl.hist2d(res_sim['snr'],res_sim['nbc_alpha'],[np.linspace(0,100,100),np.linspace(-0.1,0.5,100)]);
+    pl.xlabel('snr')
+    pl.ylabel('nbc_alpha')
 
     pl.figure()
-    pl.hist(res_sim['bulge_flux'], bins=np.linspace(-10,20,200),histtype='step',normed=True , label='SIM'      , color='r')
-    pl.hist(res_des['bulge_flux'], bins=np.linspace(-10,20,200),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
-    pl.legend(framealpha=0.0,frameon=False)
-    ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
-    pl.xlabel('bulge flux')
-    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.bulgeflux%s'%fig_format)
-    pl.savefig(filename_fig)
-    logger.info('wrote %s' % (filename_fig))
+    pl.hist2d(res_sim['snr'],res_sim['nbc_m'],[np.linspace(0,100,100),np.linspace(-0.4,0.1,100)]);
+    pl.xlabel('snr')
+    pl.ylabel('nbc_m')
 
 
     pl.figure()
-    pl.hist(res_sim['disc_flux'], bins=np.linspace(-10,10,200),histtype='step',normed=True , label='SIM'      , color='r')
-    pl.hist(res_des['disc_flux'], bins=np.linspace(-10,10,200),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
-    pl.legend(framealpha=0.0,frameon=False)
-    ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
-    pl.xlabel('disc flux')
-    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.discflux%s'%fig_format)
-    pl.savefig(filename_fig)
-    logger.info('wrote %s' % (filename_fig))
-
-    pl.figure()
-    pl.hist(res_sim['dec_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='SIM'      , color='r')
-    pl.hist(res_des['dec_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
-    pl.legend()
-    ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
-    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.dec%s'%fig_format)
-    pl.savefig(filename_fig)
-    logger.info('wrote %s' % (filename_fig))
-
-    pl.figure()    
-    pl.hist(res_sim['ra_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='SIM'      , color='r')
-    pl.hist(res_des['ra_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
-    pl.legend()
-    ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
-    filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.ra%s'%fig_format)
-    pl.savefig(filename_fig)
-    logger.info('wrote %s' % (filename_fig))
-
-    pl.figure()    
-    pl.hist(res_tru['sf_hlr'], bins=np.linspace(0,5,100),histtype='step',normed=True , label='SIM'      , color='r')
-    pl.xlabel('sf_hlr')
-    pl.legend()
-    ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
-    filename_fig = os.path.join(args.output_dir,'figs/dist-SIM.sf_hlr%s'%fig_format)
-    pl.savefig(filename_fig)
-    logger.info('wrote %s' % (filename_fig))
-
-    pl.figure()    
-    pl.hist(res_tru['cosmos_mag_auto'], bins=np.linspace(15,25,100),histtype='step',normed=True , label='SIM'      , color='r')
-    pl.xlabel('mag_auto')
-    pl.legend()
-    ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
-    filename_fig = os.path.join(args.output_dir,'figs/dist-SIM.mag_auto%s'%fig_format)
-    pl.savefig(filename_fig)
-    logger.info('wrote %s' % (filename_fig))
-
-    pl.figure()    
-
-
-
-    pl.suptitle(selection_string_final_sim + '\n' + selection_string_final_des)
-
-    pl.show()
+    xs=np.concatenate([res_sim['snr'][:,None][:50000],res_sim['mean_rgpp_rp'][:,None][:50000]],axis=1)
+    logger.info('making kde %s',xs.shape[0])
+    points1 = np.logspace(1,2,100)
+    points2 = np.linspace(1.1,2,100)
+    P1,P2 = np.meshgrid(points1,points2)
+    points = np.concatenate([P1.flatten()[:,None],P2.flatten()[:,None]],axis=1)
+    P1,P2 = np.meshgrid(points1[1:],points2[1:])
+    points_centers = np.concatenate([P1.flatten()[:,None],P2.flatten()[:,None]],axis=1)
+    ha,_,_ = np.histogram2d(res_sim['snr'], res_sim['mean_rgpp_rp'], bins = [points1,points2])
+    import scipy.interpolate
     import pdb; pdb.set_trace()
+    z = scipy.interpolate.griddata(points_centers,ha.T.flatten(),xs,fill_value=0,method='linear')
+    pl.scatter(xs[:,0], xs[:,1], c=z, s=20, edgecolor='')
+    pl.xlim([15,100])
+    # pl.xscale('log')
+    pl.pcolormesh(points1[1:],points2[1:],ha)
+    pl.xticks([15,20,30,50,100])
+    pl.gca().xaxis.set_major_formatter(pl.matplotlib.ticker.ScalarFormatter())
+    pl.ylim([1.15,2])
+    pl.xlabel(r'SNR')
+    pl.ylabel(r'$R_{gpp}/R_{p}$')
+    pl.title('SNR - Rgpp/Rp distribution of galaxies in sim \n (color=galaxy number density)')
 
-    list_snr_centers = [10,20,25,30,40,50,60,70,80,90]
-    list_snr_edges = plotstools.get_bins_edges(list_snr_centers)
 
-    for ib in range(1,len(list_snr_edges)):
 
-        vb=list_snr_centers[ib-1]
-        
-        select1 = (list_snr_edges[ib-1] < res_sim['snr']) *  (res_sim['snr']< list_snr_edges[ib])
-        select2 = (list_snr_edges[ib-1] < res_des['snr']) *  (res_des['snr']< list_snr_edges[ib])
+    try:
+        pl.figure()
+        pl.hist(res_sim['radius'] ,bins=np.linspace(0,2,200),histtype='step',label='%s' % lagel_great_des     , normed=True, color='r') 
+        pl.hist(res_des['radius'] ,bins=np.linspace(0,2,200),histtype='step',label='%s' % config['methods'][args.method]['label'] , normed=True, color='b') 
+        # pl.hist(res_tru['sf_hlr']*0.7, bins=np.linspace(0,6,200),histtype='step',normed=True , label='TRU'      , color='c')
+        pl.legend(framealpha=0.0,frameon=False)
+        # ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
+        pl.xlabel('radius [arcmin]')
+        filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.radius%s'%fig_format)
+        pl.savefig(filename_fig)
+        logger.info('wrote %s' % (filename_fig))
 
         pl.figure()
-        pl.subplot(1,2,1)
-        pl.hist(res_sim['e1'][select1],bins=np.linspace(-1,1,100),histtype='step',normed=True , label='SIM' )
-        pl.hist(res_des['e1'][select2],bins=np.linspace(-1,1,100),histtype='step',normed=True , label=config['methods'][args.method]['label'] )
-        pl.xlabel('e1 SNR=%2.0f'%vb)   
-        ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
-        pl.legend()
-
-        pl.subplot(1,2,2)
-        pl.hist(res_sim['e2'][select1],bins=np.linspace(-1,1,100),histtype='step',normed=True , label='SIM' )
-        pl.hist(res_des['e2'][select2],bins=np.linspace(-1,1,100),histtype='step',normed=True , label=config['methods'][args.method]['label'] )
-        pl.xlabel('e2 SNR=%2.0f'%vb)   
-        ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
-        pl.legend()
-
-        filename_fig = os.path.join(args.output_dir,'figs/histograms.e_vs_snr.%02d%s'% (ib,fig_format))
+        pl.hist(res_sim['bulge_flux'], bins=np.linspace(-10,20,200),histtype='step',normed=True , label='%s' % lagel_great_des      , color='r')
+        pl.hist(res_des['bulge_flux'], bins=np.linspace(-10,20,200),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
+        pl.legend(framealpha=0.0,frameon=False)
+        # ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
+        pl.xlabel('bulge flux')
+        filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.bulgeflux%s'%fig_format)
         pl.savefig(filename_fig)
-        logger.info('saved %s', filename_fig)
+        logger.info('wrote %s' % (filename_fig))
+
+        pl.figure()
+        pl.hist(res_sim['disc_flux'], bins=np.linspace(-10,10,200),histtype='step',normed=True , label='%s' % lagel_great_des      , color='r')
+        pl.hist(res_des['disc_flux'], bins=np.linspace(-10,10,200),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
+        pl.legend(framealpha=0.0,frameon=False)
+        # ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
+        pl.xlabel('disc flux')
+        filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.discflux%s'%fig_format)
+        pl.savefig(filename_fig)
+        logger.info('wrote %s' % (filename_fig))
+
+        pl.figure()
+        pl.hist(res_sim['dec_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='%s' % lagel_great_des      , color='r')
+        pl.hist(res_des['dec_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
+        pl.legend()
+        # ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
+        filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.dec%s'%fig_format)
+        pl.savefig(filename_fig)
+        logger.info('wrote %s' % (filename_fig))
+
+        pl.figure()    
+        pl.hist(res_sim['ra_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='%s' % lagel_great_des     , color='r')
+        pl.hist(res_des['ra_as'], bins=np.linspace(-0.5,0.5,100),histtype='step',normed=True , label='%s' % config['methods'][args.method]['label']  , color='b')
+        pl.legend()
+        # ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
+        filename_fig = os.path.join(args.output_dir,'figs/dist-DES-SIM.ra%s'%fig_format)
+        pl.savefig(filename_fig)
+        logger.info('wrote %s' % (filename_fig))
+
+        pl.figure()    
+        pl.hist(res_tru['sf_hlr'], bins=np.linspace(0,5,100),histtype='step',normed=True , label='%s' % lagel_great_des      , color='r')
+        pl.xlabel(r'$sf_hlr$')
+        pl.legend()
+        # ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
+        filename_fig = os.path.join(args.output_dir,'figs/dist-SIM.sf_hlr%s'%fig_format)
+        pl.savefig(filename_fig)
+        logger.info('wrote %s' % (filename_fig))
+
+        pl.figure()    
+        pl.hist(res_tru['cosmos_mag_auto'], bins=np.linspace(15,25,100),histtype='step',normed=True , label='%s' % lagel_great_des      , color='r')
+        pl.xlabel(r'\verb|mag_auto|')
+        pl.legend()
+        # ylim=list(pl.ylim()); ylim[1]*=1.2; pl.ylim(ylim)
+        filename_fig = os.path.join(args.output_dir,'figs/dist-SIM.mag_auto%s'%fig_format)
+        pl.savefig(filename_fig)
+        logger.info('wrote %s' % (filename_fig))
+
+        pl.figure()    
+
+
+
+        pl.suptitle(selection_string_final_sim + '\n' + selection_string_final_des)
+
+        pl.show()
+        import pdb; pdb.set_trace()
+
+        list_snr_centers = [10,20,25,30,40,50,60,70,80,90]
+        list_snr_edges = plotstools.get_bins_edges(list_snr_centers)
+
+        for ib in range(1,len(list_snr_edges)):
+
+            vb=list_snr_centers[ib-1]
+            
+            select1 = (list_snr_edges[ib-1] < res_sim['snr']) *  (res_sim['snr']< list_snr_edges[ib])
+            select2 = (list_snr_edges[ib-1] < res_des['snr']) *  (res_des['snr']< list_snr_edges[ib])
+
+            pl.figure()
+            pl.subplot(1,2,1)
+            pl.hist(res_sim['e1'][select1],bins=np.linspace(-1,1,100),histtype='step',normed=True , label='SIM' )
+            pl.hist(res_des['e1'][select2],bins=np.linspace(-1,1,100),histtype='step',normed=True , label=config['methods'][args.method]['label'] )
+            pl.xlabel('e1 SNR=%2.0f'%vb)   
+            ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+            pl.legend()
+
+            pl.subplot(1,2,2)
+            pl.hist(res_sim['e2'][select1],bins=np.linspace(-1,1,100),histtype='step',normed=True , label='SIM' )
+            pl.hist(res_des['e2'][select2],bins=np.linspace(-1,1,100),histtype='step',normed=True , label=config['methods'][args.method]['label'] )
+            pl.xlabel('e2 SNR=%2.0f'%vb)   
+            ylim=list(pl.ylim()); ylim[1]*=1.5; pl.ylim(ylim)
+            pl.legend()
+
+            filename_fig = os.path.join(args.output_dir,'figs/histograms.e_vs_snr.%02d%s'% (ib,fig_format))
+            pl.savefig(filename_fig)
+            logger.info('saved %s', filename_fig)
+
+    except Exception,errmsg:
+        logger.error(errmsg)
 
 
     # pl.figure()
@@ -2725,8 +3358,9 @@ def get_histograms():
 
 
 def get_meane_vs_size():
+
+    res_sim, res_tru, res_des = load_selection()    
     
-    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_sim,cols_res=['e1','e2','snr','mean_rgpp_rp','nbc_m1','nbc_m2','nbc_c1','nbc_c2','w'],cols_tru=['snr','psf_e1','psf_e2','g1_true','g2_true','sf_hlr'])
 
     # bins_snr_edges = [0,5,10,15,20,30,40,60,100,1000]    
     bins_snr_edges = [10,1000,2000]    
@@ -2961,8 +3595,7 @@ def get_meane_vs_size():
 
 def get_meane_vs_snr():
 
-    res_sim,res_tru = nbc_v7_select.get_selection_sim(selection_string_final_sim,cols_res=['e1','e2','snr'],cols_tru=['snr','psf_e1','psf_e2'])
-    res_des = nbc_v7_select.get_selection_des(selection_string_final_des,cols=['e1','e2','snr','mean_psf_e1_sky','mean_psf_e2_sky'],n_files=100)
+    res_sim, res_tru, res_des = load_selection()
 
     import pdb; pdb.set_trace()
 
@@ -3112,6 +3745,7 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
         if res_tru!=None:
             warnings.warn('using 5 PSF bins')
             bins_psf_edges = np.linspace(-0.014,0.014,5)
+            # pl.hist(res['mean_psf_e1_sky'],np.linspace(-0.014,0.014,100)); pl.hist(res['mean_psf_e1_sky'],bins_psf_edges,histtype='step'); pl.show()
         else:
             bins_psf_edges = np.linspace(-0.01,0.01,50)
             warnings.warn('using more PSF bins')
@@ -3122,7 +3756,7 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
 
     # pl.hist(res['mean_psf_e1_sky'],1000); pl.plot(bins_psf_edges,np.zeros_like(bins_psf_edges),'rd'); pl.show()
 
-    logger.debug('bins_psf_edges: [ ' +  (' '.join(['% 5.2f']*len(bins_psf_edges)))%tuple(bins_psf_edges) + ' ]')
+    logger.debug('bins_psf_edges: [ ' +  (' '.join(['% 5.4f']*len(bins_psf_edges)))%tuple(bins_psf_edges) + ' ]')
 
 
     list_mean_e1 = []
@@ -3133,15 +3767,13 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
     list_stdm_e2 = []
     list_mean_g2 = []
 
+    list_psf_medians_e1 = []
+    list_psf_medians_e2 = []
     for ic in range(1,len(bins_psf_edges)):
 
         select = (res['mean_psf_e1_sky'] > (bins_psf_edges[ic-1])) & (res['mean_psf_e1_sky'] < (bins_psf_edges[ic]))
         res_select=res[select]
-
-        logger.debug('getting PSF leakage e1, bin %2d [% 5.2f % 5.2f], n_gals=%6d' % (ic, bins_psf_edges[ic-1], bins_psf_edges[ic], len(res_select)))
-
         pmean_e1, pstdv_e1, pstdm_e1, pmean_e2, pstdv_e2, pstdm_e2, pmean_m1, pmean_m2 = get_shear_estimator(res_select,use_calibration=use_calibration,use_weights=use_weights)
-
         if res_tru!=None:
             pmean_g1=np.mean(res_tru[select]['g1_true'])
         else:
@@ -3149,14 +3781,13 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
         list_mean_e1.append(pmean_e1)
         list_stdm_e1.append(pstdm_e1)
         list_mean_g1.append(pmean_g1)
+        median_psf_e1 = np.median(res_select['mean_psf_e1_sky'])
+        list_psf_medians_e1.append(median_psf_e1)
+        logger.debug('getting PSF leakage e1, bin %2d [% 5.4f % 5.4f], median=%2.4f, n_gals=%6d' % (ic, bins_psf_edges[ic-1], bins_psf_edges[ic], median_psf_e1, len(res_select)))
 
         select = (res['mean_psf_e2_sky'] > (bins_psf_edges[ic-1])) & (res['mean_psf_e2_sky'] < (bins_psf_edges[ic]))
         res_select=res[select]
-
-        logger.debug('getting PSF leakage e2, bin %2d [% 5.2f % 5.2f], n_gals=%6d' % (ic, bins_psf_edges[ic-1], bins_psf_edges[ic], len(res_select)))
-
         pmean_e1, pstdv_e1, pstdm_e1, pmean_e2, pstdv_e2, pstdm_e2, pmean_m1, pmean_m2 = get_shear_estimator(res_select,use_calibration=use_calibration,use_weights=use_weights)
-
         if res_tru!=None:
             pmean_g2=np.mean(res_tru[select]['g2_true'])
         else:
@@ -3164,6 +3795,9 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
         list_mean_e2.append(pmean_e2)
         list_stdm_e2.append(pstdm_e2)
         list_mean_g2.append(pmean_g2)     
+        median_psf_e2 = np.median(res_select['mean_psf_e2_sky'])
+        list_psf_medians_e2.append(median_psf_e2)
+        logger.debug('getting PSF leakage e2, bin %2d [% 5.4f % 5.4f], median=%2.4f, n_gals=%6d' % (ic, bins_psf_edges[ic-1], bins_psf_edges[ic], median_psf_e2, len(res_select)))
 
         if np.abs(pmean_e1)>10:
             warnings.warn('np.abs(pmean_e1)>10')
@@ -3175,19 +3809,23 @@ def get_PSF_leakage(res,res_tru=None,use_calibration=False,use_weights=False):
     pstdm_e2=np.array(list_stdm_e2)  
     pmean_g1=np.array(list_mean_g1)
     pmean_g2=np.array(list_mean_g2)
+    psf_medians_e1=np.array(list_psf_medians_e1)
+    psf_medians_e2=np.array(list_psf_medians_e2)
   
-    pcc1,pmm1,pCcm1=fitting.get_line_fit(bins_psf_centers,pmean_e1-pmean_g1,pstdm_e1)
-    pcc2,pmm2,pCcm2=fitting.get_line_fit(bins_psf_centers,pmean_e2-pmean_g2,pstdm_e2)
+    pcc1,pmm1,pCcm1=fitting.get_line_fit(psf_medians_e1,pmean_e1-pmean_g1,pstdm_e1)
+    pcc2,pmm2,pCcm2=fitting.get_line_fit(psf_medians_e2,pmean_e2-pmean_g2,pstdm_e2)
     std_pcc1 = np.sqrt(pCcm1[0,0])
     std_pmm1 = np.sqrt(pCcm1[1,1])
     std_pcc2 = np.sqrt(pCcm2[0,0])
     std_pmm2 = np.sqrt(pCcm2[1,1])
 
+    bins_psf_centers = list_psf_medians_e1
+
     return pcc1,pmm1,pcc2,pmm2,std_pcc1,std_pmm1,std_pcc2,std_pmm2,pmean_e1,pstdm_e1,pmean_e2,pstdm_e2,pmean_g1,pmean_g2,bins_psf_centers
 
 def main():
 
-    valid_actions = ['apply_calibration_to_file','get_params_covariance','get_selection_bias','plot_selection_bias','get_radec_split','apply_calibration_selection','save_selection','get_mc_vs_snr','plot_mc_vs_snr','plot_meane_vs_snr','get_meane_vs_snr','get_histograms','get_distributions','plot_distributions','get_PSF_leakage','get_calibration','get_bias_model','apply_calibration_sim','apply_calibration_des','plot_bias_vs_redshift','plot_face_fig','get_bias_vs_redshift','get_jacknife_regions','get_meane_vs_size','test_shape_noise']
+    valid_actions = ['get_mc_vs_psf_size','get_mc_vs_psf_size','plot_mc_vs_true_params','get_mc_vs_true_params','apply_calibration_to_file','get_params_covariance','get_selection_bias','plot_selection_bias','get_radec_split','apply_calibration_selection','save_selection','get_mc_vs_snr','plot_mc_vs_snr','plot_meane_vs_snr','get_meane_vs_snr','get_histograms','get_distributions','plot_distributions','get_PSF_leakage','get_calibration','get_bias_model','apply_calibration_sim','apply_calibration_des','plot_bias_vs_redshift','plot_face_fig','get_bias_vs_redshift','get_jacknife_regions','get_meane_vs_size','test_shape_noise']
 
     global logger , config , args
 
@@ -3229,10 +3867,14 @@ def main():
         shutil.copyfile(args.filename_config,filename_config_copy)
         logger.info('copied config to %s' % (filename_config_copy))
 
+    global selection_string_store_sim;
+    global selection_string_store_des;
     global selection_string_model_sim;
     global selection_string_model_des;
     global selection_string_final_sim;
     global selection_string_final_des;
+    selection_string_store_sim = config['selection_string_store_sim']
+    selection_string_store_des = config['selection_string_store_des']
     selection_string_model_sim = config['selection_string_model_sim']
     selection_string_model_des = config['selection_string_model_des']
     selection_string_final_sim = config['selection_string_final_sim']

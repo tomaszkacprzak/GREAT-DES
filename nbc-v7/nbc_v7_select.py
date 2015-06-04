@@ -22,7 +22,7 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
         cat_res = tabletools.appendColumn(cat_res,'e2', cat_res['g'][:,1])
         cat_res = tabletools.appendColumn(cat_res,'error_flag', cat_res['flags'])
         # cat_res = tabletools.appendColumn(cat_res,'info_flag', cat_res['arate'])
-        cat_res = tabletools.appendColumn(cat_res,'snr', cat_res['s2n_r'])
+        cat_res = tabletools.appendColumn(cat_res,'snr', cat_res['s2n_w'])
 
     if 'arate' in cat_res.dtype.names:
         cat_res = tabletools.appendColumn(cat_res,'info_flag', cat_res['arate'])
@@ -70,7 +70,7 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
     #         pass
 
 
-    if 'mean_psf_e1_sky'  not in cat_res.dtype.names:
+    if 'psf_g'  in cat_res.dtype.names:
         
         cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_res['psf_g'][:,0])
         cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_res['psf_g'][:,1])
@@ -119,11 +119,37 @@ def rename_ngmix_cols(cat_res,cat_tru=None):
             w = 1.0/(2*SN**2 + e_cov_1_1 + e_cov_2_2 + 2*e_cov_1_2)
             cat_res = tabletools.appendColumn(cat_res,'w', w)
 
-             
+    if 'exp_T_r' in cat_res.dtype.names:
+            cat_res = tabletools.appendColumn(cat_res,'T_r', cat_res['exp_T_r'])
 
-    cat_res = tabletools.appendColumn(cat_res,'coadd_objects_id', np.arange(len(cat_res)))
-    cat_res = tabletools.appendColumn(cat_res,'ra_as' , cat_res['pars'][:,0])
-    cat_res = tabletools.appendColumn(cat_res,'dec_as', cat_res['pars'][:,1])
+    if 'log_T_r' in cat_res.dtype.names:
+            cat_res = tabletools.appendColumn(cat_res,'T_r', np.exp(cat_res['log_T_r']))
+
+    if 'exp_s2n_r' in cat_res.dtype.names:
+            cat_res = tabletools.appendColumn(cat_res,'s2n_r', cat_res['exp_s2n_r'])
+
+    if 'psfrec_e_1' in cat_res.dtype.names:
+            cat_res = tabletools.appendColumn(cat_res,'mean_psf_e1_sky', cat_res['psfrec_e_1'])
+
+    if 'psfrec_e_2' in cat_res.dtype.names:
+            cat_res = tabletools.appendColumn(cat_res,'mean_psf_e2_sky', cat_res['psfrec_e_2'])
+
+            
+    if 'coadd_objects_id' not in cat_res.dtype.names:
+        cat_res = tabletools.appendColumn(cat_res,'coadd_objects_id', np.arange(len(cat_res)))
+
+    if 'pars' in cat_res.dtype.names:
+        cat_res = tabletools.appendColumn(cat_res,'ra_as' , cat_res['pars'][:,0])
+        cat_res = tabletools.appendColumn(cat_res,'dec_as', cat_res['pars'][:,1])
+
+    if 'exp_e_1' in cat_res.dtype.names:
+            cat_res = tabletools.appendColumn(cat_res,'e1', cat_res['exp_e_1'])
+            cat_res = tabletools.appendColumn(cat_res,'e2', cat_res['exp_e_2'])
+
+    if 'psfrec_T' in cat_res.dtype.names:
+            cat_res = tabletools.appendColumn(cat_res,'psf_T', cat_res['psfrec_T'])
+            
+
 
     return cat_res
 
@@ -319,29 +345,18 @@ def get_selection_des(selection_string,cols,n_files=30,get_calibrated=False):
 
     return results
 
-def get_selection_sim(selection_string, cols_res, cols_tru, get_calibrated=False, short=False):
+def get_selection_sim(selection_string, cols_res, cols_tru):
 
-    if short==False:
-        list_all_res, list_all_tru = get_selection_split(selection_string, cols_res, cols_tru, get_calibrated)
-        all_tru = np.concatenate(list_all_tru)
-        all_res = np.concatenate(list_all_res)
-    else:
-        if get_calibrated:
-            results_filename_fmt = config['methods'][args.method]['filename_calibrated']  
-        else:   
-            results_filename_fmt = config['methods'][args.method]['filename_results']  
-
-
+    list_all_res, list_all_tru = get_selection_split(selection_string, cols_res, cols_tru)
+    all_tru = np.concatenate(list_all_tru)
+    all_res = np.concatenate(list_all_res)
 
     return all_res, all_tru
 
 
-def get_selection_split(selection_string, cols_res, cols_tru,get_calibrated=False):
+def get_selection_split(selection_string, cols_res, cols_tru):
 
-    if get_calibrated:
-        results_filename_fmt = config['methods'][args.method]['filename_calibrated']  
-    else:   
-        results_filename_fmt = config['methods'][args.method]['filename_results']  
+    results_filename_fmt = config['methods'][args.method]['filename_results']  
 
     truth_filename_fmt = config['filename_truth']  
     list_shears = []
