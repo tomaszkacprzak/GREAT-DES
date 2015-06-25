@@ -9,7 +9,6 @@ def get_model_prediction(filename_table_bias,xp,yp,plots=False):
 
     w,w_cov = get_model(filename_table_bias,plots)
     xxp = np.concatenate([xp[:,None],yp[:,None]],axis=1)
-
     print 'getting prediction for %d data points' % xxp.shape[0]
     p,sigma = tktools.fitting.predict(xxp,w,w_cov,expand=basis)
 
@@ -18,7 +17,7 @@ def get_model_prediction(filename_table_bias,xp,yp,plots=False):
 def get_model(filename_table_bias,plots=False):
 
     bias_table = tktools.load(filename_table_bias)
-    print np.array_str(bias_table['m'][:5],precision=4)
+    print bias_table['m'][:3]
     xt=bias_table['vsnr_mid']
     yt=bias_table['vpsf_mid']
     zt=bias_table['m']-1
@@ -37,6 +36,7 @@ def get_optimal_w(snr_mid, m, s, expand_basis, n_gals=1):
         list_res_sig = []
         list_w = []
         list_w_cov = []
+        list_res_tot = []
         eps_grid=np.linspace(-15,15,1000)
         for eps in eps_grid:
             w, w_cov = tktools.fitting.fit(snr_mid, m, s,expand=expand_basis,eps=10**eps)
@@ -49,11 +49,13 @@ def get_optimal_w(snr_mid, m, s, expand_basis, n_gals=1):
             chi2 =  np.mean( (((m-p_mid)**2)/(s**2)) )  - np.sum( n_gals*(m-p_mid) )/ float(np.sum(n_gals))
             # chi2 =  np.mean( (((m-p_mid)**2)/(s**2)) ) 
             res_sig = np.sum( n_gals*(m-p_mid) )/ float(np.sum(n_gals))
+            res_tot = np.sum( n_gals*(p_mid) )/ float(np.sum(n_gals))
             # print 'optimal w: eps=%2.2e chi2=%2.2e mean_res/sig=%2.4e' % (10**(eps),chi2,res_sig)
             list_chi2.append(chi2)
             list_w.append(w)
             list_w_cov.append(w_cov)
             list_res_sig.append(res_sig)
+            list_res_tot.append(res_tot)
 
         arr_chi2 = np.array(list_chi2)
 
@@ -64,28 +66,28 @@ def get_optimal_w(snr_mid, m, s, expand_basis, n_gals=1):
         eps = eps_grid[select]
         chi2 = list_chi2[select]
         res_sig = list_res_sig[select]
+        res_tot = list_res_tot[select]
 
-        print 'final optimal w: eps=%2.2e chi2=%2.2f res_sig=%2.5f' % (10**(eps),chi2,res_sig)
-        # print 'final optimal w: eps=%2.2e chi2=%2.2e res_sig=%2.5f w=%s' % (10**(eps),chi2,res_sig,np.array_str(w,precision=2))
+        print '(multiplicative) final optimal w: eps=%2.2e chi2=%2.2f res_sig=%2.5f res_tot=%2.4f' % (10**(eps),chi2,res_sig,res_tot)
 
         return w, w_cov
 
 
 def basis(x):
 
-    n_func = 18
+    n_func = 22
     X = np.zeros([x.shape[0],n_func])
 
-    x0=x[:,0]/100.
+    x0=x[:,0]/1000.
     x1=(x[:,1]-1)/10
 
     X[:,0]  = 1/x0**2    * 1/x1**2
     X[:,1]  = 1/x0**3    * 1/x1**3
     X[:,2]  = 1/x0**3    * 1/x1**2
     X[:,3]  = 1/x0**2    * 1/x1**3
-    # X[:,4]  = 1/x0**5  * 1/x1**5 # not used
-    # X[:,5]  = 1/x0**4  * 1/x1**5 # not used
-    # X[:,6]  = 1/x0**5  * 1/x1**4 # not used
+    X[:,4]  = 1/x0**1.5  * 1/x1**4 # not used
+    X[:,5]  = 1/x0**2    * 1/x1**4 # not used
+    X[:,6]  = 1/x0**2.5  * 1/x1**4 # not used
     X[:,7]  = 1/x0**2.5  * 1/x1**2.5
     X[:,8]  = 1/x0**2.5  * 1/x1**3
     X[:,9]  = 1/x0**3    * 1/x1**2.5
@@ -97,7 +99,11 @@ def basis(x):
     X[:,15] = 1/x0**1.25 * 1/x1**1.75
     X[:,16] = 1/x0**1.75 * 1/x1**1.25
     X[:,17] = 1/x0**4 * 1/x1**4
+    X[:,19] = 1/x0**4    * 1/x1**1.5 # not used
+    X[:,18] = 1/x0**5    * 1/x1**1.5 # not used
+    X[:,20] = 1/x0**6    * 1/x1**1.5 # not used
 
+    return X
     return X
 
 def fit_model(xt,yt,zt,st,ng,plots=False):
