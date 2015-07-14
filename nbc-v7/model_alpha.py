@@ -4,8 +4,8 @@ import os
 import tktools
 import tktools.fitting
 
-filename_table_bias = os.path.join('case-19-final3','bias_table.fits')
-bias_table = tktools.load(filename_table_bias)
+# filename_table_bias = os.path.join('case-19-final3','bias_table.fits')
+# bias_table = tktools.load(filename_table_bias)
 
 def get_model_prediction(filename_table_bias,xp,yp,plots=False):
 
