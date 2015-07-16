@@ -4,19 +4,9 @@ import os
 import tktools
 import tktools.fitting
 
-# filename_table_bias = os.path.join('case-19-final3','bias_table.fits')
-# bias_table = tktools.load(filename_table_bias)
-
 def get_model_prediction(filename_table_bias,xp,yp,plots=False):
 
-    xt=bias_table['vsnr_mid']
-    yt=bias_table['vpsf_mid']
-    zt=bias_table['pmm']
-    st=bias_table['std_pmm']
-    ng=bias_table['n_gals']
-
     w,w_cov = get_model(filename_table_bias,plots)
-
     xxp = np.concatenate([xp[:,None],yp[:,None]],axis=1)
 
     print 'getting prediction for %d data points' % xxp.shape[0]

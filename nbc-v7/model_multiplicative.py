@@ -4,7 +4,6 @@ import os
 import tktools
 import tktools.fitting
 
-
 def get_model_prediction(filename_table_bias,xp,yp,plots=False):
 
     w,w_cov = get_model(filename_table_bias,plots)
